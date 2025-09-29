@@ -16,18 +16,32 @@ class BankAdviceExport implements FromArray, WithHeadings
 
     public function array(): array
     {
-        return $this->payroll->employeePayrolls->map(function ($ep) {
+        $reference = $this->payroll->payrun_month . '/' . $this->payroll->payrun_year;
+
+        return $this->payroll->employeePayrolls->map(function ($ep) use ($reference) {
             return [
-                'employee_name' => $ep->employee->user->name ?? 'N/A',
-                'employee_code' => $ep->employee->employee_code ?? 'N/A',
-                'bank_name' => $ep->employee->paymentDetails->bank_name ?? 'N/A',
-                'bank_code' => $ep->employee->paymentDetails->bank_code ?? 'N/A',
-                'bank_branch' => $ep->employee->paymentDetails->bank_branch ?? 'N/A',
-                'bank_branch_code' => $ep->employee->paymentDetails->bank_branch_code ?? 'N/A',
-                'account_number' => $ep->employee->paymentDetails->account_number ?? 'N/A',
-                'payment_mode' => $ep->employee->paymentDetails->payment_mode ?? 'N/A',
-                'currency' => $ep->employee->paymentDetails->currency ?? 'N/A',
-                'net_pay' => number_format($ep->net_pay ?? 0, 2),
+                // Code (blank)
+                '',
+
+                // Amount (Net Pay)
+                number_format($ep->net_pay ?? 0, 2),
+
+                // Debit details (blank, to be filled manually)
+                '',
+                '',
+                '',
+
+                // Employee details
+                $ep->employee->paymentDetails->account_number ?? 'N/A',
+                $ep->employee->paymentDetails->bank_name ?? 'N/A',
+                $ep->employee->paymentDetails->bank_branch ?? 'N/A',
+                $ep->employee->user->name ?? 'N/A',
+
+                // Reference (Payroll Period)
+                $reference,
+
+                // Payment Mode
+                $ep->employee->paymentDetails->payment_mode ?? 'N/A',
             ];
         })->toArray();
     }
@@ -35,16 +49,17 @@ class BankAdviceExport implements FromArray, WithHeadings
     public function headings(): array
     {
         return [
+            'Code',
+            'Amount',
+            'Debit Account',
+            'Debit Bank',
+            'Debit Branch',
+            'Employee Account',
+            'Employee Bank',
+            'Employee Branch',
             'Employee Name',
-            'Employee Code',
-            'Bank Name',
-            'Bank Code',
-            'Bank Branch',
-            'Branch Code',
-            'Account Number',
+            'Reference',
             'Payment Mode',
-            'Currency',
-            'Net Pay',
         ];
     }
 }

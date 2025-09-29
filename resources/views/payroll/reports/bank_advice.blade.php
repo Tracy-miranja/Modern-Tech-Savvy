@@ -224,7 +224,7 @@
     'bank_branch' => $ep->employee->paymentDetails->bank_branch ?? 'N/A',
     'bank_branch_code' => $ep->employee->paymentDetails->bank_branch_code ?? 'N/A',
     'account_number' => $ep->employee->paymentDetails->account_number ?? 'N/A',
-    'payment_mode' => $ep->employee->paymentDetails->payment_mode ?? 'N/A',
+    'status' => $ep->employee->paymentDetails->payment_mode ?? 'N/A',
     'currency' => $ep->employee->paymentDetails->currency ?? 'N/A',
     'net_pay' => $ep->net_pay ?? 0, // Unformatted for calculation
     'net_pay_formatted' => number_format($ep->net_pay ?? 0, 2), // Formatted for display
@@ -237,44 +237,51 @@
     @if(empty($data))
     <p>No payment details available for this payroll.</p>
     @else
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Employee Name</th>
-                <th>Employee Code</th>
-                <th>Bank Name</th>
-                <th>Bank Code</th>
-                <th>Bank Branch</th>
-                <th>Branch Code</th>
-                <th>Account Number</th>
-                <th>Payment Mode</th>
-                <th>Currency</th>
-                <th>Net Pay</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach($data as $row)
-            <tr>
-                <td>{{ $row['employee_name'] }}</td>
-                <td>{{ $row['employee_code'] }}</td>
-                <td>{{ $row['bank_name'] }}</td>
-                <td>{{ $row['bank_code'] }}</td>
-                <td>{{ $row['bank_branch'] }}</td>
-                <td>{{ $row['bank_branch_code'] }}</td>
-                <td>{{ $row['account_number'] }}</td>
-                <td>{{ $row['payment_mode'] }}</td>
-                <td>{{ $row['currency'] }}</td>
-                <td>{{ $row['net_pay_formatted'] }}</td>
-            </tr>
-            @endforeach
-        </tbody>
-        <tfoot>
-            <tr>
-                <td colspan="9" class="text-right"><strong>Total:</strong></td>
-                <td><strong>{{ number_format($totals['totalNetPay'] ?? 0, 2) }}</strong></td>
-            </tr>
-        </tfoot>
-    </table>
+   <table class="table">
+    <thead>
+        <tr>
+            <th>Code</th>
+            <th>Amount</th>
+            <th>Debit Account</th>
+            <th>Debit Bank</th>
+            <th>Debit Branch</th>
+            <th>Employee Account</th>
+            <th>Employee Bank</th>
+            <th>Employee Branch</th>
+            <th>Employee Name</th>
+            <th>Reference</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach($data as $row)
+        <tr>
+            <td>{{ $row['employee_code'] }}</td>
+            <td>{{ $row['net_pay_formatted'] }}</td>
+
+            <!-- Manual entry fields -->
+            <td>{{ $manualDebitAccount ?? '' }}</td>
+            <td>{{ $manualDebitBank ?? '' }}</td>
+            <td>{{ $manualDebitBranch ?? '' }}</td>
+
+            <!-- Employee details -->
+            <td>{{ $row['account_number'] }}</td>
+            <td>{{ $row['bank_name'] }}</td>
+            <td>{{ $row['bank_branch'] }}</td>
+            <td>{{ $row['employee_name'] }}</td>
+            <td>{{ $row['reference'] ?? '' }}</td>
+            <td>{{ $row['status'] }}</td>
+        </tr>
+        @endforeach
+    </tbody>
+    <tfoot>
+        <tr>
+            <td colspan="10" class="text-right"><strong>Total:</strong></td>
+            <td><strong>{{ number_format($totals['totalNetPay'] ?? 0, 2) }}</strong></td>
+        </tr>
+    </tfoot>
+</table>
+
     @endif
 
     <!-- Footer -->
