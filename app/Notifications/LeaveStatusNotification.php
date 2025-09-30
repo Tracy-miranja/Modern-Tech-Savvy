@@ -10,7 +10,7 @@ use Illuminate\Notifications\Messages\MailMessage;
 
 class LeaveStatusNotification extends Notification implements ShouldQueue
 {
-    use Queueable;
+    // use Queueable;
 
     public $leave;
 
@@ -29,7 +29,7 @@ class LeaveStatusNotification extends Notification implements ShouldQueue
         $status = $this->leave->status;
         $subject = $this->getEmailSubject($status);
         $greeting = "Hello {$notifiable->name},";
-        
+
         $mailMessage = (new MailMessage)
             ->subject($subject)
             ->greeting($greeting);
@@ -55,7 +55,7 @@ class LeaveStatusNotification extends Notification implements ShouldQueue
     public function toDatabase($notifiable)
     {
         $status = $this->leave->status;
-        
+
         return [
             'leave_id'           => $this->leave->id,
             'reference_number'   => $this->leave->reference_number,
@@ -125,7 +125,7 @@ class LeaveStatusNotification extends Notification implements ShouldQueue
     {
         $currentLevel = $this->leave->current_approval_level;
         $requiredLevels = optional($this->leave->leaveType)->approval_levels ?? 1;
-        
+
         if ($currentLevel > 0 && $currentLevel < $requiredLevels) {
             // Partial approval
             $mailMessage = $mailMessage
@@ -174,7 +174,7 @@ class LeaveStatusNotification extends Notification implements ShouldQueue
             case 'pending':
                 $currentLevel = $this->leave->current_approval_level;
                 $requiredLevels = optional($this->leave->leaveType)->approval_levels ?? 1;
-                
+
                 if ($currentLevel > 0 && $currentLevel < $requiredLevels) {
                     return "Your leave request has received level {$currentLevel} approval and is awaiting final approval.";
                 }
@@ -187,8 +187,8 @@ class LeaveStatusNotification extends Notification implements ShouldQueue
     protected function getActionRequired($status, $notifiable)
     {
         // Check if this is the employee and documentation is required
-        if ($status === 'pending' && 
-            $this->leave->requires_documentation && 
+        if ($status === 'pending' &&
+            $this->leave->requires_documentation &&
             !$this->leave->attachment &&
             optional($notifiable->employee)->id === $this->leave->employee_id) {
             return 'upload_document';

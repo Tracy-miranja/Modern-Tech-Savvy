@@ -226,8 +226,8 @@
     'account_number' => $ep->employee->paymentDetails->account_number ?? 'N/A',
     'status' => $ep->employee->paymentDetails->payment_mode ?? 'N/A',
     'currency' => $ep->employee->paymentDetails->currency ?? 'N/A',
-    'net_pay' => $ep->net_pay ?? 0, // Unformatted for calculation
-    'net_pay_formatted' => number_format($ep->net_pay ?? 0, 2), // Formatted for display
+    'net_pay' => $ep->employee->paymentDetails->basic_salary ?? 0, // Unformatted for calculation
+    'net_pay_formatted' => number_format($ep->employee->paymentDetails->basic_salary ?? 0, 2), // Formatted for display
     ];
     })->toArray();
     $business = $business ?? $payroll->business;

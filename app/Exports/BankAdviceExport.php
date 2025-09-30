@@ -41,7 +41,7 @@ class BankAdviceExport implements FromArray, WithHeadings
                 $reference,
 
                 // Payment Mode
-                $ep->employee->paymentDetails->payment_mode ?? 'N/A',
+                '',
             ];
         })->toArray();
     }
@@ -59,7 +59,7 @@ class BankAdviceExport implements FromArray, WithHeadings
             'Employee Branch',
             'Employee Name',
             'Reference',
-            'Payment Mode',
+            'status',
         ];
     }
 }
