@@ -189,78 +189,27 @@ $rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
         return $pdf->download("P9_{$year}_{$employee->employee_code}.pdf");
     }
 
-    // public function viewPayslips(Request $request, $business)
-    // {
-    //     $business = Business::findBySlug($business);
-    //     if (!$business || session('active_business_slug') !== $business->slug) {
-    //         return redirect()->back()->with('error', 'Business not found or mismatched.');
-    //     }
-
-    //     $employee = Employee::where('business_id', $business->id)
-    //         ->where('user_id', Auth::id())
-    //         ->first();
-    //     if (!$employee) {
-    //         return redirect()->back()->with('error', 'Employee record not found.');
-    //     }
-
-    //   $payslips = EmployeePayroll::where('employee_id', $employee->id)
-    // ->with(['payroll'])
-    // ->get()
-    // ->map(function ($ep) {
-    //     if (!$ep->payroll) {
-    //         \Log::warning('Payroll record missing for EmployeePayroll', ['employee_payroll_id' => $ep->id, 'payroll_id' => $ep->payroll_id]);
-    //         return null; // Skip records with missing payroll
-    //     }
-    //     return [
-    //         'payroll_id' => $ep->payroll_id,
-    //         'year' => $ep->payroll->payrun_year,
-    //         'month' => $ep->payroll->payrun_month,
-    //         'month_name' => Carbon::create($ep->payroll->payrun_year, $ep->payroll->payrun_month, 1)->monthName,
-    //         'status' => $ep->payroll->status,
-    //     ];
-    // })
-    // ->filter() // Remove null entries
-    // ->sortByDesc('year')
-    // ->sortByDesc('month')
-    // ->values();
-
-    //     log::info($payslips);
-
-    //     $page = "My Payslips";
-    //     return view('employee.payslips', compact('page', 'payslips', 'employee', 'business'));
-    // }
     public function viewPayslips(Request $request, $business)
-{
-    $business = Business::findBySlug($business);
-    if (!$business || session('active_business_slug') !== $business->slug) {
-        return redirect()->back()->with('error', 'Business not found or mismatched.');
-    }
+    {
+        $business = Business::findBySlug($business);
+        if (!$business || session('active_business_slug') !== $business->slug) {
+            return redirect()->back()->with('error', 'Business not found or mismatched.');
+        }
 
-    $employee = Employee::where('business_id', $business->id)
-        ->where('user_id', Auth::id())
-        ->first();
-    if (!$employee) {
-        return redirect()->back()->with('error', 'Employee record not found.');
-    }
+        $employee = Employee::where('business_id', $business->id)
+            ->where('user_id', Auth::id())
+            ->first();
+        if (!$employee) {
+            return redirect()->back()->with('error', 'Employee record not found.');
+        }
 
-    $payslips = EmployeePayroll::where('employee_id', $employee->id)
-        ->with(['payroll'])
-        ->get();
-
-    \Log::info('EmployeePayroll records for user', [
-        'user_id' => Auth::id(),
-        'employee_id' => $employee->id,
-        'count' => $payslips->count(),
-        'data' => $payslips->toArray()
-    ]);
-
-    $payslips = $payslips->map(function ($ep) {
+      $payslips = EmployeePayroll::where('employee_id', $employee->id)
+    ->with(['payroll'])
+    ->get()
+    ->map(function ($ep) {
         if (!$ep->payroll) {
-            \Log::warning('Payroll record missing for EmployeePayroll', [
-                'employee_payroll_id' => $ep->id,
-                'payroll_id' => $ep->payroll_id
-            ]);
-            return null;
+            \Log::warning('Payroll record missing for EmployeePayroll', ['employee_payroll_id' => $ep->id, 'payroll_id' => $ep->payroll_id]);
+            return null; // Skip records with missing payroll
         }
         return [
             'payroll_id' => $ep->payroll_id,
@@ -269,24 +218,75 @@ $rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
             'month_name' => Carbon::create($ep->payroll->payrun_year, $ep->payroll->payrun_month, 1)->monthName,
             'status' => $ep->payroll->status,
         ];
-    })->filter()->sortByDesc('year')->sortByDesc('month')->values();
+    })
+    ->filter() // Remove null entries
+    ->sortByDesc('year')
+    ->sortByDesc('month')
+    ->values();
 
-    if ($payslips->isEmpty()) {
-        \Log::info('No valid payslips found for user', ['user_id' => Auth::id(), 'employee_id' => $employee->id]);
-        return view('employee.payslips', [
-            'page' => 'My Payslips',
-            'payslips' => [],
-            'employee' => $employee,
-            'business' => $business,
-            'message' => 'No payslips found for this employee.'
-        ]);
+        log::info($payslips);
+
+        $page = "My Payslips";
+        return view('employee.payslips', compact('page', 'payslips', 'employee', 'business'));
     }
+//     public function viewPayslips(Request $request, $business)
+// {
+//     $business = Business::findBySlug($business);
+//     if (!$business || session('active_business_slug') !== $business->slug) {
+//         return redirect()->back()->with('error', 'Business not found or mismatched.');
+//     }
 
-    \Log::info('Mapped payslips', ['payslips' => $payslips->toArray()]);
+//     $employee = Employee::where('business_id', $business->id)
+//         ->where('user_id', Auth::id())
+//         ->first();
+//     if (!$employee) {
+//         return redirect()->back()->with('error', 'Employee record not found.');
+//     }
 
-    $page = "My Payslips";
-    return view('employee.payslips', compact('page', 'payslips', 'employee', 'business'));
-}
+//     $payslips = EmployeePayroll::where('employee_id', $employee->id)
+//         ->with(['payroll'])
+//         ->get();
+
+//     \Log::info('EmployeePayroll records for user', [
+//         'user_id' => Auth::id(),
+//         'employee_id' => $employee->id,
+//         'count' => $payslips->count(),
+//         'data' => $payslips->toArray()
+//     ]);
+
+//     $payslips = $payslips->map(function ($ep) {
+//         if (!$ep->payroll) {
+//             \Log::warning('Payroll record missing for EmployeePayroll', [
+//                 'employee_payroll_id' => $ep->id,
+//                 'payroll_id' => $ep->payroll_id
+//             ]);
+//             return null;
+//         }
+//         return [
+//             'payroll_id' => $ep->payroll_id,
+//             'year' => $ep->payroll->payrun_year,
+//             'month' => $ep->payroll->payrun_month,
+//             'month_name' => Carbon::create($ep->payroll->payrun_year, $ep->payroll->payrun_month, 1)->monthName,
+//             'status' => $ep->payroll->status,
+//         ];
+//     })->filter()->sortByDesc('year')->sortByDesc('month')->values();
+
+//     if ($payslips->isEmpty()) {
+//         \Log::info('No valid payslips found for user', ['user_id' => Auth::id(), 'employee_id' => $employee->id]);
+//         return view('employee.payslips', [
+//             'page' => 'My Payslips',
+//             'payslips' => [],
+//             'employee' => $employee,
+//             'business' => $business,
+//             'message' => 'No payslips found for this employee.'
+//         ]);
+//     }
+
+//     \Log::info('Mapped payslips', ['payslips' => $payslips->toArray()]);
+
+//     $page = "My Payslips";
+//     return view('employee.payslips', compact('page', 'payslips', 'employee', 'business'));
+// }
 
     public function downloadPayslip($payrollId)
     {
@@ -321,79 +321,216 @@ $rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
         return $pdf->download("Payslip_{$employeePayroll->payroll->payrun_year}_{$monthName}_{$employee->employee_code}.pdf");
     }
 
-    private function prepareP9Data($employee, $payrolls, $year)
-    {
-        $monthlyData = array_fill(1, 12, [
-            'basic_salary' => 0,              // A
-            'benefits_non_cash' => 0,         // B
-            'value_of_quarters' => 0,         // C
-            'total_gross_pay' => 0,           // D
-            'retirement_e1' => 0,             // E1 (30% of A)
-            'retirement_e2' => 0,             // E2 (Actual)
-            'retirement_e3' => 20000,         // E3 (Fixed KRA limit)
-            'owner_occupied_interest' => 0,   // F
-            'retirement_contribution' => 0,   // G (Lowest of E + F)
-            'chargeable_pay' => 0,            // H
-            'tax_charged' => 0,               // J
-            'personal_relief' => 2400,        // K (KRA standard monthly max)
-            'insurance_relief' => 0,          // K
-            'paye' => 0,                      // J-K
-        ]);
-
-        foreach ($payrolls as $ep) {
-            $month = (int)$ep->payroll->payrun_month;
-            $deductions = json_decode($ep->deductions, true) ?? [];
-            $basicSalary = (float)$ep->basic_salary;
-            $grossPay = (float)$ep->gross_pay;
-            $taxableIncome = (float)$ep->taxable_income;
-            $paye = (float)$ep->paye;
-            $personalRelief = (float)$ep->personal_relief ?? 2400;
-            $insuranceRelief = (float)$ep->insurance_relief ?? 0;
-            $retirementE1 = $basicSalary * 0.3; // 30% of basic salary
-            $retirementE2 = (float)($ep->pension ?? ($deductions['pension'] ?? 0)); // Actual contribution
-
-            $monthlyData[$month] = [
-                'basic_salary' => $basicSalary,
-                'benefits_non_cash' => 0, // Add logic if tracked
-                'value_of_quarters' => 0, // Add logic if tracked
-                'total_gross_pay' => $grossPay,
-                'retirement_e1' => $retirementE1,
-                'retirement_e2' => $retirementE2,
-                'retirement_e3' => 20000,
-                'owner_occupied_interest' => 0, // Add if applicable
-                'retirement_contribution' => min($retirementE1, $retirementE2, 20000),
-                'chargeable_pay' => $taxableIncome,
-                'tax_charged' => $paye + $personalRelief + $insuranceRelief, // Reverse calculate J
-                'personal_relief' => $personalRelief,
-                'insurance_relief' => $insuranceRelief,
-                'paye' => $paye,
-            ];
+private function prepareP9Data($employee, $employeePayrolls, $business = null)
+{
+    // Fetch business from session if not provided
+    if (!$business) {
+        $businessSlug = session('current_business_slug');
+        $business = $businessSlug ? Business::findBySlug($businessSlug) : null;
+        if (!$business) {
+            $business = new \stdClass(); // Fallback to empty object if no business found
+            $business->pin = 'N/A';
+            $business->name = 'N/A';
         }
+    }
 
-        $totals = [
-            'basic_salary' => array_sum(array_column($monthlyData, 'basic_salary')),
-            'benefits_non_cash' => array_sum(array_column($monthlyData, 'benefits_non_cash')),
-            'value_of_quarters' => array_sum(array_column($monthlyData, 'value_of_quarters')),
-            'total_gross_pay' => array_sum(array_column($monthlyData, 'total_gross_pay')),
-            'retirement_e1' => array_sum(array_column($monthlyData, 'retirement_e1')),
-            'retirement_e2' => array_sum(array_column($monthlyData, 'retirement_e2')),
-            'retirement_e3' => array_sum(array_column($monthlyData, 'retirement_e3')),
-            'owner_occupied_interest' => array_sum(array_column($monthlyData, 'owner_occupied_interest')),
-            'retirement_contribution' => array_sum(array_column($monthlyData, 'retirement_contribution')),
-            'chargeable_pay' => array_sum(array_column($monthlyData, 'chargeable_pay')),
-            'tax_charged' => array_sum(array_column($monthlyData, 'tax_charged')),
-            'personal_relief' => array_sum(array_column($monthlyData, 'personal_relief')),
-            'insurance_relief' => array_sum(array_column($monthlyData, 'insurance_relief')),
-            'paye' => array_sum(array_column($monthlyData, 'paye')),
-        ];
+    // Initialize monthly data array with default values for 12 months
+    $monthlyData = array_fill(1, 12, [
+        'basic_salary' => 0,              // A
+        'benefits_non_cash' => 0,         // B
+        'value_of_quarters' => 0,         // C
+        'total_gross_pay' => 0,           // D
+        'retirement_e1' => 0,             // E1 (30% of A)
+        'retirement_e2' => 0,             // E2 (Actual)
+        'retirement_e3' => 30000,         // E3 (Fixed KRA limit for 2025)
+        'ahl' => 0,                       // F (Affordable Housing Levy)
+        'shif' => 0,                      // G (Social Health Insurance Fund)
+        'prmf' => 0,                      // H (Post Retirement Medical Fund)
+        'owner_occupied_interest' => 0,   // I
+        'total_deductions' => 0,          // J (Sum of defined contribution + other deductions)
+        'chargeable_pay' => 0,            // K (D - J)
+        'tax_charged' => 0,               // L
+        'personal_relief' => 2400,        // M (KRA standard, monthly)
+        'insurance_relief' => 0,          // N (Max 5000/month)
+        'paye' => 0,                      // O (L - M - N)
+    ]);
 
-        return [
-            'employee_name' => $employee->full_name,
-            'tax_no' => $employee->tax_no ?? 'N/A',
-            'monthly_data' => $monthlyData,
-            'totals' => $totals,
+    // Populate monthly data from payroll records
+    foreach ($employeePayrolls as $ep) {
+        $month = (int)$ep->payroll->payrun_month;
+        $deductions = json_decode($ep->deductions, true) ?? [];
+
+        // Cast values to float to ensure numeric operations
+        $basicSalary = (float)($ep->basic_salary ?? 0);
+        $grossPay = (float)($ep->gross_pay ?? 0);
+        $taxableIncome = (float)($ep->taxable_income ?? 0);
+        $paye = (float)($ep->paye ?? ($deductions['paye'] ?? 0));
+        $personalRelief = (float)($ep->personal_relief ?? 2400);
+        $insuranceRelief = min((float)($ep->insurance_relief ?? 0), 5000); // Cap at 5000/month
+        $retirementE1 = $basicSalary * 0.3; // 30% of basic salary
+        $retirementE2 = (float)($ep->pension ?? ($deductions['pension'] ?? 0)); // Actual contribution
+        $ahl = (float)($deductions['ahl'] ?? ($grossPay * 0.015)); // 1.5% of gross pay if not set
+        $shif = (float)($deductions['shif'] ?? 0);
+        $prmf = min((float)($deductions['prmf'] ?? 0), 15000); // Cap at 15,000
+        $owner_occupied_interest = min((float)($deductions['owner_occupied_interest'] ?? 0), 30000); // Cap at 30,000
+
+        // Calculate defined contribution as the minimum of E1, E2, and E3 cap
+        $definedContribution = min($retirementE1, $retirementE2, 30000);
+        $total_deductions = $definedContribution + $ahl + $shif + $prmf + $owner_occupied_interest;
+        $chargeablePay = max(0, $grossPay - $total_deductions); // Ensure non-negative
+        $taxCharged = $paye + $personalRelief + $insuranceRelief; // Reverse calculate
+        $payeCalculated = max(0, $taxCharged - $personalRelief - $insuranceRelief); // Ensure non-negative PAYE
+
+        $monthlyData[$month] = [
+            'basic_salary' => $basicSalary,
+            'benefits_non_cash' => (float)($ep->benefits_non_cash ?? ($deductions['benefits_non_cash'] ?? 0)),
+            'value_of_quarters' => (float)($ep->value_of_quarters ?? ($deductions['value_of_quarters'] ?? 0)),
+            'total_gross_pay' => $grossPay,
+            'retirement_e1' => $retirementE1,
+            'retirement_e2' => $retirementE2,
+            'retirement_e3' => 30000,
+            'ahl' => $ahl,
+            'shif' => $shif,
+            'prmf' => $prmf,
+            'owner_occupied_interest' => $owner_occupied_interest,
+            'total_deductions' => $total_deductions,
+            'chargeable_pay' => $chargeablePay,
+            'tax_charged' => $taxCharged,
+            'personal_relief' => $personalRelief,
+            'insurance_relief' => $insuranceRelief,
+            'paye' => $payeCalculated,
         ];
     }
+
+    // Calculate totals across all months
+    $totals = [
+        'basic_salary' => array_sum(array_column($monthlyData, 'basic_salary')),
+        'benefits_non_cash' => array_sum(array_column($monthlyData, 'benefits_non_cash')),
+        'value_of_quarters' => array_sum(array_column($monthlyData, 'value_of_quarters')),
+        'total_gross_pay' => array_sum(array_column($monthlyData, 'total_gross_pay')),
+        'retirement_e1' => array_sum(array_column($monthlyData, 'retirement_e1')),
+        'retirement_e2' => array_sum(array_column($monthlyData, 'retirement_e2')),
+        'retirement_e3' => array_sum(array_column($monthlyData, 'retirement_e3')),
+        'ahl' => array_sum(array_column($monthlyData, 'ahl')),
+        'shif' => array_sum(array_column($monthlyData, 'shif')),
+        'prmf' => array_sum(array_column($monthlyData, 'prmf')),
+        'owner_occupied_interest' => array_sum(array_column($monthlyData, 'owner_occupied_interest')),
+        'total_deductions' => array_sum(array_column($monthlyData, 'total_deductions')),
+        'chargeable_pay' => array_sum(array_column($monthlyData, 'chargeable_pay')),
+        'tax_charged' => array_sum(array_column($monthlyData, 'tax_charged')),
+        'personal_relief' => array_sum(array_column($monthlyData, 'personal_relief')),
+        'insurance_relief' => array_sum(array_column($monthlyData, 'insurance_relief')),
+        'paye' => array_sum(array_column($monthlyData, 'paye')),
+    ];
+
+    // Split employee full name into main name and other names
+    $employeeNameParts = explode(' ', trim($employee->full_name), 2);
+
+    return [
+        'employer_pin' => $business->tax_pin_no ?? 'N/A',           // Employer's PIN from Business model
+        'employer_name' => $business->company_name ?? 'N/A',         // Employer's name from Business model
+        'employee_main_name' => $employeeNameParts[0] ?? '', // First name or part of full name
+        'employee_other_names' => $employeeNameParts[1] ?? '', // Remaining names
+        'employee_pin' => $employee->tax_no ?? 'N/A',        // Employee's tax number
+        'monthly_data' => $monthlyData,
+        'totals' => $totals,
+    ];
+}
+
+// private function prepareP9Data($employee, $payrolls, $year)
+// {
+//     $monthlyData = array_fill(1, 12, [
+//         'basic_salary' => 0,              // A
+//         'benefits_non_cash' => 0,         // B
+//         'value_of_quarters' => 0,         // C
+//         'total_gross_pay' => 0,           // D
+//         'retirement_e1' => 0,             // E1 (30% of A)
+//         'retirement_e2' => 0,             // E2 (Actual)
+//         'retirement_e3' => 30000,         // E3 (Fixed KRA limit for 2025)
+//         'ahl' => 0,                       // F
+//         'shif' => 0,                      // G
+//         'prmf' => 0,                      // H
+//         'owner_occupied_interest' => 0,   // I
+//         'total_deductions' => 0,          // J
+//         'chargeable_pay' => 0,            // K
+//         'tax_charged' => 0,               // L
+//         'personal_relief' => 2400,        // M
+//         'insurance_relief' => 0,          // N
+//         'paye' => 0,                      // O
+//     ]);
+
+//     foreach ($payrolls as $ep) {
+//         $month = (int)$ep->payroll->payrun_month;
+//         $deductions = json_decode($ep->deductions, true) ?? [];
+//         $basicSalary = (float)$ep->basic_salary;
+//         $grossPay = (float)$ep->gross_pay;
+//         $taxableIncome = (float)$ep->taxable_income;
+//         $paye = (float)$ep->paye;
+//         $personalRelief = (float)($ep->personal_relief ?? 2400);
+//         $insuranceRelief = (float)($ep->insurance_relief ?? 0);
+//         $retirementE1 = $basicSalary * 0.3; // 30% of basic salary
+//         $retirementE2 = (float)($ep->pension ?? ($deductions['pension'] ?? 0)); // Actual contribution
+//         $ahl = (float)($deductions['ahl'] ?? 0);
+//         $shif = (float)($deductions['shif'] ?? 0);
+//         $prmf = min((float)($deductions['prmf'] ?? 0), 15000); // Cap at 15,000
+//         $owner_occupied_interest = min((float)($deductions['owner_occupied_interest'] ?? 0), 30000); // Cap at 30,000
+
+//         $total_deductions = min($retirementE1, $retirementE2, 30000) + $ahl + $shif + $prmf + $owner_occupied_interest;
+
+//         $monthlyData[$month] = [
+//             'basic_salary' => $basicSalary,
+//             'benefits_non_cash' => (float)($ep->benefits_non_cash ?? ($deductions['benefits_non_cash'] ?? 0)),
+//             'value_of_quarters' => (float)($ep->value_of_quarters ?? ($deductions['value_of_quarters'] ?? 0)),
+//             'total_gross_pay' => $grossPay,
+//             'retirement_e1' => $retirementE1,
+//             'retirement_e2' => $retirementE2,
+//             'retirement_e3' => 30000,
+//             'ahl' => $ahl,
+//             'shif' => $shif,
+//             'prmf' => $prmf,
+//             'owner_occupied_interest' => $owner_occupied_interest,
+//             'total_deductions' => $total_deductions,
+//             'chargeable_pay' => $taxableIncome,
+//             'tax_charged' => $paye + $personalRelief + $insuranceRelief,
+//             'personal_relief' => $personalRelief,
+//             'insurance_relief' => $insuranceRelief,
+//             'paye' => $paye,
+//         ];
+//     }
+
+//     $totals = [
+//         'basic_salary' => array_sum(array_column($monthlyData, 'basic_salary')),
+//         'benefits_non_cash' => array_sum(array_column($monthlyData, 'benefits_non_cash')),
+//         'value_of_quarters' => array_sum(array_column($monthlyData, 'value_of_quarters')),
+//         'total_gross_pay' => array_sum(array_column($monthlyData, 'total_gross_pay')),
+//         'retirement_e1' => array_sum(array_column($monthlyData, 'retirement_e1')),
+//         'retirement_e2' => array_sum(array_column($monthlyData, 'retirement_e2')),
+//         'retirement_e3' => array_sum(array_column($monthlyData, 'retirement_e3')),
+//         'ahl' => array_sum(array_column($monthlyData, 'ahl')),
+//         'shif' => array_sum(array_column($monthlyData, 'shif')),
+//         'prmf' => array_sum(array_column($monthlyData, 'prmf')),
+//         'owner_occupied_interest' => array_sum(array_column($monthlyData, 'owner_occupied_interest')),
+//         'total_deductions' => array_sum(array_column($monthlyData, 'total_deductions')),
+//         'chargeable_pay' => array_sum(array_column($monthlyData, 'chargeable_pay')),
+//         'tax_charged' => array_sum(array_column($monthlyData, 'tax_charged')),
+//         'personal_relief' => array_sum(array_column($monthlyData, 'personal_relief')),
+//         'insurance_relief' => array_sum(array_column($monthlyData, 'insurance_relief')),
+//         'paye' => array_sum(array_column($monthlyData, 'paye')),
+//     ];
+
+//     $employeeNameParts = explode(' ', $employee->full_name, 2);
+
+//     return [
+//         'employer_pin' => $employee->tax_no ?? 'N/A',
+//         'employer_name' => $employee->user->name ?? 'N/A',
+//         'employee_main_name' => $employeeNameParts[0] ?? '',
+//         'employee_other_names' => $employeeNameParts[1] ?? '',
+//         'employee_pin' => $employee->tax_no ?? 'N/A',
+//         'monthly_data' => $monthlyData,
+//         'totals' => $totals,
+//     ];
+// }
+
 
     public function accountSettings()
     {
