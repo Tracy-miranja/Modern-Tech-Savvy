@@ -66,55 +66,67 @@ class EmployeeController extends Controller
     }
 
     public function fetch(Request $request)
-    {
-        $business = Business::findBySlug(session('active_business_slug'));
-        $query = Employee::where('business_id', $business->id)
-            ->with(['user', 'department', 'location', 'paymentDetails', 'employmentDetails.jobCategory']);
+{
+    $business = Business::findBySlug(session('active_business_slug'));
 
-        if ($search = $request->input('search')) {
-            $query->where(function ($q) use ($search) {
-                $q->whereHas('user', fn($q) => $q->where('name', 'like', "%{$search}%"))
-                    ->orWhere('employee_code', 'like', "%{$search}%");
-            });
-        }
-        if ($department = $request->input('department')) {
-            $query->where('department_id', $department);
-        }
-        if ($location = $request->input('location')) {
-            $query->where('location_id', $location);
-        }
-        if ($jobCategory = $request->input('job_category')) {
-            $query->whereHas('employmentDetails', function ($q) use ($jobCategory) {
-                $q->where('job_category_id', $jobCategory);
-            });
-        }
+    $query = Employee::where('business_id', $business->id)
+        ->with(['user', 'department', 'location', 'paymentDetails', 'employmentDetails.jobCategory']);
 
-        $employees = $query->paginate(10);
-        $data = $employees->map(function ($employee) {
-            return [
-                'id' => $employee->id,
-                'name' => $employee->user->name,
-                'employee_code' => $employee->employee_code,
-                'department' => $employee->department ? $employee->department->name : 'N/A',
-                'job_category' => optional($employee->employmentDetails)->jobCategory ? $employee->employmentDetails->jobCategory->name : 'N/A',
-                'location' => $employee->location ? $employee->location->name : $employee->business->company_name,
-                'basic_salary' => number_format((float) (optional($employee->paymentDetails)->basic_salary ?? 0), 2) . ' ' . (optional($employee->paymentDetails)->currency ?? 'N/A'),
-                'actions' => '<div class="btn-group">' .
-                    '<button class="btn btn-sm btn-outline-primary" onclick="viewEmployee(' . $employee->id . ')"><i class="fa fa-eye"></i> View</button>' .
-                    '<button class="btn btn-sm btn-outline-warning" onclick="editEmployee(' . $employee->id . ')"><i class="fa fa-edit"></i> Edit</button>' .
-                    '<button class="btn btn-sm btn-outline-danger" onclick="deleteEmployee(' . $employee->id . ')"><i class="fa fa-trash"></i> Delete</button>' .
-                    '</div>'
-            ];
+    // Search filter
+    if ($search = $request->input('search.value')) {
+        $query->where(function ($q) use ($search) {
+            $q->whereHas('user', fn($q) => $q->where('name', 'like', "%{$search}%"))
+              ->orWhere('employee_code', 'like', "%{$search}%");
         });
+    }
 
-        return response()->json([
-            'draw' => $request->input('draw'),
-            'recordsTotal' => Employee::where('business_id', $business->id)->count(),
-            'recordsFiltered' => $employees->total(),
-            'data' => $data->toArray(),
-            'message' => 'Employees fetched successfully.',
-            'count' => $employees->total(),
-        ]);
+    if ($department = $request->input('department')) {
+        $query->where('department_id', $department);
+    }
+
+    if ($location = $request->input('location')) {
+        $query->where('location_id', $location);
+    }
+
+    if ($jobCategory = $request->input('job_category')) {
+        $query->whereHas('employmentDetails', function ($q) use ($jobCategory) {
+            $q->where('job_category_id', $jobCategory);
+        });
+    }
+
+    // DataTables pagination params
+    $start  = $request->input('start', 0);
+    $length = $request->input('length', 10);
+
+    $recordsTotal    = Employee::where('business_id', $business->id)->count();
+    $recordsFiltered = $query->count();
+
+    $employees = $query->skip($start)->take($length)->get();
+
+    $data = $employees->map(function ($employee) {
+        return [
+            'id' => $employee->id,
+            'name' => $employee->user->name,
+            'employee_code' => $employee->employee_code,
+            'department' => $employee->department ? $employee->department->name : 'N/A',
+            'job_category' => optional($employee->employmentDetails)->jobCategory ? $employee->employmentDetails->jobCategory->name : 'N/A',
+            'location' => $employee->location ? $employee->location->name : $employee->business->company_name,
+            'basic_salary' => number_format((float) (optional($employee->paymentDetails)->basic_salary ?? 0), 2) . ' ' . (optional($employee->paymentDetails)->currency ?? 'N/A'),
+            'actions' => '<div class="btn-group">' .
+                '<button class="btn btn-sm btn-outline-primary" onclick="viewEmployee(' . $employee->id . ')"><i class="fa fa-eye"></i> View</button>' .
+                '<button class="btn btn-sm btn-outline-warning" onclick="editEmployee(' . $employee->id . ')"><i class="fa fa-edit"></i> Edit</button>' .
+                '<button class="btn btn-sm btn-outline-danger" onclick="deleteEmployee(' . $employee->id . ')"><i class="fa fa-trash"></i> Delete</button>' .
+                '</div>'
+        ];
+    });
+
+    return response()->json([
+        'draw'            => intval($request->input('draw')),
+        'recordsTotal'    => $recordsTotal,
+        'recordsFiltered' => $recordsFiltered,
+        'data'            => $data,
+    ]);
+
     }
         //added this for dedicated leave entitlements
     public function fetchForEntitlements(Request $request)
@@ -438,6 +450,8 @@ class EmployeeController extends Controller
             'job_description' => 'nullable|string|max:1000',
             'documents.*' => 'nullable|file|mimes:pdf,doc,docx,jpg,png|max:2048',
             'document_types.*' => 'nullable|string|max:255',
+            'second_probation_end_date' => 'nullable|date|after:probation_end_date',
+
         ]);
 
         Log::info('Updating employee ID: ' . $id, ['validated_data' => $validated]);
@@ -473,8 +487,7 @@ class EmployeeController extends Controller
                 'is_exempt_from_payroll' => $validated['is_exempt_from_payroll'] ?? false,
                 'resident_status' => $validated['resident_status'] ?? null,
                 'kra_employee_status' => $validated['kra_employee_status'] ?? null,
-                'license_reg_number' => $validated['license_reg_number'] ?? null,
-                'license_expiry_date' => $validated['license_expiry_date'] ?? null,
+
             ]);
 
             $employee->user->update([
@@ -491,9 +504,12 @@ class EmployeeController extends Controller
                     'employment_term' => $validated['employment_term'],
                     'employment_date' => $validated['employment_date'] ?? now(),
                     'probation_end_date' => $validated['probation_end_date'] ?? null,
+                    'second_probation_end_date' => $validated['second_probation_end_date'] ?? null,
                     'contract_end_date' => $validated['contract_end_date'] ?? null,
                     'retirement_date' => $validated['retirement_date'] ?? null,
                     'job_description' => $validated['job_description'] ?? null,
+                    'license_reg_number' => $validated['license_reg_number'] ?? null,
+        'license_expiry_date' => $validated['license_expiry_date'] ?? null
                 ]
             );
 
