@@ -1,3 +1,4 @@
+<!-- _leave_entitlements_table.blade.php -->
 @php
     // Build a composite slug that can find the record without exposing ID
     // slug = base64("business:employee:leaveType:leavePeriod") URL-safe
