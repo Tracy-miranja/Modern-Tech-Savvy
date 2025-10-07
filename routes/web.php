@@ -141,10 +141,11 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
             Route::prefix('leave-entitlements')->group(function () {
                 Route::post('/fetch',  [LeaveEntitlementController::class, 'fetch'])->name('leave-entitlements.fetch');
                 Route::post('/store',  [LeaveEntitlementController::class, 'store'])->name('leave-entitlements.store');
-                Route::post('/show/{slug}',   [LeaveEntitlementController::class, 'show'])->name('leave-entitlements.show');
+                Route::post('/show', [LeaveEntitlementController::class, 'show'])->name('leave-entitlements.show');
                 Route::post('/edit',   [LeaveEntitlementController::class, 'edit'])->name('leave-entitlements.edit');
                 Route::post('/update', [LeaveEntitlementController::class, 'update'])->name('leave-entitlements.update');
                 Route::post('/delete', [LeaveEntitlementController::class, 'delete'])->name('leave-entitlements.delete');
+
                 // Fetch entitlements by period
                 Route::post('/by-period', [LeaveEntitlementController::class, 'getByPeriod'])
                     ->name('leave-entitlements.by-period');

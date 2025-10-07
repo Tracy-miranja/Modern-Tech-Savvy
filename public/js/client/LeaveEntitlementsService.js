@@ -16,9 +16,11 @@ class LeaveEntitlementsService {
 // leaveentitlementservice.js
     async show(slug) {
     try {
-        return await this.requestClient.post(`/leave-entitlements/show/${slug}`);
+        // send slug in the body (matches route & controller)
+        return await this.requestClient.post('/leave-entitlements/show', { slug });
     } catch (e) { console.log(e); throw e; }
     }
+
 
     async edit(data) {
     try {

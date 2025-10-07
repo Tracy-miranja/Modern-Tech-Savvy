@@ -34,25 +34,37 @@
 
             <div class="col-6">
               <label class="form-label">Entitled Days</label>
-              <input type="number" name="entitled_days" class="form-control" step="0.5" min="0"
+              <input type="number" name="entitled_days" class="form-control calc-field" step="0.5" min="0"
                      value="{{ (float)$entitlement->entitled_days }}" required>
             </div>
 
             <div class="col-6">
               <label class="form-label">Accrued Days</label>
-              <input type="number" name="accrued_days" class="form-control" step="0.5" min="0"
+              <input type="number" name="accrued_days" class="form-control calc-field" step="0.5" min="0"
                      value="{{ (float)$entitlement->accrued_days }}">
             </div>
 
             <div class="col-6">
               <label class="form-label">Days Taken</label>
-              <input class="form-control" value="{{ number_format((float)$entitlement->days_taken,2) }}" disabled>
+              <input type="number" name="days_taken" class="form-control calc-field" step="0.5" min="0"
+                     value="{{ (float)$entitlement->days_taken }}" required>
+            </div>
+
+            <div class="col-6">
+              <label class="form-label">Total Days (auto)</label>
+              <input id="total_days_preview" class="form-control" value="{{ (float)$entitlement->total_days }}" disabled>
+            </div>
+
+            <div class="col-6">
+              <label class="form-label">Days Remaining (auto)</label>
+              <input id="days_remaining_preview" class="form-control" value="{{ (float)$entitlement->days_remaining }}" disabled>
             </div>
           </div>
         </form>
       </div>
 
       <div class="modal-footer">
+        <small class="me-auto text-muted" id="calcHint"></small>
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
         <button type="button" class="btn btn-primary" id="submitEditEntitlementBtn">
           <i class="bi bi-check-circle me-1"></i> Save Changes
@@ -61,3 +73,31 @@
     </div>
   </div>
 </div>
+
+<script>
+// Live preview for totals
+(function() {
+  function toNum(v){ const n = parseFloat(v); return isNaN(n) ? 0 : n; }
+  function recalc() {
+    const entitled = toNum(document.querySelector('[name="entitled_days"]').value);
+    const accrued  = toNum(document.querySelector('[name="accrued_days"]').value);
+    const taken    = toNum(document.querySelector('[name="days_taken"]').value);
+
+    const total = entitled + accrued;
+    const remaining = Math.max(0, total - taken);
+
+    document.getElementById('total_days_preview').value = total.toFixed(2);
+    document.getElementById('days_remaining_preview').value = remaining.toFixed(2);
+
+    const hint = document.getElementById('calcHint');
+    hint.textContent = taken > total
+      ? 'Warning: Days taken exceeds total entitlement.'
+      : '';
+  }
+
+  document.querySelectorAll('#leaveEntitlementEditForm .calc-field').forEach(el => {
+    el.addEventListener('input', recalc);
+    el.addEventListener('change', recalc);
+  });
+})();
+</script>
