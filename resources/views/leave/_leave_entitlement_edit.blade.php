@@ -34,18 +34,27 @@
 
             <div class="col-6">
               <label class="form-label">Entitled Days</label>
+<<<<<<< HEAD
               <input type="number" name="entitled_days" class="form-control calc-field" step="0.5" min="0"
+=======
+              <input type="number" name="entitled_days" class="form-control" step="0.5" min="0"
+>>>>>>> bec36f46d0edf991969cf4007fda353bc7a7e095
                      value="{{ (float)$entitlement->entitled_days }}" required>
             </div>
 
             <div class="col-6">
               <label class="form-label">Accrued Days</label>
+<<<<<<< HEAD
               <input type="number" name="accrued_days" class="form-control calc-field" step="0.5" min="0"
+=======
+              <input type="number" name="accrued_days" class="form-control" step="0.5" min="0"
+>>>>>>> bec36f46d0edf991969cf4007fda353bc7a7e095
                      value="{{ (float)$entitlement->accrued_days }}">
             </div>
 
             <div class="col-6">
               <label class="form-label">Days Taken</label>
+<<<<<<< HEAD
               <input type="number" name="days_taken" class="form-control calc-field" step="0.5" min="0"
                      value="{{ (float)$entitlement->days_taken }}" required>
             </div>
@@ -58,13 +67,19 @@
             <div class="col-6">
               <label class="form-label">Days Remaining (auto)</label>
               <input id="days_remaining_preview" class="form-control" value="{{ (float)$entitlement->days_remaining }}" disabled>
+=======
+              <input class="form-control" value="{{ number_format((float)$entitlement->days_taken,2) }}" disabled>
+>>>>>>> bec36f46d0edf991969cf4007fda353bc7a7e095
             </div>
           </div>
         </form>
       </div>
 
       <div class="modal-footer">
+<<<<<<< HEAD
         <small class="me-auto text-muted" id="calcHint"></small>
+=======
+>>>>>>> bec36f46d0edf991969cf4007fda353bc7a7e095
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
         <button type="button" class="btn btn-primary" id="submitEditEntitlementBtn">
           <i class="bi bi-check-circle me-1"></i> Save Changes
@@ -73,6 +88,7 @@
     </div>
   </div>
 </div>
+<<<<<<< HEAD
 
 <script>
 // Live preview for totals
@@ -101,3 +117,5 @@
   });
 })();
 </script>
+=======
+>>>>>>> bec36f46d0edf991969cf4007fda353bc7a7e095

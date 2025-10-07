@@ -168,9 +168,16 @@ public function index()
     }
 
 
+<<<<<<< HEAD
 public function show(Request $request)
 {
     $validated = $request->validate(['slug' => 'required|string']);
+=======
+public function show(Request $request, string $slug)
+{
+    $business = Business::findBySlug(session('active_business_slug'));
+    if (!$business) return RequestResponse::badRequest('Business not found.', 404);
+>>>>>>> bec36f46d0edf991969cf4007fda353bc7a7e095
 
     $business = Business::findBySlug(session('active_business_slug'));
     if (!$business) return RequestResponse::badRequest('Business not found.', 404);
@@ -187,18 +194,31 @@ public function show(Request $request)
     }
 
     $entitlement = LeaveEntitlement::where([
+<<<<<<< HEAD
         'business_id'    => (int)$business_id,
         'employee_id'    => (int)$employee_id,
         'leave_type_id'  => (int)$leave_type_id,
         'leave_period_id'=> (int)$leave_period_id,
+=======
+        'business_id' => (int)$business_id,
+        'employee_id' => (int)$employee_id,
+        'leave_type_id' => (int)$leave_type_id,
+        'leave_period_id' => (int)$leave_period_id,
+>>>>>>> bec36f46d0edf991969cf4007fda353bc7a7e095
     ])->with(['employee.user','leaveType','leavePeriod'])->first();
 
     if (!$entitlement) return RequestResponse::badRequest('Leave entitlement not found.', 404);
 
+<<<<<<< HEAD
     return view('leave._leave_entitlement_details', compact('entitlement'));
 }
 
 
+=======
+    // returns read-only details modal
+    return view('leave._leave_entitlement_details', compact('entitlement'));
+}
+>>>>>>> bec36f46d0edf991969cf4007fda353bc7a7e095
 /**
  * Fetch a leave entitlement for editing by slug.
  */
@@ -228,6 +248,7 @@ public function edit(Request $request)
     ])->with(['employee.user','leaveType','leavePeriod'])->first();
 
     if (!$entitlement) return RequestResponse::badRequest('Leave entitlement not found.', 404);
+<<<<<<< HEAD
 
     // returns EDIT FORM modal (new partial below)
     return view('leave._leave_entitlement_edit', compact('entitlement'));
@@ -276,6 +297,11 @@ public function update(Request $request)
         'message' => 'Entitlement updated successfully.',
         'entitlement' => $entitlement->fresh(['employee.user','leaveType','leavePeriod']),
     ]);
+=======
+
+    // returns EDIT FORM modal (new partial below)
+    return view('leave._leave_entitlement_edit', compact('entitlement'));
+>>>>>>> bec36f46d0edf991969cf4007fda353bc7a7e095
 }
 
 /**
@@ -321,5 +347,49 @@ public function delete(Request $request)
     });
 }
 
+<<<<<<< HEAD
 
 }
+=======
+/**
+ * Update a leave entitlement by slug.
+ */
+public function update(Request $request)
+{
+    $data = $request->validate([
+        'slug'            => 'required|string',
+        'entitled_days'   => 'required|numeric|min:0',
+        'accrued_days'    => 'nullable|numeric|min:0',
+        // total_days / remaining can be computed; only accept fields you allow editing
+    ]);
+
+    $decoded = base64_decode(strtr($data['slug'], '-_', '+/'));
+    if (!$decoded || substr_count($decoded, ':') !== 3) {
+        return RequestResponse::badRequest('Invalid entitlement slug.', 422);
+    }
+
+    [$business_id, $employee_id, $leave_type_id, $leave_period_id] = explode(':', $decoded);
+
+    $entitlement = LeaveEntitlement::where([
+        'business_id'   => (int)$business_id,
+        'employee_id'   => (int)$employee_id,
+        'leave_type_id' => (int)$leave_type_id,
+        'leave_period_id' => (int)$leave_period_id,
+    ])->firstOrFail();
+
+    $entitlement->entitled_days = $data['entitled_days'];
+    if (array_key_exists('accrued_days', $data)) {
+        $entitlement->accrued_days = $data['accrued_days'];
+    }
+    // Recompute totals if your model/policy requires:
+    $entitlement->total_days = (float)$entitlement->entitled_days + (float)$entitlement->accrued_days;
+    $entitlement->days_remaining = max(0, $entitlement->total_days - $entitlement->days_taken);
+    $entitlement->save();
+
+    return response()->json([
+        'message' => 'Entitlement updated successfully.',
+        'entitlement' => $entitlement->fresh(['employee.user','leaveType','leavePeriod']),
+    ]);
+}
+}
+>>>>>>> bec36f46d0edf991969cf4007fda353bc7a7e095
