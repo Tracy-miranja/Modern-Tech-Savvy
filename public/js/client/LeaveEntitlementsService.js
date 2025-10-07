@@ -13,36 +13,25 @@ class LeaveEntitlementsService {
         }
     }
 
-    async update(data) {
-        try {
-            const response = await this.requestClient.post('/leave-entitlements/update', data);
-            toastr.info(response.message, "Success");
-            this.handleRedirect(response.data.redirect_url);
-        } catch (error) {
-            console.log(error)
-            throw error;
-        }
+// leaveentitlementservice.js
+    async show(slug) {
+    try {
+        return await this.requestClient.post(`/leave-entitlements/show/${slug}`);
+    } catch (e) { console.log(e); throw e; }
     }
 
     async edit(data) {
-        try {
-            const response = await this.requestClient.post('/leave-entitlements/edit', data);
-            return response.data;
-        } catch (error) {
-            console.log(error)
-            throw error;
-        }
+    try {
+        return await this.requestClient.post('/leave-entitlements/edit', data); // returns EDIT FORM HTML now
+    } catch (e) { console.log(e); throw e; }
     }
 
-    async show(data) {
-        try {
-            const response = await this.requestClient.post('/leave-entitlements/show', data);
-            return response.data;
-        } catch (error) {
-            console.log(error)
-            throw error;
-        }
+    async update(formDataOrPlain) {
+    try {
+        return await this.requestClient.post('/leave-entitlements/update', formDataOrPlain);
+    } catch (e) { console.log(e); throw e; }
     }
+
 
     async save(data) {
         try {

@@ -145,6 +145,12 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
                 Route::post('/edit',   [LeaveEntitlementController::class, 'edit'])->name('leave-entitlements.edit');
                 Route::post('/update', [LeaveEntitlementController::class, 'update'])->name('leave-entitlements.update');
                 Route::post('/delete', [LeaveEntitlementController::class, 'delete'])->name('leave-entitlements.delete');
+                // Fetch entitlements by period
+                Route::post('/by-period', [LeaveEntitlementController::class, 'getByPeriod'])
+                    ->name('leave-entitlements.by-period');
+
+                // Employee Filter Route
+                Route::post('/employees/filter', [EmployeeController::class, 'filter'])->name('leave-entitlements.employees.filter');
             });
 
 
