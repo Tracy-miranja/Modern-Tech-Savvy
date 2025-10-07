@@ -34,21 +34,6 @@ window.saveLeaveEntitlements = async function (btn) {
     }
 };
 
-/** FIXED: Now uses data-slug attribute
-window.editLeaveEntitlements = async function (btn) {
-    btn = $(btn);
-
-    const slug = btn.data("slug");
-    const data = { slug: slug };
-
-    try {
-        const form = await leaveEntitlementsService.edit(data);
-        $('#leaveEntitlementsFormContainer').html(form)
-    } catch (error) {
-        console.error("Error editing entitlement:", error);
-    }
-};*/
-
 
 // SHOW (details)
 window.viewLeaveEntitlements = async function (btn) {
@@ -128,30 +113,60 @@ window.editLeaveEntitlements = async function (btn) {
 };
 // FIXED: Now uses data-slug attribute
 window.deleteLeaveEntitlements = async function (btn) {
-    btn = $(btn);
-    btn_loader(btn, true);
+  const $btn = $(btn);
+  if ($btn.data('busy')) return; // prevent double clicks
+  $btn.data('busy', true);
+  btn_loader($btn, true);
 
-    const slug = btn.data("slug");
-    const data = { slug: slug };
+  try {
+    const slug = $btn.data('slug');
+    const url  = $btn.data('delete-url'); // from the button's data attribute
 
-    Swal.fire({
-        title: "Are you sure?",
+    // Hard assert that SweetAlert2 is available
+    if (typeof Swal === 'undefined' || typeof Swal.fire !== 'function') {
+      console.warn('SweetAlert2 (Swal) not found. Falling back to window.confirm().');
+      const proceed = window.confirm('Are you sure? This action cannot be undone.');
+      if (!proceed) return;
+    } else {
+      const { isConfirmed } = await Swal.fire({
+        title: 'Are you sure?',
         text: "You won't be able to revert this!",
-        icon: "warning",
+        icon: 'warning',
         showCancelButton: true,
-        confirmButtonColor: "#068f6d",
-        cancelButtonColor: "#d33",
-        confirmButtonText: "Yes, delete it!",
-    }).then(async (result) => {
-        if (result.isConfirmed) {
-            try {
-                await leaveEntitlementsService.delete(data);
-                getLeaveEntitlements();
-            } finally {
-                btn_loader(btn, false);
-            }
-        } else {
-            btn_loader(btn, false);
-        }
+        confirmButtonColor: '#068f6d',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Yes, delete it!',
+      });
+      if (!isConfirmed) return;
+    }
+
+    // Perform delete (using absolute URL from the button)
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+      },
+      credentials: 'include',
+      body: JSON.stringify({ slug }),
     });
+
+    const ct = resp.headers.get('content-type') || '';
+    const payload = ct.includes('json') ? await resp.json() : { message: await resp.text() };
+    if (!resp.ok) throw new Error(payload.message || 'Delete failed');
+
+    toastr.info(payload.message || 'Leave entitlement deleted.', 'Success');
+
+    // Refresh current tab
+    const activeTab = document.querySelector('#myTab .nav-link.active');
+    const lpSlug = activeTab?.dataset.leavePeriodSlug;
+    if (typeof getLeaveEntitlements === 'function') getLeaveEntitlements(1, lpSlug);
+  } catch (err) {
+    console.error(err);
+    toastr.error(err.message || 'Could not delete entitlement.');
+  } finally {
+    btn_loader($btn, false);
+    $btn.data('busy', false);
+  }
 };
