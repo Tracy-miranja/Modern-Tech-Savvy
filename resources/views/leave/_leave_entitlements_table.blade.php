@@ -43,14 +43,14 @@
                 <td>{{ number_format((float) $entitlement->days_taken, 2) }}</td>
                 <td>{{ number_format((float) $entitlement->days_remaining, 2) }}</td>
                 <td class="d-flex gap-1 flex-wrap">
-                    <button type="button"
+                    {{-- <button type="button"
                             class="btn btn-secondary btn-sm"
                             title="Details"
                             data-id="{{ $entitlement->id }}"
                             data-slug="{{ $slug }}"
                             onclick="viewLeaveEntitlements(this)">
                         <i class="bi bi-view-list me-1"></i> Details
-                    </button>
+                    </button> --}}
 
                     <button type="button"
                             class="btn btn-warning btn-sm"
@@ -61,14 +61,14 @@
                         <i class="bi bi-pencil-square me-1"></i> Edit
                     </button>
 
-                    <button type="button"
+                    {{-- <button type="button"
                             class="btn btn-danger btn-sm"
                             title="Delete"
                             data-id="{{ $entitlement->id }}"
                             data-slug="{{ $slug }}"
                             onclick="deleteLeaveEntitlements(this)">
                         <i class="bi bi-trash me-1"></i> Delete
-                    </button>
+                    </button> --}}
                 </td>
             </tr>
         @empty
