@@ -323,14 +323,30 @@ $rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
 
 private function prepareP9Data($employee, $employeePayrolls, $business = null)
 {
-    // Fetch business from session if not provided
+
+\Log::info('P9A Debug:', [
+    'employee_id' => $employee->id,
+    'employee_business_id' => $employee->business_id,
+    'business_loaded' => $employee->relationLoaded('business'),
+    'business_exists' => !is_null($employee->business),
+    'business_company_name' => $employee->business->company_name ?? 'null',
+    'business_tax_pin' => $employee->business->tax_pin_no ?? 'null',
+]);
+    // Fetch business from employee if not provided
     if (!$business) {
-        $businessSlug = session('current_business_slug');
-        $business = $businessSlug ? Business::findBySlug($businessSlug) : null;
+        $business = $employee->business ?? null; // Assuming Employee model has a 'business' relationship
         if (!$business) {
-            $business = new \stdClass(); // Fallback to empty object if no business found
-            $business->pin = 'N/A';
-            $business->name = 'N/A';
+            if (!empty($employeePayrolls)) {
+                $firstPayroll = $employeePayrolls->first();
+                if ($firstPayroll && $firstPayroll->payroll && $firstPayroll->payroll->business) {
+                    $business = $firstPayroll->payroll->business;
+                }
+            }
+            if (!$business) {
+                $business = new \stdClass();
+                $business->tax_pin_no = 'N/A';
+                $business->company_name = 'N/A';
+            }
         }
     }
 
@@ -360,68 +376,104 @@ private function prepareP9Data($employee, $employeePayrolls, $business = null)
         $month = (int)$ep->payroll->payrun_month;
         $deductions = json_decode($ep->deductions, true) ?? [];
 
-        // Cast values to float to ensure numeric operations
         $basicSalary = (float)($ep->basic_salary ?? 0);
         $grossPay = (float)($ep->gross_pay ?? 0);
-        $taxableIncome = (float)($ep->taxable_income ?? 0);
-        $paye = (float)($ep->paye ?? ($deductions['paye'] ?? 0));
-        $personalRelief = (float)($ep->personal_relief ?? 2400);
-        $insuranceRelief = min((float)($ep->insurance_relief ?? 0), 5000); // Cap at 5000/month
-        $retirementE1 = $basicSalary * 0.3; // 30% of basic salary
-        $retirementE2 = (float)($ep->pension ?? ($deductions['pension'] ?? 0)); // Actual contribution
-        $ahl = (float)($deductions['ahl'] ?? ($grossPay * 0.015)); // 1.5% of gross pay if not set
-        $shif = (float)($deductions['shif'] ?? 0);
-        $prmf = min((float)($deductions['prmf'] ?? 0), 15000); // Cap at 15,000
-        $owner_occupied_interest = min((float)($deductions['owner_occupied_interest'] ?? 0), 30000); // Cap at 30,000
+        $housingLevy = (float)($deductions['ahl'] ?? $ep->housing_levy ?? ($grossPay * 0.015));
+        $shif = (float)($deductions['shif'] ?? $ep->shif ?? 0);
+        $nssfContribution = (float)($deductions['nssf'] ?? $ep->nssf ?? 0);
+        $pensionContribution = (float)($deductions['pension'] ?? 0);
+        $retirementE2 = $nssfContribution + $pensionContribution;
 
-        // Calculate defined contribution as the minimum of E1, E2, and E3 cap
-        $definedContribution = min($retirementE1, $retirementE2, 30000);
-        $total_deductions = $definedContribution + $ahl + $shif + $prmf + $owner_occupied_interest;
-        $chargeablePay = max(0, $grossPay - $total_deductions); // Ensure non-negative
-        $taxCharged = $paye + $personalRelief + $insuranceRelief; // Reverse calculate
-        $payeCalculated = max(0, $taxCharged - $personalRelief - $insuranceRelief); // Ensure non-negative PAYE
+        $retirementE1 = $basicSalary * 0.3;
+        $retirementE3 = 30000;
+        $retirementContribution = min($retirementE1, $retirementE2, $retirementE3);
+
+        $postRetirementMedical = min((float)($deductions['prmf'] ?? 0), 15000);
+        $mortgageInterest = min((float)($deductions['owner_occupied_interest'] ?? 0), 30000);
+
+        $totalDeductions = $retirementContribution + $housingLevy + $shif + $postRetirementMedical + $mortgageInterest;
+
+        // Chargeable pay
+        $chargeablePay = max(0, $grossPay - $totalDeductions);
+
+        // --- Updated progressive KRA tax computation (current rates as of 2025) ---
+        $taxCharged = 0;
+        $tempPay = $chargeablePay;
+
+        if ($tempPay > 800000) {
+            $taxCharged += ($tempPay - 800000) * 0.35;
+            $tempPay = 800000;
+        }
+
+        if ($tempPay > 500000) {
+            $taxCharged += ($tempPay - 500000) * 0.325;
+            $tempPay = 500000;
+        }
+
+        if ($tempPay > 32333.33) {
+            $taxCharged += ($tempPay - 32333.33) * 0.30;
+            $tempPay = 32333.33;
+        }
+
+        if ($tempPay > 24000) {
+            $taxCharged += ($tempPay - 24000) * 0.25;
+            $tempPay = 24000;
+        }
+
+        $taxCharged += $tempPay * 0.10;
+
+        // Reliefs
+        $personalRelief = (float)($ep->personal_relief ?? 2400);
+        $insurancePremium = (float)($deductions['insurance_premium'] ?? 0);
+        $insuranceRelief = min((float)($ep->insurance_relief ?? ($insurancePremium * 0.15)), 5000);
+
+        // PAYE
+        $paye = max(0, $taxCharged - $personalRelief - $insuranceRelief);
 
         $monthlyData[$month] = [
             'basic_salary' => $basicSalary,
-            'benefits_non_cash' => (float)($ep->benefits_non_cash ?? ($deductions['benefits_non_cash'] ?? 0)),
-            'value_of_quarters' => (float)($ep->value_of_quarters ?? ($deductions['value_of_quarters'] ?? 0)),
+            'benefits_non_cash' => (float)($ep->benefits_non_cash ?? 0),
+            'value_of_quarters' => (float)($ep->value_of_quarters ?? 0),
             'total_gross_pay' => $grossPay,
             'retirement_e1' => $retirementE1,
             'retirement_e2' => $retirementE2,
-            'retirement_e3' => 30000,
-            'ahl' => $ahl,
+            'retirement_e3' => $retirementE3,
+            'ahl' => $housingLevy,
             'shif' => $shif,
-            'prmf' => $prmf,
-            'owner_occupied_interest' => $owner_occupied_interest,
-            'total_deductions' => $total_deductions,
+            'prmf' => $postRetirementMedical,
+            'owner_occupied_interest' => $mortgageInterest,
+            'total_deductions' => $totalDeductions,
             'chargeable_pay' => $chargeablePay,
             'tax_charged' => $taxCharged,
             'personal_relief' => $personalRelief,
             'insurance_relief' => $insuranceRelief,
-            'paye' => $payeCalculated,
+            'paye' => $paye,
         ];
     }
 
-    // Calculate totals across all months
-    $totals = [
-        'basic_salary' => array_sum(array_column($monthlyData, 'basic_salary')),
-        'benefits_non_cash' => array_sum(array_column($monthlyData, 'benefits_non_cash')),
-        'value_of_quarters' => array_sum(array_column($monthlyData, 'value_of_quarters')),
-        'total_gross_pay' => array_sum(array_column($monthlyData, 'total_gross_pay')),
-        'retirement_e1' => array_sum(array_column($monthlyData, 'retirement_e1')),
-        'retirement_e2' => array_sum(array_column($monthlyData, 'retirement_e2')),
-        'retirement_e3' => array_sum(array_column($monthlyData, 'retirement_e3')),
-        'ahl' => array_sum(array_column($monthlyData, 'ahl')),
-        'shif' => array_sum(array_column($monthlyData, 'shif')),
-        'prmf' => array_sum(array_column($monthlyData, 'prmf')),
-        'owner_occupied_interest' => array_sum(array_column($monthlyData, 'owner_occupied_interest')),
-        'total_deductions' => array_sum(array_column($monthlyData, 'total_deductions')),
-        'chargeable_pay' => array_sum(array_column($monthlyData, 'chargeable_pay')),
-        'tax_charged' => array_sum(array_column($monthlyData, 'tax_charged')),
-        'personal_relief' => array_sum(array_column($monthlyData, 'personal_relief')),
-        'insurance_relief' => array_sum(array_column($monthlyData, 'insurance_relief')),
-        'paye' => array_sum(array_column($monthlyData, 'paye')),
-    ];
+   // Calculate totals across all months
+$totals = [
+    'basic_salary' => array_sum(array_column($monthlyData, 'basic_salary')),
+    'benefits_non_cash' => array_sum(array_column($monthlyData, 'benefits_non_cash')),
+    'value_of_quarters' => array_sum(array_column($monthlyData, 'value_of_quarters')),
+    'total_gross_pay' => array_sum(array_column($monthlyData, 'total_gross_pay')),
+    'retirement_e1' => array_sum(array_column($monthlyData, 'retirement_e1')),
+    'retirement_e2' => array_sum(array_column($monthlyData, 'retirement_e2')),
+    'retirement_e3' => array_sum(array_column($monthlyData, 'retirement_e3')),
+    'ahl' => array_sum(array_column($monthlyData, 'ahl')),
+    'shif' => array_sum(array_column($monthlyData, 'shif')),
+    'prmf' => array_sum(array_column($monthlyData, 'prmf')),
+    'owner_occupied_interest' => array_sum(array_column($monthlyData, 'owner_occupied_interest')),
+    'total_deductions' => array_sum(array_column($monthlyData, 'total_deductions')),
+    'chargeable_pay' => array_sum(array_column($monthlyData, 'chargeable_pay')),
+    'tax_charged' => array_sum(array_column($monthlyData, 'tax_charged')),
+    'personal_relief' => array_sum(array_column($monthlyData, 'personal_relief')),
+    'insurance_relief' => array_sum(array_column($monthlyData, 'insurance_relief')),
+];
+
+// Compute total PAYE correctly as (L_total - M_total - N_total)
+$totals['paye'] = max(0, $totals['tax_charged'] - $totals['personal_relief'] - $totals['insurance_relief']);
+
 
     // Split employee full name into main name and other names
     $employeeNameParts = explode(' ', trim($employee->full_name), 2);
@@ -436,7 +488,6 @@ private function prepareP9Data($employee, $employeePayrolls, $business = null)
         'totals' => $totals,
     ];
 }
-
 // private function prepareP9Data($employee, $payrolls, $year)
 // {
 //     $monthlyData = array_fill(1, 12, [
