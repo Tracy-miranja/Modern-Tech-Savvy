@@ -27,7 +27,7 @@
                                             </span>
                                         </td>
                                         <td>
-                                            @if($payslip['status'] === '')
+                                            @if($payslip['status'] === 'closed')
                                             <a href="{{ route('myaccount.payslips.download', ['business' => $business->slug, 'id' => $payslip['payroll_id']]) }}"
                                                 class="btn btn-sm btn-primary" title="Download Payslip">
                                                 <i class="fa fa-download"></i> Download
