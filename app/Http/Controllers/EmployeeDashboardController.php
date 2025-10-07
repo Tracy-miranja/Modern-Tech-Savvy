@@ -288,26 +288,38 @@ $rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
 //     return view('employee.payslips', compact('page', 'payslips', 'employee', 'business'));
 // }
 
-    public function downloadPayslip($payrollId)
-    {
-        $employee = Auth::user()->employee;
-        if (!$employee) {
-            return back()->with('error', 'Employee record not found.');
-        }
+   public function downloadPayslip(Request $request, $business, $id)
+{
+    // Get business
+    $business = Business::findBySlug($business);
+    if (!$business || session('active_business_slug') !== $business->slug) {
+        return redirect()->back()->with('error', 'Business not found or mismatched.');
+    }
 
-        $employeePayroll = EmployeePayroll::where('employee_id', $employee->id)
-            ->where('payroll_id', $payrollId)
-            ->with(['payroll.business', 'employee.user'])
-            ->first();
+    // Get employee for this business
+    $employee = Employee::where('business_id', $business->id)
+        ->where('user_id', Auth::id())
+        ->first();
 
-        if (!$employeePayroll) {
-            return back()->with('error', 'Payslip not found!');
-        }
+    if (!$employee) {
+        return back()->with('error', 'Employee record not found.');
+    }
 
-        if ($employeePayroll->payroll->status !== 'closed') {
-            return back()->with('error', 'Payslip is not available until payroll is closed.');
-        }
+    // Get employee payroll
+    $employeePayroll = EmployeePayroll::where('employee_id', $employee->id)
+        ->where('payroll_id', $id)
+        ->with(['payroll.business', 'employee.user'])
+        ->first();
 
+    if (!$employeePayroll) {
+        return back()->with('error', 'Payslip not found!');
+    }
+
+    if ($employeePayroll->payroll->status !== 'closed') {
+        return back()->with('error', 'Payslip is not available until payroll is closed.');
+    }
+
+    try {
         $pdf = Pdf::loadView('payroll.reports.payslip', [
             'employeePayroll' => $employeePayroll,
             'business' => $employeePayroll->payroll->business,
@@ -318,8 +330,17 @@ $rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
         ]);
 
         $monthName = Carbon::create($employeePayroll->payroll->payrun_year, $employeePayroll->payroll->payrun_month, 1)->monthName;
-        return $pdf->download("Payslip_{$employeePayroll->payroll->payrun_year}_{$monthName}_{$employee->employee_code}.pdf");
+
+        return $pdf->download("Payslip_{$employeePayroll->payroll->payrun_year}_{$monthName}_{$employee->employee_code}.pdf", [
+    'Content-Type' => 'application/pdf',
+    'Content-Disposition' => 'attachment',
+]);
+
+    } catch (\Exception $e) {
+        \Log::error('Payslip download error: ' . $e->getMessage());
+        return back()->with('error', 'Failed to generate payslip. Please try again.');
     }
+}
 
 private function prepareP9Data($employee, $employeePayrolls, $business = null)
 {
