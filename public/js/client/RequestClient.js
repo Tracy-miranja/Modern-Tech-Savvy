@@ -20,23 +20,31 @@ class RequestClient {
     }
 
     async request(method, endpoint, data = null, isDownload = false) {
+        console.log('Request:', { method, endpoint, data });
+        
         const config = {
             method,
             headers: this.getHeaders(data instanceof FormData),
             credentials: 'include',
         };
 
-        if (method !== 'GET' && !(data instanceof FormData)) {
-            data._token = this.csrfToken;
-            data = data || {};
-            config.body = JSON.stringify(data);
-        } else if (method !== 'GET' && data instanceof FormData) {
-            data.append('_token', this.csrfToken);
-            config.body = data;
+        if (method !== 'GET' && data !== null) {
+            if (data instanceof FormData) {
+                data.append('_token', this.csrfToken);
+                config.body = data;
+            } else {
+                // Ensure data is an object
+                const bodyData = data || {};
+                bodyData._token = this.csrfToken;
+                config.body = JSON.stringify(bodyData);
+            }
         }
 
         try {
             const response = await fetch(`${this.baseURL}${endpoint}`, config);
+            
+            console.log('Response status:', response.status);
+            
             if (!response.ok) {
                 const contentType = response.headers.get('content-type');
 
@@ -46,8 +54,10 @@ class RequestClient {
                     const message = jsonResponse.message || 'Something went wrong';
                     const errors = jsonResponse.errors || {};
 
+                    console.error('Error response:', jsonResponse);
+
                     if (status === 400 || status === 422) {
-                        if (errors) {
+                        if (Object.keys(errors).length > 0) {
                             Object.values(errors).forEach(errorMessages => {
                                 errorMessages.forEach(errorMessage => {
                                     toastr.error(errorMessage);
@@ -60,29 +70,39 @@ class RequestClient {
                         Swal.fire('Unauthorized', message, 'error');
                     } else if (status === 403) {
                         Swal.fire('Forbidden', message, 'error');
+                    } else if (status === 404) {
+                        toastr.error(message || 'Resource not found');
                     } else {
                         toastr.error('Something went wrong');
                     }
                     throw new Error(message);
                 } else {
                     const textResponse = await response.text();
+                    console.error('Non-JSON error response:', textResponse);
                     toastr.error('An error occurred. Please try again.');
-                    console.error('Non-JSON error:', textResponse);
                     throw new Error('Non-JSON error');
                 }
             }
+
 
             if (isDownload) {
                 const blob = await response.blob();
                 return blob;
             }
 
-            if (!isDownload) {
-                return await response.json();
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('application/json')) {
+                const json = await response.json();
+                console.log('Success response (json):', json);
+                return json;
+            } else {
+                const text = await response.text();
+                console.log('Success response (text):', text);
+                return text; // <-- now edit/show can return HTML
             }
 
         } catch (error) {
-            console.error('Request failed:', error.message);
+            console.error('Request failed:', error);
             throw error;
         }
     }
