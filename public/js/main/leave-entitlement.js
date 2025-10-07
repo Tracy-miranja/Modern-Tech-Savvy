@@ -33,28 +33,8 @@ window.saveLeaveEntitlements = async function (btn) {
         btn_loader(btn, false);
     }
 };
-<<<<<<< HEAD
 
 
-=======
-
-/** FIXED: Now uses data-slug attribute
-window.editLeaveEntitlements = async function (btn) {
-    btn = $(btn);
-
-    const slug = btn.data("slug");
-    const data = { slug: slug };
-
-    try {
-        const form = await leaveEntitlementsService.edit(data);
-        $('#leaveEntitlementsFormContainer').html(form)
-    } catch (error) {
-        console.error("Error editing entitlement:", error);
-    }
-};*/
-
-
->>>>>>> bec36f46d0edf991969cf4007fda353bc7a7e095
 // SHOW (details)
 window.viewLeaveEntitlements = async function (btn) {
   const $btn = $(btn);
@@ -78,15 +58,6 @@ window.viewLeaveEntitlements = async function (btn) {
     $btn.prop('disabled', false).html(original);
   }
 };
-<<<<<<< HEAD
-
-// EDIT (form)
-window.editLeaveEntitlements = async function (btn) {
-  const $btn = $(btn);
-  const slug = $btn.data('slug');
-  const original = $btn.html();
-  $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Loading');
-=======
 
 // EDIT (form)
 window.editLeaveEntitlements = async function (btn) {
@@ -132,61 +103,6 @@ window.editLeaveEntitlements = async function (btn) {
         // errors are already handled in RequestClient
       }
     });
-
-  } catch (e) {
-    console.error(e);
-    toastr.error('Could not load entitlement edit form.');
-  } finally {
-    $btn.prop('disabled', false).html(original);
-  }
-};
-// FIXED: Now uses data-slug attribute
-window.deleteLeaveEntitlements = async function (btn) {
-    btn = $(btn);
-    btn_loader(btn, true);
-
-    const slug = btn.data("slug");
-    const data = { slug: slug };
->>>>>>> bec36f46d0edf991969cf4007fda353bc7a7e095
-
-  try {
-    const html = await leaveEntitlementsService.edit({ slug });
-
-    // remove old edit modal and append new
-    $('#leaveEntitlementsEditModal').remove();
-    $('body').append(html);
-
-    const modalEl = document.getElementById('leaveEntitlementsEditModal');
-    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-    modal.show();
-
-    // wire the Save button (scoped inside the appended modal)
-    $('#submitEditEntitlementBtn').off('click').on('click', async function () {
-      const $form = $('#leaveEntitlementEditForm');
-
-      // Use FormData to support files later; RequestClient handles FormData
-      const fd = new FormData($form[0]);
-
-      try {
-        const resp = await leaveEntitlementsService.update(fd);
-        toastr.success(resp.message || 'Updated.');
-
-        // optionally refresh the current tab list
-        const activeTab = document.querySelector('#myTab .nav-link.active');
-        if (activeTab) {
-          const leavePeriodSlug = activeTab.dataset.leavePeriodSlug;
-          if (typeof getLeaveEntitlements === 'function') {
-            getLeaveEntitlements(1, leavePeriodSlug);
-          }
-        }
-
-        modal.hide();
-      } catch (e) {
-        console.error(e);
-        // errors are already handled in RequestClient
-      }
-    });
-<<<<<<< HEAD
 
   } catch (e) {
     console.error(e);
@@ -254,6 +170,3 @@ window.deleteLeaveEntitlements = async function (btn) {
     $btn.data('busy', false);
   }
 };
-=======
-};
->>>>>>> bec36f46d0edf991969cf4007fda353bc7a7e095

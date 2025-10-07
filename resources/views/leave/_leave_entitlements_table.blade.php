@@ -43,19 +43,14 @@
                 <td>{{ number_format((float) $entitlement->days_taken, 2) }}</td>
                 <td>{{ number_format((float) $entitlement->days_remaining, 2) }}</td>
                 <td class="d-flex gap-1 flex-wrap">
-                    {{-- <button type="button"
+                     <button type="button"
                             class="btn btn-secondary btn-sm"
                             title="Details"
                             data-id="{{ $entitlement->id }}"
                             data-slug="{{ $slug }}"
                             onclick="viewLeaveEntitlements(this)">
-<<<<<<< HEAD
                         <i class="bi bi-eye"></i> 
                     </button>
-=======
-                        <i class="bi bi-view-list me-1"></i> Details
-                    </button> --}}
->>>>>>> bec36f46d0edf991969cf4007fda353bc7a7e095
 
                     <button type="button"
                             class="btn btn-warning btn-sm"
@@ -66,7 +61,6 @@
                         <i class="bi bi-pencil-square me-1"></i> 
                     </button>
 
-<<<<<<< HEAD
                     <button
                     type="button"
                     class="btn btn-danger btn-sm"
@@ -77,17 +71,6 @@
                     <i class="bi bi-trash me-1"></i> 
                     </button>
             </td>
-=======
-                    {{-- <button type="button"
-                            class="btn btn-danger btn-sm"
-                            title="Delete"
-                            data-id="{{ $entitlement->id }}"
-                            data-slug="{{ $slug }}"
-                            onclick="deleteLeaveEntitlements(this)">
-                        <i class="bi bi-trash me-1"></i> Delete
-                    </button> --}}
-                </td>
->>>>>>> bec36f46d0edf991969cf4007fda353bc7a7e095
             </tr>
         @empty
             <tr>
