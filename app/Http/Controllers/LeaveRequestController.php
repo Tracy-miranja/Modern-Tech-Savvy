@@ -156,7 +156,8 @@ class LeaveRequestController extends Controller
                 return RequestResponse::badRequest('Half-day is not allowed for this leave type.');
             }
 
-            if (is_numeric($leaveType->min_notice_days ?? null)) {
+            // Only enforce minimum-notice if the leave type does NOT allow backdating
+            if (empty($leaveType->allows_backdating) && is_numeric($leaveType->min_notice_days ?? null)) {
                 $diff = now()->startOfDay()->diffInDays($startDate->copy()->startOfDay(), false);
                 if ($diff < (int)$leaveType->min_notice_days) {
                     return RequestResponse::badRequest("Minimum notice is {$leaveType->min_notice_days} day(s) before the start date.");
