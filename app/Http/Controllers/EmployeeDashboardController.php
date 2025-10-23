@@ -16,6 +16,7 @@ use App\Models\EmployeePayroll;
 use App\Models\Location;
 use App\Http\Responses\RequestResponse;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Http;
 
 class EmployeeDashboardController extends Controller
 {
@@ -288,7 +289,7 @@ $rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
 //     return view('employee.payslips', compact('page', 'payslips', 'employee', 'business'));
 // }
 
-   public function downloadPayslip(Request $request, $business, $id)
+ public function downloadPayslip(Request $request, $business, $id)
 {
     // Get business
     $business = Business::findBySlug($business);
@@ -308,7 +309,7 @@ $rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
     // Get employee payroll
     $employeePayroll = EmployeePayroll::where('employee_id', $employee->id)
         ->where('payroll_id', $id)
-        ->with(['payroll.business', 'employee.user'])
+        ->with(['payroll.business', 'payroll.location', 'employee.user'])
         ->first();
 
     if (!$employeePayroll) {
@@ -319,26 +320,82 @@ $rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
         return back()->with('error', 'Payslip is not available until payroll is closed.');
     }
 
+    // Currency Conversion Logic
+    $targetCurrency = strtoupper($employeePayroll->employee->user->country ?? 'USD');
+    $baseCurrency = $employeePayroll->payroll->currency ?? 'KES';
+    $exchangeRates = $this->getExchangeRates($baseCurrency, $targetCurrency);
+    $exchangeRates = is_numeric($exchangeRates) ? floatval($exchangeRates) : 1.0;
+
+    // Log the exchange rate for debugging
+    Log::info('Exchange Rate Used for Download', [
+        'base_currency' => $baseCurrency,
+        'target_currency' => $targetCurrency,
+        'exchange_rate' => $exchangeRates
+    ]);
+
+    // Determine entity and entityType
+    $entity = $business;
+    $entityType = 'business';
+    if ($employeePayroll->payroll->location_id) {
+        $location = Location::where('id', $employeePayroll->payroll->location_id)
+            ->where('business_id', $business->id)
+            ->first();
+        if ($location) {
+            $entity = $location;
+            $entityType = 'location';
+        }
+    }
+
     try {
         $pdf = Pdf::loadView('payroll.reports.payslip', [
             'employeePayroll' => $employeePayroll,
-            'business' => $employeePayroll->payroll->business,
-            'entity' => $employeePayroll->payroll->business,
-            'entityType' => 'business',
-            'exchangeRates' => ['rate' => 1],
-            'targetCurrency' => $employeePayroll->payroll->currency ?? 'KES',
+            'business' => $business,
+            'entity' => $entity,
+            'entityType' => $entityType,
+            'exchangeRates' => $exchangeRates,
+            'targetCurrency' => $targetCurrency,
         ]);
 
         $monthName = Carbon::create($employeePayroll->payroll->payrun_year, $employeePayroll->payroll->payrun_month, 1)->monthName;
 
         return $pdf->download("Payslip_{$employeePayroll->payroll->payrun_year}_{$monthName}_{$employee->employee_code}.pdf", [
-    'Content-Type' => 'application/pdf',
-    'Content-Disposition' => 'attachment',
-]);
-
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment',
+        ]);
     } catch (\Exception $e) {
-        \Log::error('Payslip download error: ' . $e->getMessage());
-        return back()->with('error', 'Failed to generate payslip. Please try again.');
+        Log::error('Payslip PDF Generation Error: ' . $e->getMessage());
+        return back()->with('error', 'Failed to generate payslip PDF.');
+    }
+}
+    private function getExchangeRates($baseCurrency, $targetCurrency)
+{
+    try {
+        // Fetch latest exchange rates
+        $response = Http::get("https://api.frankfurter.dev/v1/latest", [
+            'base' => $baseCurrency,
+            'symbols' => $targetCurrency
+        ]);
+
+        if ($response->successful()) {
+            $data = $response->json();
+            $exchangeRate = $data['rates'][$targetCurrency] ?? null;
+
+            if (is_numeric($exchangeRate)) {
+                return floatval($exchangeRate);
+            }
+
+            Log::warning('No valid exchange rate found', [
+                'base' => $baseCurrency,
+                'target' => $targetCurrency
+            ]);
+            return 1.0;
+        } else {
+            Log::error('Frankfurter API Error: ' . $response->body());
+            return 1.0;
+        }
+    } catch (\Exception $e) {
+        Log::error('Frankfurter API Exception: ' . $e->getMessage());
+        return 1.0;
     }
 }
 

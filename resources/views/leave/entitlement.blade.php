@@ -128,10 +128,13 @@
                 async function triggerFilterEmployees() {
                     const leavePeriodId = document.getElementById('leave_period_id').value;
                     const checkboxesContainer = document.getElementById('employee-checkboxes');
-                    checkboxesContainer.innerHTML = '';
+
+                    // Show loading state
+                    checkboxesContainer.innerHTML = '<p class="text-muted">Loading employees...</p>';
 
                     // Collect filters from selects
                     const filters = {
+                        leave_period_id: leavePeriodId,
                         departments: $('#departments').val() || [],
                         job_categories: $('#job_categories').val() || [],
                         employment_terms: $('#employment_terms').val() || [],
@@ -139,15 +142,30 @@
                     };
 
                     try {
-                        // These functions are assumed to be provided by your imported JS modules
-                        const allEmployees = await getAllEmployeesList(filters);
-                        const entitlements = await getLeaveEntitlementsByPeriod(leavePeriodId);
+                        console.log('Calling getAllEmployeesList with filters:', filters);
+                        console.log('typeof getAllEmployeesList:', typeof window.getAllEmployeesList);
+                        console.log('typeof getLeaveEntitlementsByPeriod:', typeof window.getLeaveEntitlementsByPeriod);
+
+                        // Wait for both to complete
+                        const [allEmployees, entitlements] = await Promise.all([
+                            window.getAllEmployeesList(filters),
+                            leavePeriodId ? window.getLeaveEntitlementsByPeriod(leavePeriodId) : Promise.resolve([])
+                        ]);
+
+                        console.log('Employees received:', allEmployees);
+                        console.log('Entitlements received:', entitlements);
 
                         if (Array.isArray(allEmployees) && allEmployees.length > 0) {
+                            checkboxesContainer.innerHTML = ''; // Clear loading state
+
                             allEmployees.forEach(employee => {
                                 const entitlement = Array.isArray(entitlements)
                                     ? entitlements.find(e => e.employee_id === employee.id)
                                     : null;
+
+                                const employeeName = employee.user ? employee.user.name : 'Unknown';
+                                const departmentName = employee.department ? employee.department.name : 'N/A';
+                                const badgeHtml = entitlement ? `<span class="badge bg-success ms-2">${entitlement.entitled_days} days</span>` : '';
 
                                 const checkbox = `
                                     <div class="form-check">
@@ -157,9 +175,8 @@
                                                value="${employee.id}"
                                                ${entitlement ? 'checked' : ''}>
                                         <label class="form-check-label" for="employee_${employee.id}">
-                                            ${employee.user ? employee.user.name : 'Unknown'}
-                                            (${employee.department ? employee.department.name : 'N/A'})
-                                            ${entitlement ? `<span class="badge bg-success ms-2">${entitlement.entitled_days} days</span>` : ''}
+                                            ${employeeName} (${departmentName})
+                                            ${badgeHtml}
                                         </label>
                                     </div>
                                 `;
@@ -170,6 +187,7 @@
                         }
                     } catch (error) {
                         console.error('Error fetching employees or entitlements:', error);
+                        console.error('Error stack:', error.stack);
                         checkboxesContainer.innerHTML = "<p class=\"text-danger\">Error fetching employees. Please try again later.</p>";
                     }
                 }

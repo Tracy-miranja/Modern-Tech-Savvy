@@ -38,7 +38,7 @@ public function index()
         $validated = $request->validate([
             'leave_period_id'           => 'required|exists:leave_periods,id',
 
-            //
+
             'employees'                 => 'nullable|array',
             'employees.*'               => 'nullable|integer|exists:employees,id',
 
@@ -124,6 +124,26 @@ public function index()
             ]);
         });
     }
+
+    public function getByPeriod(Request $request)
+{
+    try {
+        $leavePeriodId = $request->input('leave_period_id');
+
+        if (!$leavePeriodId) {
+            return response()->json([]);
+        }
+
+        $entitlements = LeaveEntitlement::where('leave_period_id', $leavePeriodId)
+            ->with(['leaveType', 'employee'])
+            ->get();
+
+        return response()->json($entitlements);
+    } catch (\Exception $e) {
+        \Log::error('Error fetching entitlements by period: ' . $e->getMessage());
+        return response()->json([], 500);
+    }
+}
 
     /**
      * Fetch entitlements table for a given leave period (scoped to active business).
