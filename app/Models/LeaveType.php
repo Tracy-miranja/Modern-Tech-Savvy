@@ -31,6 +31,7 @@ class LeaveType extends Model
         'approval_levels',
         'excluded_days',
         'is_stepwise',
+        'excluded_dates',
         'stepwise_rules',
     ];
 
@@ -46,6 +47,7 @@ class LeaveType extends Model
         'allows_backdating' => 'boolean',
         'approval_levels' => 'integer',
         'excluded_days' => 'array',
+        'excluded_dates' => 'array',
         'is_stepwise' => 'boolean',
         'stepwise_rules' => 'array',
     ];
