@@ -207,8 +207,18 @@ class LeaveRequest extends Model
         $end   = Carbon::parse($endDate)->startOfDay();
 
         $excluded = [];
+        // ADDED: collect excluded specific dates (YYYY-MM-DD)
+        $excludedDates = [];
+
         if ($leaveType instanceof LeaveType) {
             $excluded = array_map('strtolower', (array) ($leaveType->excluded_days ?? []));
+            // ADDED: normalize to ISO date strings
+            $excludedDates = collect((array)($leaveType->excluded_dates ?? []))
+                ->filter()
+                ->map(fn($d) => Carbon::parse($d)->toDateString())
+                ->unique()
+                ->values()
+                ->all();
         }
 
         $period = CarbonPeriod::create($start->toDateString(), $end->toDateString());
@@ -216,7 +226,10 @@ class LeaveRequest extends Model
         $days = 0;
         foreach ($period as $date) {
             $weekday = strtolower($date->format('l'));
-            if (!in_array($weekday, $excluded, true)) {
+            $isoDate = $date->toDateString(); // ADDED
+
+            // increment only if NOT an excluded weekday AND NOT an excluded specific date
+            if (!in_array($weekday, $excluded, true) && !in_array($isoDate, $excludedDates, true)) {
                 $days++;
             }
         }

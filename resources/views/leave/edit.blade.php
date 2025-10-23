@@ -192,7 +192,95 @@
                     @endforeach
                 </div>
             </div>
-        </div>
+
+              {{-- NEW: Excluded Holiday Dates (specific YYYY-MM-DD) --}}
+<div class="col-md-12">
+    <label class="form-label d-block">Excluded Holiday Dates</label>
+
+    <div class="d-flex align-items-start gap-2 mb-2">
+        <input type="date" id="excluded_date_input" class="form-control" style="max-width: 220px;">
+        <button
+            type="button"
+            class="btn btn-outline-primary"
+            onclick="(function(btn){
+                const form  = btn.closest('form');
+                const input = form.querySelector('#excluded_date_input');
+                const pills = form.querySelector('#excluded_dates_pills');
+                const wrap  = form.querySelector('#excluded_dates_inputs');
+                let val = (input && input.value) ? input.value : '';
+                if (!val) return;
+
+                // Accept YYYY-MM-DD as-is; otherwise try to normalize
+                let iso = val;
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+                    const d = new Date(val);
+                    if (isNaN(+d)) { alert('Invalid date'); return; }
+                    iso = d.toISOString().slice(0,10);
+                }
+
+                // Prevent duplicates
+                if (wrap.querySelector('input[name=&quot;excluded_dates[]&quot;][value=&quot;'+iso+'&quot;]')) return;
+
+                // Hidden input (so it submits with the form)
+                const hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = 'excluded_dates[]';
+                hidden.value = iso;
+                wrap.appendChild(hidden);
+
+                // Visual pill with remove
+                const pill = document.createElement('span');
+                pill.className = 'badge bg-secondary d-inline-flex align-items-center';
+                pill.setAttribute('data-iso', iso);
+                pill.textContent = iso + ' ';
+                const x = document.createElement('button');
+                x.type = 'button';
+                x.className = 'btn-close btn-close-white btn-sm ms-1';
+                x.setAttribute('aria-label', 'Remove');
+                x.onclick = function(){ hidden.remove(); pill.remove(); };
+                pill.appendChild(x);
+                pills.appendChild(pill);
+
+                input.value = '';
+            })(this)"
+        >Add date</button>
+    </div>
+
+    <div id="excluded_dates_pills" class="d-flex flex-wrap gap-2">
+        {{-- Prepopulate existing dates as pills with remove buttons --}}
+        @foreach((array)($leaveType->excluded_dates ?? []) as $d)
+            <span class="badge bg-secondary d-inline-flex align-items-center" data-iso="{{ $d }}">
+                {{ $d }}&nbsp;
+                <button type="button" class="btn-close btn-close-white btn-sm ms-1" aria-label="Remove"
+                    onclick="(function(btn){
+                        const pill = btn.closest('span[data-iso]');
+                        const iso = pill ? pill.getAttribute('data-iso') : null;
+                        const form = btn.closest('form');
+                        if (iso && form) {
+                            const input = form.querySelector('input[name=&quot;excluded_dates[]&quot;][value=&quot;'+iso+'&quot;]');
+                            if (input) input.remove();
+                        }
+                        if (pill) pill.remove();
+                    })(this)">
+                </button>
+            </span>
+        @endforeach
+    </div>
+
+    {{-- Hidden inputs live here so they submit with the form --}}
+    <div id="excluded_dates_inputs">
+        {{-- Presence input so the key exists even when empty (lets you clear all dates) --}}
+        <input type="hidden" name="excluded_dates" value="">
+        {{-- One hidden input per existing date --}}
+        @foreach((array)($leaveType->excluded_dates ?? []) as $d)
+            <input type="hidden" name="excluded_dates[]" value="{{ $d }}">
+        @endforeach
+    </div>
+
+    <small class="text-muted d-block mt-1">
+        Specific dates (YYYY-MM-DD) that won’t be counted for this leave type.
+    </small>
+</div>
 
         <div class="mt-4 d-flex gap-2">
             <button type="button" class="btn btn-primary" onclick="saveLeaveType(this)">Update Leave Type</button>
@@ -200,3 +288,59 @@
         </div>
     </form>
 </div>
+
+{{-- Script kept inside the partial so it works when this view is injected via AJAX --}}
+<script>
+(function () {
+    const input  = document.getElementById('excluded_date_input');
+    const pills  = document.getElementById('excluded_dates_pills');
+    const inputs = document.getElementById('excluded_dates_inputs');
+    const btn    = document.getElementById('add_excluded_date_btn');
+
+    function addDate(val) {
+        if (!val) return;
+        const d = new Date(val);
+        if (isNaN(+d)) { alert('Invalid date'); return; }
+        const iso = d.toISOString().slice(0,10);
+
+        // prevent duplicates
+        if ([...inputs.querySelectorAll('input[name="excluded_dates[]"]')].some(i => i.value === iso)) return;
+
+        // hidden input for form submit (INSIDE the form)
+        const hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.name = 'excluded_dates[]';
+        hidden.value = iso;
+        inputs.appendChild(hidden);
+
+        // visual pill with remove
+        const pill = document.createElement('span');
+        pill.className = 'badge bg-secondary d-inline-flex align-items-center';
+        pill.textContent = iso + ' ';
+        const x = document.createElement('button');
+        x.type = 'button';
+        x.className = 'btn-close btn-close-white btn-sm ms-1';
+        x.setAttribute('aria-label', 'Remove');
+        x.onclick = () => { hidden.remove(); pill.remove(); };
+        pill.appendChild(x);
+        pills.appendChild(pill);
+
+        input.value = '';
+    }
+
+    // Button & Enter key handlers
+    btn?.addEventListener('click', () => addDate(input.value));
+    input?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); addDate(input.value); }
+    });
+
+    // Prepopulate from server (existing values on the LeaveType)
+    const initialExcludedDates = @json(old('excluded_dates', $leaveType->excluded_dates ?? []));
+    if (Array.isArray(initialExcludedDates)) {
+        initialExcludedDates.forEach(function (iso) {
+            // add directly; addDate will normalize and de-duplicate
+            addDate(iso);
+        });
+    }
+})();
+</script>

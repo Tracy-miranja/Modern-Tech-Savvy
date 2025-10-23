@@ -66,6 +66,8 @@ class LeaveTypeController extends Controller
             'approval_levels'                   => 'required|integer|min:0',
             'excluded_days'                     => 'nullable|array',
             'excluded_days.*'                   => 'in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
+            'excluded_dates'                   => 'nullable|array',
+            'excluded_dates.*'                 => 'date_format:Y-m-d',
             'is_stepwise'                       => 'required|boolean',
             'stepwise_rules'                    => 'nullable|array',
         ]);
@@ -85,6 +87,7 @@ class LeaveTypeController extends Controller
                 'allows_backdating'   => $validated['allows_backdating'],
                 'approval_levels'     => $validated['approval_levels'],
                 'excluded_days'       => $validated['excluded_days'] ?? [],
+                'excluded_dates'      => array_values(array_unique($validated['excluded_dates'] ?? [])),
                 'is_stepwise'         => $validated['is_stepwise'],
                 'stepwise_rules'      => $validated['stepwise_rules'] ?? [],
             ]);
@@ -233,6 +236,8 @@ class LeaveTypeController extends Controller
         'is_stepwise'         => ['sometimes','in:0,1,true,false'],
         'excluded_days'       => ['sometimes','array'],
         'excluded_days.*'     => ['in:monday,tuesday,wednesday,thursday,friday,saturday,sunday'],
+        'excluded_dates'      => ['sometimes','array'],
+        'excluded_dates.*'    => ['date_format:Y-m-d'],
 
         // Policy bits
         'department'     => ['sometimes','filled','string'],
@@ -276,6 +281,20 @@ class LeaveTypeController extends Controller
                 array_map('strtolower', $data['excluded_days'] ?? [])
             ));
         }
+        
+        // Use exists() so an intentionally empty array clears the field
+        if ($request->exists('excluded_dates')) {
+            $dates = collect((array)$request->input('excluded_dates', []))
+                ->filter()
+                ->map(fn($d) => \Carbon\Carbon::parse($d)->toDateString())
+                ->unique()
+                ->values()
+                ->all();
+
+            $leaveType->excluded_dates = $dates; // [] will clear it
+        }
+
+
 
         if ($leaveType->isDirty()) {
             $leaveType->save();

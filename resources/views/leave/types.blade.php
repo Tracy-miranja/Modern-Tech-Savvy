@@ -62,8 +62,8 @@
 
                             <div class="col-md-12">
                                 <label for="min_notice_days">Min notice days</label>
-                                <input type="number" name="min_notice_days" id="min_notice_days" 
-                                class="form-control" min="0" oninput="validity.valid||(value='');" required>
+                                <input type="number" name="min_notice_days" id="min_notice_days"
+                                    class="form-control" min="0" oninput="validity.valid||(value='');" required>
                             </div>
                         </div>
 
@@ -108,8 +108,8 @@
 
                             <div class="col-md-4">
                                 <label for="default_days">Default days</label>
-                                <input type="number" name="default_days" id="default_days" 
-                                class="form-control" min="0" oninput="validity.valid||(value='');" required>
+                                <input type="number" name="default_days" id="default_days"
+                                    class="form-control" min="0" oninput="validity.valid||(value='');" required>
                             </div>
 
                             <div class="col-md-4">
@@ -158,9 +158,9 @@
                                     @endphp
                                     @foreach ($daysOfWeek as $day)
                                         <div class="form-check me-3">
-                                            <input class="form-check-input" type="checkbox" 
-                                                name="excluded_days[]" 
-                                                id="day_{{ $day }}" 
+                                            <input class="form-check-input" type="checkbox"
+                                                name="excluded_days[]"
+                                                id="day_{{ $day }}"
                                                 value="{{ $day }}">
                                             <label class="form-check-label" for="day_{{ $day }}">
                                                 {{ ucfirst($day) }}
@@ -170,6 +170,20 @@
                                 </div>
                             </div>
 
+                            <div class="col-md-12 mb-3">
+                                <label for="excluded_dates">Excluded Holiday Dates</label>
+                                <div class="d-flex align-items-start gap-2 mb-2">
+                                    <input type="date" id="excluded_date_input" class="form-control" style="max-width: 220px;">
+                                    <button type="button" class="btn btn-outline-primary" id="add_excluded_date_btn">Add date</button>
+                                </div>
+                                <div id="excluded_dates_pills" class="d-flex flex-wrap gap-2"></div>
+                                <!-- Hidden inputs get appended here so they submit with the form -->
+                                <div id="excluded_dates_inputs"></div>
+                                <small class="text-muted d-block mt-1">
+                                    Specific dates (YYYY-MM-DD) that won’t be counted for this leave type.
+                                </small>
+                            </div>
+
                             <div class="col-md-4">
                                 <label for="approval_levels">Approval Levels</label>
                                 <select name="approval_levels" id="approval_levels" class="form-select">
@@ -177,7 +191,7 @@
                                         <option value="{{ $i }}">{{ $i }}</option>
                                     @endfor
                                 </select>
-                            </div>  
+                            </div>
 
                             <div class="col-md-4">
                                 <label for="allows_backdating">Allows Backdating</label>
@@ -193,7 +207,7 @@
                                     <option value="1">Yes</option>
                                     <option value="0" selected>No</option>
                                 </select>
-                            </div>  
+                            </div>
 
                             <div class="col-md-12 mb-3">
                                 <label for="stepwise_rules">Stepwise Rules</label>
@@ -204,7 +218,8 @@
                         <div class="row">
                             <div class="col-md-12">
                                 <button type="button" class="btn btn-primary w-100" onclick="saveLeaveType(this)">
-                                    Save Leave Type </button>
+                                    Save Leave Type
+                                </button>
                             </div>
                         </div>
 
@@ -222,28 +237,84 @@
         </div>
 
     </div>
+
     @push('scripts')
         @include('modals.leave-type')
         <script src="{{ asset('js/main/leave-type.js') }}" type="module"></script>
 
         <script>
-            document.addEventListener('DOMContentLoaded', function() {
-                if (typeof getLeaveType === 'function') {
-                    getLeaveType();
-                }
-                const input = document.getElementById('name');
-                const availableTypes = @json(getLeaveTypeNames());
+            // helpers live in this closure
+            (function () {
+                const input  = document.getElementById('excluded_date_input');
+                const pills  = document.getElementById('excluded_dates_pills');
+                const inputs = document.getElementById('excluded_dates_inputs');
+                const btn    = document.getElementById('add_excluded_date_btn');
 
-                if (typeof $ !== 'undefined' && $.fn.autocomplete) {
-                    $('#name').autocomplete({
-                        source: availableTypes,
-                        minLength: 1,
-                    });
-                } else {
-                    console.error('jQuery or jQuery UI is not loaded. Autocomplete will not work.');
+                function addDate(val) {
+                    if (!val) return;
+                    const d = new Date(val);
+                    if (isNaN(+d)) { alert('Invalid date'); return; }
+                    const iso = d.toISOString().slice(0, 10);
+
+                    // prevent duplicates
+                    if ([...inputs.querySelectorAll('input[name="excluded_dates[]"]')].some(i => i.value === iso)) return;
+
+                    // hidden input for form submit (INSIDE the form)
+                    const hidden = document.createElement('input');
+                    hidden.type = 'hidden';
+                    hidden.name = 'excluded_dates[]';
+                    hidden.value = iso;
+                    inputs.appendChild(hidden);
+
+                    // visual pill with remove
+                    const pill = document.createElement('span');
+                    pill.className = 'badge bg-secondary d-inline-flex align-items-center';
+                    pill.textContent = iso + ' ';
+                    const x = document.createElement('button');
+                    x.type = 'button';
+                    x.className = 'btn-close btn-close-white btn-sm ms-1';
+                    x.setAttribute('aria-label', 'Remove');
+                    x.onclick = () => { hidden.remove(); pill.remove(); };
+                    pill.appendChild(x);
+                    pills.appendChild(pill);
+
+                    input.value = '';
                 }
-            });
+
+                // Add button & Enter key
+                btn?.addEventListener('click', () => addDate(input.value));
+                input?.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); addDate(input.value); }
+                });
+
+                document.addEventListener('DOMContentLoaded', function () {
+                    // Load Leave Types list (existing behavior)
+                    if (typeof getLeaveType === 'function') {
+                        getLeaveType();
+                    }
+
+                    // Autocomplete for name (existing behavior)
+                    const nameInput = document.getElementById('name');
+                    const availableTypes = @json(getLeaveTypeNames());
+                    if (typeof $ !== 'undefined' && $.fn.autocomplete) {
+                        $('#name').autocomplete({
+                            source: availableTypes,
+                            minLength: 1,
+                        });
+                    } else {
+                        console.error('jQuery or jQuery UI is not loaded. Autocomplete will not work.');
+                    }
+
+                    // Pre-populate excluded dates from server into the form UI
+                    const initialExcludedDates = @json($leaveType->excluded_dates ?? []);
+                    if (Array.isArray(initialExcludedDates)) {
+                        initialExcludedDates.forEach(function (iso) {
+                            // Feed directly to addDate; it will normalize & avoid duplicates
+                            addDate(iso);
+                        });
+                    }
+                });
+            })();
         </script>
     @endpush
-
 </x-app-layout>
