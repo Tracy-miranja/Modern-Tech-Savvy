@@ -45,6 +45,19 @@ class LeaveRequestController extends Controller
             $query->where('employee_id', $emp->id);
         }
 
+        // HOD → only employees from same department
+        if ($activeRole === 'head-of-department' && $emp) {
+            // If HOD has no department, show nothing
+            if (empty($emp->department_id)) {
+                $query->whereRaw('1=0');
+            } else {
+                $deptId = (int) $emp->department_id;
+                $query->whereHas('employee', function ($q) use ($deptId) {
+                    $q->where('department_id', $deptId);
+                });
+            }
+        }
+
         // Filter by tab status
         if (in_array($status, ['pending', 'approved', 'rejected', 'declined'], true)) {
             $query->status($status);
@@ -309,6 +322,37 @@ class LeaveRequestController extends Controller
         }
     }
 
+    public function requests(Request $request, $slug = null)
+    {
+        $slug = $slug ?? $request->leave_type_slug;
+        if (!$slug) abort(404, 'Leave type slug missing.');
+
+        $activeRole = session('active_role');
+        $hodDeptId  = auth()->user()->employee->department_id ?? null;
+
+        $leaveTypeQuery = LeaveType::where('slug', $slug)
+            ->with(['leavePolicies']);
+
+        // Scope the nested leaveRequests relation
+        $leaveTypeQuery->with(['leaveRequests' => function ($q) use ($activeRole, $hodDeptId) {
+            $q->with(['employee.user']);
+            if ($activeRole === 'head-of-department') {
+                if (empty($hodDeptId)) {
+                    $q->whereRaw('1=0'); // HOD without department sees nothing
+                } else {
+                    $q->whereHas('employee', function ($qq) use ($hodDeptId) {
+                        $qq->where('department_id', (int)$hodDeptId);
+                    });
+                }
+            }
+        }]);
+
+        $leaveType = $leaveTypeQuery->firstOrFail();
+
+        return view('leave.leave_type_requests', compact('leaveType'));
+    }
+
+
     /**
      * Approve/Reject with level checks.
      */
@@ -323,7 +367,6 @@ class LeaveRequestController extends Controller
 
         return $this->handleTransaction(function () use ($validated) {
             try {
-                /** @var LeaveRequest $leaveRequest */
                 $leaveRequest = LeaveRequest::where('reference_number', $validated['reference_number'])->firstOrFail();
 
                 if (!$leaveRequest->canUserApprove(auth()->user())) {
@@ -335,8 +378,27 @@ class LeaveRequestController extends Controller
                 }
 
                 if ($validated['status'] === 'approved') {
+                    $approverId = auth()->id();
+                    $activeRole = $this->resolveActiveRole();
+
+                    if (!$activeRole) {
+                        return RequestResponse::badRequest('Active role not found in session.');
+                    }
+
+                    $alreadyApprovedSameRole = collect($leaveRequest->approval_history ?? [])
+                        ->contains(function ($e) use ($approverId, $activeRole) {
+                            $sameUser = (int)($e['approver_id'] ?? 0) === (int)$approverId;
+                            $entryRole = strtolower((string)($e['approver_role'] ?? ''));
+                            return $sameUser && ($entryRole !== '' && $entryRole === $activeRole);
+                        });
+
+                    if ($alreadyApprovedSameRole) {
+                        return RequestResponse::badRequest('You have already approved this request with your current role.');
+                    }
+
                     return $this->processApproval($leaveRequest, $validated['comments'] ?? null);
                 }
+
 
                 return $this->processRejection($leaveRequest, $validated['rejection_reason'], $validated['comments'] ?? null);
             } catch (\Exception $e) {
@@ -346,43 +408,62 @@ class LeaveRequestController extends Controller
         });
     }
 
+
     /**
      * Enhanced processApproval with better error handling
      */
     protected function processApproval(LeaveRequest $leaveRequest, $comments = null)
     {
         try {
-            $nextLevel = $leaveRequest->getNextApprovalLevel();
+            $nextLevel      = $leaveRequest->getNextApprovalLevel();
             $requiredLevels = (int) (optional($leaveRequest->leaveType)->approval_levels ?? 1);
 
-            // Validate approver
             $approverId = auth()->id();
             if (!$approverId) {
                 return RequestResponse::badRequest('Invalid approver session.');
             }
 
-            // Require docs before finalizing
+            // NEW: resolve active role and guard per-role
+            $activeRole = $this->resolveActiveRole(); // e.g. "business-hr"
+            if (!$activeRole) {
+                return RequestResponse::badRequest('Active role not found in session.');
+            }
+
+            $history = is_array($leaveRequest->approval_history ?? null) ? $leaveRequest->approval_history : [];
+
+            // NEW: block only if SAME user + SAME role already approved before
+            $alreadyApprovedSameRole = collect($history)->contains(function ($entry) use ($approverId, $activeRole) {
+                $sameUser = (int)($entry['approver_id'] ?? 0) === (int)$approverId;
+                $entryRole = strtolower((string)($entry['approver_role'] ?? ''));
+                // If role not recorded in older entries, DO NOT block here
+                return $sameUser && ($entryRole !== '' && $entryRole === $activeRole);
+            });
+
+            if ($alreadyApprovedSameRole) {
+                return RequestResponse::badRequest('You have already approved this request with your current role.');
+            }
+
+            // Require docs before finalizing as you already do
             if ($nextLevel >= $requiredLevels) {
                 if ($leaveRequest->requires_documentation && !$leaveRequest->attachment) {
                     return RequestResponse::badRequest('Cannot finalize approval: documentation is required.');
                 }
             }
 
-            // Update level + history (partial approval)
+            // Record this approval step (persist the role used)
             $leaveRequest->current_approval_level = $nextLevel;
-            $history = $leaveRequest->approval_history ?? [];
             $history[] = [
-                'level' => $nextLevel,
-                'approver_id' => $approverId,
+                'level'         => $nextLevel,
+                'approver_id'   => $approverId,
                 'approver_name' => auth()->user()->name,
-                'approved_at' => now()->toDateTimeString(),
-                'comments' => $comments,
+                'approver_role' => $activeRole, // << store the active role from session
+                'approved_at'   => now()->toDateTimeString(),
+                'comments'      => $comments,
             ];
             $leaveRequest->approval_history = $history;
             $leaveRequest->rejection_reason = null;
             $leaveRequest->save();
 
-            // More approvals needed?
             if ($leaveRequest->needsMoreApprovals()) {
                 $this->sendNextLevelNotificationsWithDelay($leaveRequest);
                 return RequestResponse::ok("Leave advanced to approval level {$nextLevel}. Waiting for final approval.", [
@@ -390,7 +471,6 @@ class LeaveRequestController extends Controller
                 ]);
             }
 
-            // Final approval
             $this->finalizeApprovalSafely($leaveRequest);
             $this->sendFinalApprovalNotificationsWithDelay($leaveRequest);
 
@@ -398,10 +478,14 @@ class LeaveRequestController extends Controller
                 'new_status' => 'approved',
             ]);
         } catch (\Exception $e) {
-            Log::error("Error processing leave approval for {$leaveRequest->reference_number}: " . $e->getMessage());
+            Log::error("Error processing leave approval for {$leaveRequest->reference_number}: " . $e->getMessage(), [
+                'active_role' => $this->resolveActiveRole(),
+                'user_id'     => auth()->id(),
+            ]);
             return RequestResponse::badRequest('Failed to process approval. Please try again.');
         }
     }
+
 
     protected function processRejection(LeaveRequest $leaveRequest, $rejectionReason, $comments = null)
     {
@@ -451,8 +535,6 @@ class LeaveRequestController extends Controller
                     Mail::to($email)->later($delay, new LeaveRequestSubmitted($leaveRequest));
                 }
             }
-
-            // Note: We removed the auto-approval logic that was causing the issue
             // Leaves that require approval will stay pending until someone approves them
 
         } catch (\Exception $e) {
@@ -601,22 +683,51 @@ class LeaveRequestController extends Controller
      * - Employee: own only
      * - Others (HOD/HR/Admin/Head): any request in same business
      */
-    protected function canUserViewLeaveRequest(User $user, LeaveRequest $leaveRequest)
+    public function canUserApprove(\App\Models\User $user): bool
     {
-        $userEmployee = $user->employee;
-        $activeRole = session('active_role');
-
-        if ($activeRole === 'business-employee' && $userEmployee) {
-            return (int)$leaveRequest->employee_id === (int)$userEmployee->id;
+        // Must be pending to approve
+        if ($this->status !== 'pending') {
+            return false;
         }
 
-        // HOD/HR/Admin/Head: view all requests in the business
-        if (in_array($activeRole, ['head-of-department','business-hr','business-admin','business-head'], true) && $userEmployee) {
-            return (int)$leaveRequest->business_id === (int)$userEmployee->business_id;
+        // Resolve active role from session (same helper logic as controller)
+        $activeRole = strtolower((string)(session('active_role') ?? ''));
+        if ($activeRole === '' && method_exists($user, 'getRoleNames')) {
+            $activeRole = strtolower($user->getRoleNames()->first() ?? '');
+        }
+        if ($activeRole === '') {
+            return false;
         }
 
-        return false;
+        // Optional: ensure this role is allowed to approve at the current level
+        // (Adjust this mapping to your policy)
+        $allowedRoles = [
+            'head-of-department',
+            'business-hr',
+            'business-admin',
+            'business-head',
+            // add others that can approve
+        ];
+        if (!in_array($activeRole, $allowedRoles, true)) {
+            return false;
+        }
+
+        // Allow once per role: block only if SAME user already approved with SAME role
+        $history = is_array($this->approval_history ?? null) ? $this->approval_history : [];
+        $alreadyApprovedSameRole = collect($history)->contains(function ($entry) use ($user, $activeRole) {
+            $sameUser = (int)($entry['approver_id'] ?? 0) === (int)$user->id;
+            $entryRole = strtolower((string)($entry['approver_role'] ?? ''));
+            // If older entries have no role, do NOT block here (so user can approve under a different role)
+            return $sameUser && ($entryRole !== '' && $entryRole === $activeRole);
+        });
+
+        if ($alreadyApprovedSameRole) {
+            return false;
+        }
+
+        return true;
     }
+
 
     /**
      * Upload document (owner only).
@@ -839,4 +950,19 @@ class LeaveRequestController extends Controller
 
         return 'all';
     }
+
+    // Inside LeaveRequestController (private helper)
+    protected function resolveActiveRole(): ?string
+    {
+        $r = session('active_role'); // e.g. "business-hr" from your EnsureCorrectRole middleware
+        if (is_string($r) && $r !== '') {
+            return strtolower($r);
+        }
+        $u = auth()->user();
+        if ($u && method_exists($u, 'getRoleNames')) {
+            return strtolower((string)($u->getRoleNames()->first() ?? ''));
+        }
+        return null;
+    }
+
 }
