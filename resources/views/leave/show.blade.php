@@ -24,13 +24,12 @@
         $progressPct   = $levelsTotal > 0 ? min(100, round(($levelsCurrent / $levelsTotal) * 100)) : ($statusName === 'approved' ? 100 : 0);
 
         // Back button fallbacks by role
-        // You can customize these to named routes if you have them.
         $roleFallbacks = [
-            'head-of-department' => url('/dashboard'),         // HOD → dashboard
-            'business-hr'        => url('/dashboard'),         // HR  → dashboard
-            'business-admin'     => url('/dashboard'),         // Admin → dashboard
-            'business-head'      => url('/dashboard'),         // Head → dashboard
-            'business-employee'  => url('/leave/requests'),    // Employee → your "My Requests" list (adjust if you have a route)
+            'head-of-department' => url('/dashboard'),
+            'business-hr'        => url('/dashboard'),
+            'business-admin'     => url('/dashboard'),
+            'business-head'      => url('/dashboard'),
+            'business-employee'  => url('/leave/requests'),
         ];
         $fallbackBackUrl = $roleFallbacks[$activeRole] ?? url('/');
     @endphp
@@ -197,10 +196,24 @@
                                 @endif
 
                                 @if($leave->approved_by && $leave->approved_at)
+                                    @php
+                                        $finalApprover = $leave->approvedBy; // relation -> User
+                                        // Find the latest history entry for the final approver (for role)
+                                        $finalHist = collect((array)($leave->approval_history ?? []))
+                                            ->filter(fn($h) => (int)($h['approver_id'] ?? 0) === (int)$leave->approved_by)
+                                            ->sortByDesc(fn($h) => (int)($h['level'] ?? 0))
+                                            ->first();
+                                        $finalRole = $finalHist['approver_role'] ?? null;
+                                        $finalRoleLabel = $finalRole ? ucfirst(str_replace('-', ' ', $finalRole)) : null;
+                                    @endphp
                                     <hr>
                                     <div>
                                         <small class="text-muted d-block">Final Approval</small>
-                                        <small>By User ID: {{ $leave->approved_by }} at {{ $leave->approved_at->format('Y-m-d H:i') }}</small>
+                                        <small>
+                                            By {{ $finalApprover?->name ?? ('User ID: '.$leave->approved_by) }}
+                                            @if($finalRoleLabel) ({{ $finalRoleLabel }}) @endif
+                                            at {{ optional($leave->approved_at)->format('Y-m-d H:i') }}
+                                        </small>
                                     </div>
                                 @endif
 
@@ -246,7 +259,20 @@
                             'icon'       => 'fa fa-paper-plane',
                             'colorClass' => 'text-primary',
                         ];
+
                         foreach ((array) ($leave->approval_history ?? []) as $hist) {
+                            // Format role nicely ("business-hr" -> "Business hr")
+                            $roleLabel = !empty($hist['approver_role'])
+                                ? ucfirst(str_replace('-', ' ', (string)$hist['approver_role']))
+                                : null;
+
+                            // Prefer stored approver_name; fall back to generic if missing
+                            $who = trim(
+                                ($hist['approver_name'] ?? 'Approver')
+                                .' '
+                                .($roleLabel ? "({$roleLabel})" : '')
+                            );
+
                             $timeline[] = [
                                 'name'       => 'approval_level_' . ($hist['level'] ?? '?'),
                                 'title'      => 'Approval Level ' . ($hist['level'] ?? '?'),
@@ -254,9 +280,11 @@
                                 'reason'     => null,
                                 'icon'       => 'fa fa-check',
                                 'colorClass' => 'text-success',
-                                'meta'       => 'Approver ID: ' . ($hist['approver_id'] ?? '—'),
+                                // Show Name + Role + ID
+                                'meta'       => $who . ' — ID: ' . ($hist['approver_id'] ?? '—'),
                             ];
                         }
+
                         if ($statusName === 'rejected') {
                             $timeline[] = [
                                 'name'       => 'rejected',

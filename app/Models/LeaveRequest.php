@@ -129,6 +129,14 @@ class LeaveRequest extends Model
 
             // HOD sees ALL requests in the business (not tied to a department)
             case 'head-of-department':
+                if (!$userEmployee || empty($userEmployee->department_id)) {
+                    return $query->whereRaw('1=0');
+                }
+                return $query->where('business_id', $businessId)
+                            ->whereHas('employee', function ($q) use ($userEmployee) {
+                                $q->where('department_id', (int)$userEmployee->department_id);
+                            });
+
             case 'business-hr':
             case 'business-admin':
             case 'business-head':
