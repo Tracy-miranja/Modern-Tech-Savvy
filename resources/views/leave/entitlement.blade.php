@@ -206,7 +206,7 @@
                     const checkboxesContainer = document.getElementById('employee-checkboxes');
 
                     if (Array.isArray(employees) && employees.length > 0) {
-                        checkboxesContainer.innerHTML = ''; // Clear container
+                        checkboxesContainer.innerHTML = '';
 
                         employees.forEach(employee => {
                             const isChecked = employee.checked || false;

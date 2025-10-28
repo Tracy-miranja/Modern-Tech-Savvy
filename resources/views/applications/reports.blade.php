@@ -19,7 +19,13 @@
                         <tbody>
                             @forelse($applications as $application)
                             <tr>
-                                <td>{{ $application->applicant->user->name }}</td>
+                                <td>
+                                    @if($application->applicant->user)
+                                        {{ $application->applicant->user->name }}
+                                    @else
+                                        <span class="text-muted">Applicant #{{ $application->applicant->id }}</span>
+                                    @endif
+                                </td>
                                 <td>{{ $application->jobPost->title }}</td>
                                 <td>
                                     <span
