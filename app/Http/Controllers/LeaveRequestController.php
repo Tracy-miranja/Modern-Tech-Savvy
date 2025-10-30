@@ -833,10 +833,24 @@ class LeaveRequestController extends Controller
     protected function findBusinessAdmins(Business $business)
     {
         return User::role('business-admin')
-            ->whereHas('employee', function ($q) use ($business) {
-                $q->where('business_id', $business->id);
-            })->get();
+            ->where(function ($q) use ($business) {
+                $q->whereHas('employee', function ($qq) use ($business) {
+                    $qq->where('business_id', $business->id);
+                })
+                // if users table has a business_id column
+                ->orWhere('business_id', $business->id)
+                // if there's a belongsTo/hasOne relation named 'business'
+                ->orWhereHas('business', function ($qb) use ($business) {
+                    $qb->where('id', $business->id);
+                })
+                // if there's a many-to-many relation named 'businesses'
+                ->orWhereHas('businesses', function ($qb) use ($business) {
+                    $qb->where('businesses.id', $business->id);
+                });
+            })
+            ->get();
     }
+
 
     // --------------------------
     // Debug helper (unchanged)

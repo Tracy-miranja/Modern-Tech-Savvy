@@ -6,6 +6,10 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
+use App\Models\Employee;
+use App\Models\Business;
+use App\Models\LeaveType;
+use App\Models\User;
 
 class LeaveRequest extends Model
 {
@@ -94,24 +98,56 @@ class LeaveRequest extends Model
     }
 
     // Who can approve (based on ACTIVE role, not just assigned roles)
-    public function canUserApprove(User $user)
+    public function canUserApprove(User $user): bool
     {
+        // Only pending can be approved
         if ($this->status !== 'pending') return false;
 
+        // Resolve active role (prefer session)
+        $activeRole = strtolower((string)(session('active_role') ?? ''));
+        if ($activeRole === '' && method_exists($user, 'getRoleNames')) {
+            $activeRole = strtolower((string) ($user->getRoleNames()->first() ?? ''));
+        }
+        if ($activeRole === '') return false;
+
+        // Allowed approver roles
+        $approverRoles = ['head-of-department', 'business-hr', 'business-admin', 'business-head'];
+        if (!in_array($activeRole, $approverRoles, true)) return false;
+
+        // Prevent duplicate approval by the SAME user under the SAME role
+        $history = is_array($this->approval_history ?? null) ? $this->approval_history : [];
+        $alreadyApprovedSameRole = collect($history)->contains(function ($entry) use ($user, $activeRole) {
+            $sameUser  = (int)($entry['approver_id'] ?? 0) === (int)$user->id;
+            $entryRole = strtolower((string)($entry['approver_role'] ?? ''));
+            return $sameUser && ($entryRole !== '' && $entryRole === $activeRole);
+        });
+        if ($alreadyApprovedSameRole) return false;
+
+        // SPECIAL CASE: business-admin can approve for the whole business, even without an employee row
+        if ($activeRole === 'business-admin') {
+            $sameBusiness =
+                (int)($user->business_id ?? 0) === (int)$this->business_id // if users.business_id exists
+                || (method_exists($user, 'business')  && (int)optional($user->business)->id === (int)$this->business_id) // hasOne/belongsTo
+                || (method_exists($user, 'businesses') && $user->businesses->pluck('id')->contains((int)$this->business_id)); // many-to-many
+            return $sameBusiness;
+        }
+
+        // For other roles, require an employee record in the SAME business
         $userEmployee = $user->employee;
         if (!$userEmployee || (int)$userEmployee->business_id !== (int)$this->business_id) {
             return false;
         }
 
-        $activeRole = session('active_role');
+        // Optional (tighten HOD to same department as the request’s employee)
+        if ($activeRole === 'head-of-department') {
+            $reqDept = (int) optional($this->employee)->department_id;
+            return $reqDept > 0 && (int)$userEmployee->department_id === $reqDept;
+        }
 
-        // Approver roles at ANY level: HOD, HR, Admin, Head
-        $approverRoles = ['head-of-department', 'business-hr', 'business-admin', 'business-head'];
-
-        return in_array($activeRole, $approverRoles, true)
-            && ($user->hasRole('head-of-department') || $user->hasRole('business-hr')
-                || $user->hasRole('business-admin') || $user->hasRole('business-head'));
+        // HR / Head pass once same-business employee is confirmed
+        return true;
     }
+
 
     // Filter by ACTIVE role
     public function scopeForRole($query, User $user, $businessId)
