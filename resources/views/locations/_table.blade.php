@@ -3,6 +3,7 @@
         <tr>
             <th>#</th>
             <th>Name</th>
+            <th>Coordinates</th>
             <th>Company Size</th>
             {{-- <th>Registration No</th>
             <th>Tax Pin No</th>
@@ -17,6 +18,14 @@
             <tr>
                 <td>{{ $index + 1 }}</td>
                 <td>{{ $location->name }}</td>
+                <td>
+                    @if(!empty($location->latitude) && !empty($location->longitude))
+                        {{ $location->latitude }}, {{ $location->longitude }}
+                        <small class="text-muted">({{ $location->radius_m ?? 150 }}m)</small>
+                    @else
+                        <span class="text-muted">—</span>
+                    @endif
+                </td>
                 <td>{{ $location->company_size }}</td>
                 {{-- <td>{{ $location->registration_no }}</td>
                 <td>{{ $location->tax_pin_no }}</td>
