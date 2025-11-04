@@ -110,6 +110,11 @@ class Employee extends Model implements HasMedia
     {
         return $this->hasOne(EmployeeContactDetail::class);
     }
+    //added
+public function departments()
+{
+    return $this->belongsToMany(Department::class, 'employee_departments');
+}
     public function documents()
     {
         return $this->hasMany(EmployeeDocument::class);
