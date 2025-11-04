@@ -20,6 +20,9 @@ class Attendance extends Model
         'is_absent',
         'remarks',
         'logged_by',
+        'device_mac',
+        'punch_latitude',
+        'punch_longitude',
     ];
 
     protected $casts = [
@@ -27,6 +30,9 @@ class Attendance extends Model
         'clock_in' => 'datetime',
         'clock_out' => 'datetime',
         'is_absent' => 'boolean',
+        'overtime_hours' => 'float',
+        'punch_latitude' => 'float',
+        'punch_longitude' => 'float',
     ];
 
     public function business()
