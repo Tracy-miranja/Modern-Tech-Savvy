@@ -143,59 +143,73 @@ class RoleController extends Controller
         });
     }
 
-    public function updateDepartments(Request $request, Business $business)
-    {
-        try {
-            $validatedData = $request->validate([
-                'user_id' => 'required|exists:users,id',
-                'role_id' => 'required|exists:roles,id',
-                'departments' => 'required|array',
-                'departments.*' => 'exists:departments,id',
-            ]);
+    public function updateDepartments(Request $request, $business)
+{
+    try {
+        // Convert slug to Business model
+        $businessModel = Business::findBySlug($business);
 
-            $user = User::findOrFail($validatedData['user_id']);
-            $role = Role::findOrFail($validatedData['role_id']);
-
-            // Verify user has this role
-            if (!$user->hasRole($role)) {
-                return response()->json(['success' => false, 'message' => 'User does not have this role.'], 403);
-            }
-
-            // Get the employee for this business
-            $employee = Employee::where('user_id', $user->id)
-                ->where('business_id', $business->id)
-                ->first();
-
-            if (!$employee) {
-                return response()->json(['success' => false, 'message' => 'User is not an employee of this business.'], 400);
-            }
-
-            // Update departments
-            $employee->departments()->sync($validatedData['departments']);
-
-            Log::info('Departments updated for employee', [
-                'employee_id' => $employee->id,
-                'user_id' => $user->id,
-                'departments' => $validatedData['departments']
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Departments updated successfully.',
-                'data' => ['employee_id' => $employee->id]
-            ], 200);
-
-        } catch (\Exception $e) {
-            Log::error('Error updating departments', [
-                'error' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine()
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Error updating departments: ' . $e->getMessage()
-            ], 500);
+        if (!$businessModel) {
+            return response()->json(['success' => false, 'message' => 'Business not found.'], 404);
         }
+
+        $validatedData = $request->validate([
+            'user_id' => 'required|exists:users,id',
+            'role_id' => 'required|exists:roles,id',
+            'departments' => 'required|array',
+            'departments.*' => 'exists:departments,id',
+        ]);
+
+        $user = User::findOrFail($validatedData['user_id']);
+        $role = Role::findOrFail($validatedData['role_id']);
+
+        // Verify user has this role
+        if (!$user->hasRole($role)) {
+            return response()->json(['success' => false, 'message' => 'User does not have this role.'], 403);
+        }
+
+        // Get the employee for this business
+        $employee = Employee::where('user_id', $user->id)
+            ->where('business_id', $businessModel->id)
+            ->first();
+
+        if (!$employee) {
+            return response()->json(['success' => false, 'message' => 'User is not an employee of this business.'], 400);
+        }
+
+        // Update departments
+        $employee->departments()->sync($validatedData['departments']);
+
+        Log::info('Departments updated for employee', [
+            'employee_id' => $employee->id,
+            'user_id' => $user->id,
+            'departments' => $validatedData['departments']
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Departments updated successfully.',
+            'data' => ['employee_id' => $employee->id]
+        ], 200);
+
+    } catch (\Illuminate\Validation\ValidationException $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Validation error',
+            'errors' => $e->errors()
+        ], 422);
+    } catch (\Exception $e) {
+        Log::error('Error updating departments', [
+            'error' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+            'trace' => $e->getTraceAsString()
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Error updating departments: ' . $e->getMessage()
+        ], 500);
     }
+}
 }
