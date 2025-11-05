@@ -133,71 +133,129 @@
                 }
             @endphp
 
-            @foreach($months as $monthNumber => $monthName)
-                @php
-                    // Handle indexed array (e.g., [0 => [...], 1 => [...]]) or associative array
-                    $row = isset($monthlyData[$monthNumber]) ? $monthlyData[$monthNumber] : (
-                        isset($monthlyData[$monthNumber - 1]) ? $monthlyData[$monthNumber - 1] : [
-                            'basic_salary' => 0, 'benefits_non_cash' => 0, 'value_of_quarters' => 0,
-                            'total_gross_pay' => 0, 'retirement_e1' => 0, 'retirement_e2' => 0,
-                            'retirement_e3' => 0, 'ahl' => 0, 'shif' => 0, 'prmf' => 0,
-                            'owner_occupied_interest' => 0, 'total_deductions' => 0,
-                            'chargeable_pay' => 0, 'tax_charged' => 0, 'personal_relief' => 0,
-                            'insurance_relief' => 0, 'paye' => 0
-                        ]
-                    );
+           @foreach($months as $monthNumber => $monthName)
+    @php
+        // Handle indexed array (e.g., [0 => [...], 1 => [...]]) or associative array
+        $row = isset($monthlyData[$monthNumber]) ? $monthlyData[$monthNumber] : (
+            isset($monthlyData[$monthNumber - 1]) ? $monthlyData[$monthNumber - 1] : [
+                'basic_salary' => 0, 'benefits_non_cash' => 0, 'value_of_quarters' => 0,
+                'total_gross_pay' => 0, 'retirement_e1' => 0, 'retirement_e2' => 0,
+                'retirement_e3' => 30000, 'ahl' => 0, 'shif' => 0, 'prmf' => 0,
+                'owner_occupied_interest' => 0, 'total_deductions' => 0,
+                'chargeable_pay' => 0, 'tax_charged' => 0, 'personal_relief' => 2400,
+                'insurance_relief' => 0, 'paye' => 0
+            ]
+        );
 
-                    // Calculate E1 (30% of Basic Salary)
-                    $row['retirement_e1'] = $row['retirement_e1'] ?: ($row['basic_salary'] * 0.3);
+        // Calculate E1 (30% of Basic Salary) if not set
+        if (!isset($row['retirement_e1']) || $row['retirement_e1'] == 0) {
+            $row['retirement_e1'] = $row['basic_salary'] * 0.3;
+        }
 
-                    // Calculate total deductions as the lower of E1, E2, E3, AHL, SHIF, PRMF, and Owner Occupied Interest
-                    $deductionOptions = [
-                        $row['retirement_e1'],
-                        $row['retirement_e2'] ?? 0,
-                        $row['retirement_e3'] ?? 0,
-                        $row['ahl'],
-                        $row['shif'],
-                        $row['prmf'],
-                        $row['owner_occupied_interest']
-                    ];
-                    $row['total_deductions'] = min(array_filter($deductionOptions, function($value) { return $value !== null && $value >= 0; })) ?: 0;
+        // Calculate AHL as 1.5% of gross pay if not set
+        if (!isset($row['ahl']) || $row['ahl'] == 0) {
+            $row['ahl'] = $row['total_gross_pay'] * 0.015;
+        }
 
-                    // Calculate AHL as 1.5% of gross pay if not set
-                    $row['ahl'] = $row['ahl'] ?: ($row['total_gross_pay'] * 0.015);
+        // Calculate SHIF as 2.75% of gross pay if not set
+        if (!isset($row['shif']) || $row['shif'] == 0) {
+            $row['shif'] = $row['total_gross_pay'] * 0.0275;
+        }
 
-                    // Calculate chargeable pay
-                    $row['chargeable_pay'] = $row['total_gross_pay'] - $row['total_deductions'];
+        // Ensure retirement_e2 and retirement_e3 have values
+        if (!isset($row['retirement_e2'])) {
+            $row['retirement_e2'] = 0;
+        }
+        if (!isset($row['retirement_e3'])) {
+            $row['retirement_e3'] = 30000;
+        }
 
-                    // Calculate PAYE
-                    $row['paye'] = max(0, $row['tax_charged'] - $row['personal_relief'] - $row['insurance_relief']);
+        // Cap PRMF at 15,000
+        $row['prmf'] = min($row['prmf'], 15000);
 
-                    // Update running totals
-                    foreach ($totalCols as $key => &$val) {
-                        $val += $row[$key] ?? 0;
-                    }
-                @endphp
+        // Cap owner occupied interest at 30,000
+        $row['owner_occupied_interest'] = min($row['owner_occupied_interest'], 30000);
 
-                <tr>
-                    <td class="text-left">{{ $monthName }}</td>
-                    <td>{{ number_format($row['basic_salary'], 2) }}</td>
-                    <td>{{ number_format($row['benefits_non_cash'], 2) }}</td>
-                    <td>{{ number_format($row['value_of_quarters'], 2) }}</td>
-                    <td>{{ number_format($row['total_gross_pay'], 2) }}</td>
-                    <td>{{ number_format($row['retirement_e1'], 2) }}</td>
-                    <td>{{ number_format($row['retirement_e2'] ?? 0, 2) }}</td>
-                    <td>{{ number_format($row['retirement_e3'] ?? 0, 2) }}</td>
-                    <td>{{ number_format($row['ahl'], 2) }}</td>
-                    <td>{{ number_format($row['shif'], 2) }}</td>
-                    <td>{{ number_format($row['prmf'], 2) }}</td>
-                    <td>{{ number_format($row['owner_occupied_interest'], 2) }}</td>
-                    <td>{{ number_format($row['total_deductions'], 2) }}</td>
-                    <td>{{ number_format($row['chargeable_pay'], 2) }}</td>
-                    <td>{{ number_format($row['tax_charged'], 2) }}</td>
-                    <td>{{ number_format($row['personal_relief'], 2) }}</td>
-                    <td>{{ number_format($row['insurance_relief'], 2) }}</td>
-                    <td>{{ number_format($row['paye'], 2) }}</td>
-                </tr>
-            @endforeach
+        // Calculate retirement contribution as lower of E1, E2, E3
+        $retirement = min($row['retirement_e1'], $row['retirement_e2'], $row['retirement_e3']);
+
+        // Calculate total deductions as retirement + AHL + SHIF + PRMF + Owner Occupied Interest
+        $row['total_deductions'] = $retirement + $row['ahl'] + $row['shif'] + $row['prmf'] + $row['owner_occupied_interest'];
+
+        // Calculate chargeable pay
+        $row['chargeable_pay'] = max(0, $row['total_gross_pay'] - $row['total_deductions']);
+
+        // Calculate tax charged using progressive tax bands
+        $tempPay = $row['chargeable_pay'];
+        $taxCharged = 0;
+
+        if ($tempPay > 800000) {
+            $taxCharged += ($tempPay - 800000) * 0.35;
+            $tempPay = 800000;
+        }
+
+        if ($tempPay > 500000) {
+            $taxCharged += ($tempPay - 500000) * 0.325;
+            $tempPay = 500000;
+        }
+
+        if ($tempPay > 32333.33) {
+            $taxCharged += ($tempPay - 32333.33) * 0.3;
+            $tempPay = 32333.33;
+        }
+
+        if ($tempPay > 24000) {
+            $taxCharged += ($tempPay - 24000) * 0.25;
+            $tempPay = 24000;
+        }
+
+        $taxCharged += $tempPay * 0.1;
+        $row['tax_charged'] = $taxCharged;
+
+        // Calculate PAYE
+        $row['paye'] = max(0, $row['tax_charged'] - $row['personal_relief'] - $row['insurance_relief']);
+
+        // Update running totals - THIS IS THE KEY FIX
+        $totalCols['basic_salary'] += $row['basic_salary'];
+        $totalCols['benefits_non_cash'] += $row['benefits_non_cash'];
+        $totalCols['value_of_quarters'] += $row['value_of_quarters'];
+        $totalCols['total_gross_pay'] += $row['total_gross_pay'];
+        $totalCols['retirement_e1'] += $row['retirement_e1'];
+        $totalCols['retirement_e2'] += $row['retirement_e2'];
+        $totalCols['retirement_e3'] += $row['retirement_e3'];
+        $totalCols['ahl'] += $row['ahl'];
+        $totalCols['shif'] += $row['shif'];
+        $totalCols['prmf'] += $row['prmf'];
+        $totalCols['owner_occupied_interest'] += $row['owner_occupied_interest'];
+        $totalCols['total_deductions'] += $row['total_deductions'];
+        $totalCols['chargeable_pay'] += $row['chargeable_pay'];
+        $totalCols['tax_charged'] += $row['tax_charged'];
+        $totalCols['personal_relief'] += $row['personal_relief'];
+        $totalCols['insurance_relief'] += $row['insurance_relief'];
+        $totalCols['paye'] += $row['paye'];
+    @endphp
+
+    <tr>
+        <td class="text-left">{{ $monthName }}</td>
+        <td>{{ number_format($row['basic_salary'], 2) }}</td>
+        <td>{{ number_format($row['benefits_non_cash'], 2) }}</td>
+        <td>{{ number_format($row['value_of_quarters'], 2) }}</td>
+        <td>{{ number_format($row['total_gross_pay'], 2) }}</td>
+        <td>{{ number_format($row['retirement_e1'], 2) }}</td>
+        <td>{{ number_format($row['retirement_e2'], 2) }}</td>
+        <td>{{ number_format($row['retirement_e3'], 2) }}</td>
+        <td>{{ number_format($row['ahl'], 2) }}</td>
+        <td>{{ number_format($row['shif'], 2) }}</td>
+        <td>{{ number_format($row['prmf'], 2) }}</td>
+        <td>{{ number_format($row['owner_occupied_interest'], 2) }}</td>
+        <td>{{ number_format($row['total_deductions'], 2) }}</td>
+        <td>{{ number_format($row['chargeable_pay'], 2) }}</td>
+        <td>{{ number_format($row['tax_charged'], 2) }}</td>
+        <td>{{ number_format($row['personal_relief'], 2) }}</td>
+        <td>{{ number_format($row['insurance_relief'], 2) }}</td>
+        <td>{{ number_format($row['paye'], 2) }}</td>
+    </tr>
+@endforeach
 
             <tr>
                 <td class="text-left"><strong>Total</strong></td>

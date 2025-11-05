@@ -2395,49 +2395,64 @@ public function emailP9(Request $request, $id)
             'employee_payroll' => $employeePayroll->toArray()
         ]);
 
-        // Currency Conversion Logic
-        $targetCurrency = strtoupper($employeePayroll->employee->user->country ?? 'USD');
-        $baseCurrency = $employeePayroll->payroll->currency;
-        $exchangeRates = $this->getExchangeRates($baseCurrency, $targetCurrency);
+       // Currency Conversion Logic
+    $targetCurrency = strtoupper($employeePayroll->employee->user->country ?? 'USD');
+    $baseCurrency = $employeePayroll->payroll->currency;
+    $exchangeRatesData = $this->getExchangeRates($baseCurrency, $targetCurrency);
 
-        return view('payroll.reports.payslip', compact(
-            'employeePayroll',
-            'business',
-            'entity',
-            'entityType',
-            'exchangeRates',
-            'targetCurrency'
-        ));
+    // Extract the rate as a float, with fallback to 1.0
+    $exchangeRates = is_array($exchangeRatesData) && isset($exchangeRatesData['rate']) && is_numeric($exchangeRatesData['rate'])
+        ? floatval($exchangeRatesData['rate'])
+        : 1.0;
+
+    // Log the exchange rate for debugging
+    Log::info('Exchange Rate Used', [
+        'base_currency' => $baseCurrency,
+        'target_currency' => $targetCurrency,
+        'exchange_rate' => $exchangeRates
+    ]);
+
+    return view('payroll.reports.payslip', compact(
+        'employeePayroll',
+        'business',
+        'entity',
+        'entityType',
+        'exchangeRates',
+        'targetCurrency'
+    ));
     }
 
     private function getExchangeRates($baseCurrency, $targetCurrency)
-    {
-        try {
-            // Fetch latest exchange rates
-            $response = Http::get("https://api.frankfurter.dev/v1/latest", [
-                'base' => $baseCurrency,
-                'symbols' => $targetCurrency
-            ]);
+{
+    try {
+        // Fetch latest exchange rates
+        $response = Http::get("https://api.frankfurter.dev/v1/latest", [
+            'base' => $baseCurrency,
+            'symbols' => $targetCurrency
+        ]);
 
-            if ($response->successful()) {
-                $data = $response->json();
-                $date = $data['date'] ?? now()->toDateString();
-                $exchangeRate = $data['rates'][$targetCurrency] ?? null;
+        if ($response->successful()) {
+            $data = $response->json();
+            $exchangeRate = $data['rates'][$targetCurrency] ?? null;
 
-                return [
-                    'base' => $baseCurrency,
-                    'date' => $date,
-                    'rate' => $exchangeRate
-                ];
-            } else {
-                Log::error('Frankfurter API Error: ' . $response->body());
-                return null;
+            if (is_numeric($exchangeRate)) {
+                return floatval($exchangeRate);
             }
-        } catch (\Exception $e) {
-            Log::error('Frankfurter API Exception: ' . $e->getMessage());
-            return null;
+
+            Log::warning('No valid exchange rate found', [
+                'base' => $baseCurrency,
+                'target' => $targetCurrency
+            ]);
+            return 1.0;
+        } else {
+            Log::error('Frankfurter API Error: ' . $response->body());
+            return 1.0;
         }
+    } catch (\Exception $e) {
+        Log::error('Frankfurter API Exception: ' . $e->getMessage());
+        return 1.0;
     }
+}
 
     public function viewPayroll(Request $request, $payroll_id)
     {

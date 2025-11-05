@@ -17,6 +17,7 @@
             <td><input type="checkbox" name="application_ids[]" value="{{ $application->id }}"></td>
             <td>{{ $applications->firstItem() + $index }}</td>
             <td>
+                @if($application->applicant->user)
                 <div class="d-flex align-items-center" style="gap: 3px">
                     <span class="table-avatar">
                         <a class="employee__avatar mr-5" href="">
@@ -29,8 +30,22 @@
                         <small class="text-muted">{{ $application->applicant->user->email }}</small>
                     </span>
                 </div>
+                @else
+                <div class="d-flex align-items-center" style="gap: 3px">
+                    <span class="badge bg-secondary">No User</span>
+                    <span>
+                        <strong>Applicant #{{ $application->applicant->id }}</strong>
+                    </span>
+                </div>
+                @endif
             </td>
-            <td>{{ $application->applicant->user->phone }}</td>
+            <td>
+                @if($application->applicant->user)
+                    {{ $application->applicant->user->phone }}
+                @else
+                    <span class="text-muted">—</span>
+                @endif
+            </td>
             <td>{{ $application->jobPost->title }}</td>
             <td>
                 <span
@@ -47,10 +62,12 @@
                 <button class="btn btn-sm btn-danger" onclick="deleteJobApplication({{ $application->id }})">
                     <i class="bi bi-trash me-2"></i> Delete
                 </button>
+                @if($application->applicant->user)
                 <button class="btn btn-sm btn-primary"
                     onclick="openScheduleInterviewModal({{ $application->id }}, '{{ $application->applicant->user->name }}', '{{ $application->jobPost->title }}')">
                     <i class="bi bi-calendar-plus me-2"></i> Schedule Interview
                 </button>
+                @endif
                 <button class="btn btn-sm btn-success" onclick="shortlistApplications(this, [{{ $application->id }}])">
                     <i class="bi bi-check-circle me-2"></i> Shortlist
                 </button>

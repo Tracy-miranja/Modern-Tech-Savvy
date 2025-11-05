@@ -36,7 +36,10 @@ document.addEventListener('DOMContentLoaded', () => {
         $('#assignedUsersTable').DataTable({
             responsive: true,
             order: [[1, 'asc']],
-            columnDefs: [{ targets: '_all', searchable: true }],
+            columnDefs: [
+                { targets: [0, 3, 4], orderable: false },
+                { targets: '_all', searchable: true }
+            ],
             language: {
                 emptyTable: "No users assigned to this role",
                 loadingRecords: "Loading..."
@@ -64,7 +67,7 @@ window.getRoles = async function (page = 1, filter = '') {
         container.html('<div class="text-muted"><i class="fa fa-spinner fa-spin"></i> Loading roles...</div>');
         const data = { page, filter };
         const response = await roleService.fetch(data);
-        console.log('Response from server:', response); // Debug log
+        console.log('Response from server:', response);
         if (typeof response === 'string') {
             container.html(response);
         } else if (response && response.data) {
@@ -94,48 +97,12 @@ window.getRoles = async function (page = 1, filter = '') {
     }
 };
 
-// window.getRoles = async function (page = 1, filter = '') {
-//     const container = $("#rolesContainer");
-//     try {
-//         container.html('<div class="text-muted"><i class="fa fa-spinner fa-spin"></i> Loading roles...</div>');
-//         const data = { page, filter };
-//         const response = await roleService.fetch(data);
-//         if (typeof response === 'string') {
-//             container.html(response);
-//         } else if (response && response.data) {
-//             container.html(response.data);
-//         } else {
-//             throw new Error('Invalid response format from server');
-//         }
-
-//         if ($('#rolesTable').length) {
-//             console.log('DataTables available:', typeof $.fn.DataTable);
-//             if ($.fn.DataTable.isDataTable('#rolesTable')) {
-//                 $('#rolesTable').DataTable().destroy();
-//             }
-
-//             $('#rolesTable').DataTable({
-//                 responsive: true,
-//                 order: [[2, 'desc']],
-//                 columnDefs: [{ targets: '_all', searchable: true }],
-//                 language: {
-//                     emptyTable: "No roles available",
-//                     loadingRecords: "Loading..."
-//                 }
-//             });
-//         }
-//     } catch (error) {
-//         console.error("Error loading roles:", error);
-//         container.html(`<div class="alert alert-danger">Error loading roles: ${error.message}</div>`);
-//         toastr.error('Failed to load roles: ' + error.message, "Error");
-//     }
-// };
-
 window.assignRole = async function (btn) {
     btn = $(btn);
     btn_loader(btn, true);
     const form = document.getElementById("assignRoleForm");
     const formData = new FormData(form);
+
     try {
         const response = await roleService.assign(formData);
 
@@ -144,13 +111,30 @@ window.assignRole = async function (btn) {
         const userName = $('#user_id option:selected').text().split(' (')[0];
         const userEmail = $('#user_id option:selected').text().match(/\(([^)]+)\)/)[1];
 
+        // Get selected departments
+        const departmentSelects = form.querySelectorAll('select[name="departments[]"]');
+        let departmentHtml = '<span class="text-muted">No departments assigned</span>';
+
+        if (departmentSelects.length > 0 && departmentSelects[0].value) {
+            const selectedDepts = Array.from(departmentSelects[0].selectedOptions).map(opt => opt.text);
+            if (selectedDepts.length > 0) {
+                departmentHtml = selectedDepts.map(dept => `<span class="badge bg-info">${dept}</span>`).join(' ');
+            }
+        }
+
         const table = $('#assignedUsersTable').DataTable();
         const rowCount = table.rows().count() + 1;
+
+        // Add row with 5 columns: #, Name, Email, Departments, Action
         table.row.add([
             rowCount,
             userName,
             userEmail,
-            `<button class="btn btn-danger btn-sm" data-user="${userId}" data-role="${roleId}" onclick="removeRole(this)">
+            departmentHtml,
+            `<button class="btn btn-warning btn-sm me-2" data-user="${userId}" data-role="${roleId}" onclick="editDepartments(this)">
+                <i class="bi bi-pencil"></i> Edit
+            </button>
+            <button class="btn btn-danger btn-sm" data-user="${userId}" data-role="${roleId}" onclick="removeRole(this)">
                 <i class="bi bi-trash"></i> Remove
             </button>`
         ]).draw();

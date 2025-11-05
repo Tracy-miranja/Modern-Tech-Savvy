@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Business;
 use App\Models\LeavePeriod;
 use Illuminate\Http\Request;
+use App\Services\LeavePolicyService;
+use Illuminate\Support\Carbon;
 use App\Http\RequestResponse;
 use App\Models\LeaveEntitlement;
 use App\Traits\HandleTransactions;
@@ -31,99 +33,131 @@ public function index()
      * - If "employees" is omitted, all employees in the active business are targeted.
      * - "leave_type_ids" and "entitled_days" are parallel arrays (index-aligned).
      */
-    public function store(Request $request)
-    {
-        Log::debug('LeaveEntitlement store payload', $request->all());
+public function store(Request $request, LeavePolicyService $policyService)
+{
+    Log::debug('LeaveEntitlement store payload', $request->all());
 
-        $validated = $request->validate([
-            'leave_period_id'           => 'required|exists:leave_periods,id',
+    $validated = $request->validate([
+        'leave_period_id'   => 'required|exists:leave_periods,id',
+        'employees'         => 'nullable|array',
+        'employees.*'       => 'nullable|integer|exists:employees,id',
+        'leave_type_ids'    => 'required|array|min:1',
+        'leave_type_ids.*'  => 'required|integer|exists:leave_types,id',
 
-            //
-            'employees'                 => 'nullable|array',
-            'employees.*'               => 'nullable|integer|exists:employees,id',
+        // Make optional: if present, must align by index with leave_type_ids
+        'entitled_days'     => 'nullable|array',
+        'entitled_days.*'   => 'nullable|numeric|min:0',
+    ]);
 
+    return $this->handleTransaction(function () use ($validated, $policyService) {
+        $business = Business::findBySlug(session('active_business_slug'));
+        if (!$business) {
+            return RequestResponse::badRequest('Business not found.', 404);
+        }
 
-            'leave_type_ids'            => 'required|array|min:1',
-            'leave_type_ids.*'          => 'required|integer|exists:leave_types,id',
+        $leavePeriod = LeavePeriod::where('id', $validated['leave_period_id'])
+            ->where('business_id', $business->id)
+            ->first();
 
-            'entitled_days'             => 'required|array|min:1',
-            'entitled_days.*'           => 'required|numeric|min:0',
-        ]);
+        if (!$leavePeriod) {
+            return RequestResponse::badRequest('Leave period not found.', 404);
+        }
 
-        return $this->handleTransaction(function () use ($validated) {
-            $business = Business::findBySlug(session('active_business_slug'));
+        $employeeIds = $validated['employees'] ?? Employee::where('business_id', $business->id)->pluck('id')->toArray();
 
-            if (!$business) {
-                return RequestResponse::badRequest('Business not found.', 404);
+        $typeIds = $validated['leave_type_ids'];
+        $daysArr = $validated['entitled_days'] ?? []; // may be empty
+
+        if (!empty($daysArr) && count($daysArr) !== count($typeIds)) {
+            return RequestResponse::badRequest('leave_type_ids and entitled_days must be the same length when entitled_days is provided.', 422);
+        }
+
+        $onDate = $leavePeriod->start_date instanceof \Carbon\Carbon
+            ? $leavePeriod->start_date
+            : \Carbon\Carbon::parse($leavePeriod->start_date);
+
+        $now = now();
+        $bulkInsert = [];
+        $errors = [];
+
+        foreach ($employeeIds as $employeeId) {
+            /** @var Employee $employee */
+            $employee = Employee::find($employeeId);
+            if (!$employee) {
+                $errors[] = "Employee {$employeeId} not found.";
+                continue;
             }
 
-            $leavePeriod = LeavePeriod::where('id', $validated['leave_period_id'])
-                ->where('business_id', $business->id)
-                ->first();
+            foreach ($typeIds as $idx => $leaveTypeId) {
+                // 1) Resolve policy
+                $policy = $policyService->resolvePolicy($leaveTypeId, $employee, $onDate);
+                if (!$policy) {
+                    $errors[] = "No active policy for employee {$employee->id} and leave_type {$leaveTypeId} on {$onDate->toDateString()}";
+                    continue;
+                }
 
-            if (!$leavePeriod) {
-                return RequestResponse::badRequest('Leave period not found.', 404);
-            }
+                // 2) Compute entitled (from policy) — unless client provided a value we must validate.
+                $computedEntitled = $policyService->computeEntitledDays($policy, $employee, $leavePeriod);
 
+                $requestedEntitled = isset($daysArr[$idx]) ? (float)$daysArr[$idx] : null;
+                $entitled = $computedEntitled;
 
-            $employeeIds = $validated['employees'] ?? Employee::where('business_id', $business->id)->pluck('id')->toArray();
+                if ($requestedEntitled !== null) {
+                    // Optional: enforce a ceiling at computedEntitled + policy carryover
+                    $maxCarry = (float) $policy->max_carryover_days;
+                    $ceiling  = $computedEntitled + $maxCarry;
 
-
-            $typeIds = $validated['leave_type_ids'];
-            $daysArr = $validated['entitled_days'];
-            if (count($typeIds) !== count($daysArr)) {
-                return RequestResponse::badRequest('leave_type_ids and entitled_days must be the same length.', 422);
-            }
-
-            $now = now();
-            $bulkInsert = [];
-
-            foreach ($employeeIds as $employeeId) {
-                foreach ($typeIds as $idx => $leaveTypeId) {
-                    $entitledDays = (float)($daysArr[$idx] ?? 0);
-
-
-                    $existing = LeaveEntitlement::where([
-                        'business_id'    => $business->id,
-                        'employee_id'    => $employeeId,
-                        'leave_type_id'  => $leaveTypeId,
-                        'leave_period_id'=> $leavePeriod->id,
-                    ])->first();
-
-                    if ($existing) {
-
-                        $existing->update([
-                            'entitled_days'   => $entitledDays,
-                            'total_days'      => $entitledDays + (float)($existing->accrued_days ?? 0),
-                        ]);
-
-                        $existing->calculateRemainingDays();
-                    } else {
-                        $bulkInsert[] = [
-                            'business_id'     => $business->id,
-                            'employee_id'     => $employeeId,
-                            'leave_type_id'   => $leaveTypeId,
-                            'leave_period_id' => $leavePeriod->id,
-                            'entitled_days'   => $entitledDays,
-                            'accrued_days'    => 0,
-                            'total_days'      => $entitledDays,
-                            'days_remaining'  => $entitledDays,
-                            'created_at'      => $now,
-                            'updated_at'      => $now,
-                        ];
+                    if ($requestedEntitled > $ceiling) {
+                        $errors[] = "Requested entitlement {$requestedEntitled} exceeds allowed maximum {$ceiling} (policy).";
+                        continue;
                     }
+                    $entitled = $requestedEntitled;
+                }
+
+                // 3) Carryover — if you track previous balance, fetch it; here we assume none.
+                $carryover = 0.0; // replace with real balance lookup if you have it
+
+                // 4) Upsert the entitlement, enforcing policy each time
+                $existing = LeaveEntitlement::where([
+                    'business_id'     => $business->id,
+                    'employee_id'     => $employee->id,
+                    'leave_type_id'   => $leaveTypeId,
+                    'leave_period_id' => $leavePeriod->id,
+                ])->first();
+
+                if ($existing) {
+                    $existing->applyPolicyNumbers($entitled, $carryover, $existing->accrued_days ?? 0);
+                    $existing->save();
+                    $existing->calculateRemainingDays();
+                } else {
+                    $bulkInsert[] = [
+                        'business_id'     => $business->id,
+                        'employee_id'     => $employee->id,
+                        'leave_type_id'   => $leaveTypeId,
+                        'leave_period_id' => $leavePeriod->id,
+                        'entitled_days'   => $entitled,
+                        'accrued_days'    => 0,
+                        'total_days'      => $entitled + $carryover,
+                        'days_taken'      => 0,
+                        'days_remaining'  => $entitled + $carryover,
+                        'created_at'      => $now,
+                        'updated_at'      => $now,
+                    ];
                 }
             }
+        }
 
-            if (!empty($bulkInsert)) {
-                LeaveEntitlement::insert($bulkInsert);
-            }
+        if (!empty($bulkInsert)) {
+            LeaveEntitlement::insert($bulkInsert);
+        }
 
-            return RequestResponse::created('Leave entitlements assigned successfully.', [
-                'leave_period_slug' => $leavePeriod->slug,
-            ]);
-        });
-    }
+        // Return both success and any rows we skipped due to policy violations
+        return RequestResponse::created('Leave entitlements assigned with policy enforcement.', [
+            'leave_period_slug' => $leavePeriod->slug,
+            'errors' => $errors,
+        ]);
+    });
+}
 
     /**
      * Fetch entitlements table for a given leave period (scoped to active business).

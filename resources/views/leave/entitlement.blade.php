@@ -65,9 +65,40 @@
                         </div>
 
                         <div class="row mb-3">
-                            <h6 class="mb-3">Select Employees (Optional)</h6>
-                            <div id="employee-checkboxes" class="form-group">
-                                <!-- Dynamic employee checkboxes will be added here -->
+                            <div class="col-12">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h6 class="mb-0">Select Employees (Optional)</h6>
+                                    <div class="btn-group btn-group-sm">
+                                        <button type="button" class="btn btn-outline-primary" id="selectAllBtn">
+                                            <i class="bi bi-check-square"></i> Select All
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary" id="deselectAllBtn">
+                                            <i class="bi bi-square"></i> Deselect All
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Search Box -->
+                                <div class="mb-3">
+                                    <div class="input-group">
+                                        <span class="input-group-text">
+                                            <i class="bi bi-search"></i>
+                                        </span>
+                                        <input type="text"
+                                               class="form-control"
+                                               id="employeeSearch"
+                                               placeholder="Search employees by name or department...">
+                                        <button class="btn btn-outline-secondary" type="button" id="clearSearchBtn">
+                                            <i class="bi bi-x-lg"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted" id="searchResultsCount"></small>
+                                </div>
+
+                                <!-- Employee Checkboxes Container -->
+                                <div id="employee-checkboxes" class="form-group" style="max-height: 400px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 0.375rem; padding: 0.75rem;">
+                                    <!-- Dynamic employee checkboxes will be added here -->
+                                </div>
                             </div>
                         </div>
 
@@ -121,6 +152,7 @@
         <script>
             document.addEventListener('DOMContentLoaded', function() {
                 const filterIds = ['departments', 'job_categories', 'employment_terms', 'locations'];
+                let allEmployeesData = []; // Store all employees for search functionality
 
                 // Initialize Select2 for multiple select fields
                 $('.select2-multiple').select2();
@@ -128,10 +160,13 @@
                 async function triggerFilterEmployees() {
                     const leavePeriodId = document.getElementById('leave_period_id').value;
                     const checkboxesContainer = document.getElementById('employee-checkboxes');
-                    checkboxesContainer.innerHTML = '';
+
+                    // Show loading state
+                    checkboxesContainer.innerHTML = '<p class="text-muted">Loading employees...</p>';
 
                     // Collect filters from selects
                     const filters = {
+                        leave_period_id: leavePeriodId,
                         departments: $('#departments').val() || [],
                         job_categories: $('#job_categories').val() || [],
                         employment_terms: $('#employment_terms').val() || [],
@@ -139,40 +174,120 @@
                     };
 
                     try {
-                        // These functions are assumed to be provided by your imported JS modules
-                        const allEmployees = await getAllEmployeesList(filters);
-                        const entitlements = await getLeaveEntitlementsByPeriod(leavePeriodId);
+                        // Wait for both to complete
+                        const [employeesResponse, entitlementsResponse] = await Promise.all([
+                            window.getAllEmployeesList(filters),
+                            leavePeriodId ? window.getLeaveEntitlementsByPeriod(leavePeriodId) : Promise.resolve({ data: [] })
+                        ]);
 
-                        if (Array.isArray(allEmployees) && allEmployees.length > 0) {
-                            allEmployees.forEach(employee => {
-                                const entitlement = Array.isArray(entitlements)
-                                    ? entitlements.find(e => e.employee_id === employee.id)
-                                    : null;
+                        // Extract the actual data arrays from the responses
+                        const allEmployees = employeesResponse.data || employeesResponse;
+                        const entitlements = entitlementsResponse.data || entitlementsResponse;
 
-                                const checkbox = `
-                                    <div class="form-check">
-                                        <input type="checkbox" class="form-check-input"
-                                               id="employee_${employee.id}"
-                                               name="employees[]"
-                                               value="${employee.id}"
-                                               ${entitlement ? 'checked' : ''}>
-                                        <label class="form-check-label" for="employee_${employee.id}">
-                                            ${employee.user ? employee.user.name : 'Unknown'}
-                                            (${employee.department ? employee.department.name : 'N/A'})
-                                            ${entitlement ? `<span class="badge bg-success ms-2">${entitlement.entitled_days} days</span>` : ''}
-                                        </label>
-                                    </div>
-                                `;
-                                checkboxesContainer.insertAdjacentHTML('beforeend', checkbox);
-                            });
-                        } else {
-                            checkboxesContainer.innerHTML = "<p class=\"text-muted\">No employees found.</p>";
-                        }
+                        // Store employees data for search
+                        allEmployeesData = allEmployees.map(employee => ({
+                            ...employee,
+                            entitlement: Array.isArray(entitlements)
+                                ? entitlements.find(e => e.employee_id === employee.id)
+                                : null
+                        }));
+
+                        // Render employees
+                        renderEmployees(allEmployeesData);
+                        updateSearchCount(allEmployeesData.length, allEmployeesData.length);
+
                     } catch (error) {
                         console.error('Error fetching employees or entitlements:', error);
                         checkboxesContainer.innerHTML = "<p class=\"text-danger\">Error fetching employees. Please try again later.</p>";
                     }
                 }
+
+                function renderEmployees(employees) {
+                    const checkboxesContainer = document.getElementById('employee-checkboxes');
+
+                    if (Array.isArray(employees) && employees.length > 0) {
+                        checkboxesContainer.innerHTML = '';
+
+                        employees.forEach(employee => {
+                            const isChecked = employee.checked || false;
+                            const employeeName = employee.name || 'Unknown';
+                            const departmentName = employee.department || 'N/A';
+                            const entitlement = employee.entitlement;
+
+                            const badgeHtml = entitlement
+                                ? `<span class="badge bg-success ms-2">${entitlement.entitled_days} days</span>`
+                                : '';
+
+                            const checkbox = `
+                                <div class="form-check employee-item" data-employee-name="${employeeName.toLowerCase()}" data-department="${departmentName.toLowerCase()}">
+                                    <input type="checkbox" class="form-check-input employee-checkbox"
+                                           id="employee_${employee.id}"
+                                           name="employees[]"
+                                           value="${employee.id}"
+                                           ${isChecked ? 'checked' : ''}>
+                                    <label class="form-check-label" for="employee_${employee.id}">
+                                        ${employeeName} (${departmentName})
+                                        ${badgeHtml}
+                                    </label>
+                                </div>
+                            `;
+                            checkboxesContainer.insertAdjacentHTML('beforeend', checkbox);
+                        });
+                    } else {
+                        checkboxesContainer.innerHTML = "<p class=\"text-muted\">No employees found.</p>";
+                    }
+                }
+
+                function updateSearchCount(visible, total) {
+                    const countElement = document.getElementById('searchResultsCount');
+                    if (visible === total) {
+                        countElement.textContent = `Showing all ${total} employees`;
+                    } else {
+                        countElement.textContent = `Showing ${visible} of ${total} employees`;
+                    }
+                }
+
+                // Search functionality
+                document.getElementById('employeeSearch').addEventListener('input', function(e) {
+                    const searchTerm = e.target.value.toLowerCase().trim();
+                    const employeeItems = document.querySelectorAll('.employee-item');
+                    let visibleCount = 0;
+
+                    employeeItems.forEach(item => {
+                        const name = item.dataset.employeeName;
+                        const department = item.dataset.department;
+                        const matches = name.includes(searchTerm) || department.includes(searchTerm);
+
+                        if (matches) {
+                            item.style.display = '';
+                            visibleCount++;
+                        } else {
+                            item.style.display = 'none';
+                        }
+                    });
+
+                    updateSearchCount(visibleCount, employeeItems.length);
+                });
+
+                // Clear search
+                document.getElementById('clearSearchBtn').addEventListener('click', function() {
+                    document.getElementById('employeeSearch').value = '';
+                    const employeeItems = document.querySelectorAll('.employee-item');
+                    employeeItems.forEach(item => item.style.display = '');
+                    updateSearchCount(employeeItems.length, employeeItems.length);
+                });
+
+                // Select All
+                document.getElementById('selectAllBtn').addEventListener('click', function() {
+                    const visibleCheckboxes = document.querySelectorAll('.employee-item:not([style*="display: none"]) .employee-checkbox');
+                    visibleCheckboxes.forEach(checkbox => checkbox.checked = true);
+                });
+
+                // Deselect All
+                document.getElementById('deselectAllBtn').addEventListener('click', function() {
+                    const visibleCheckboxes = document.querySelectorAll('.employee-item:not([style*="display: none"]) .employee-checkbox');
+                    visibleCheckboxes.forEach(checkbox => checkbox.checked = false);
+                });
 
                 // Bind filters
                 filterIds.forEach(id => {

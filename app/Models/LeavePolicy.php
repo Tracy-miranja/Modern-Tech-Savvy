@@ -51,4 +51,18 @@ class LeavePolicy extends Model
     {
         return $this->belongsTo(JobCategory::class);
     }
+
+    public function scopeActive($q)
+{
+    return $q->where('is_active', true);
+}
+
+public function scopeEffectiveOn($q, $date)
+{
+    return $q->whereDate('effective_date', '<=', $date)
+             ->where(function ($q) use ($date) {
+                 $q->whereNull('end_date')->orWhereDate('end_date', '>=', $date);
+             });
+}
+
 }

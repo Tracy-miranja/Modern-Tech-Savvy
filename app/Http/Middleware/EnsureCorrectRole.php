@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Spatie\Permission\Exceptions\UnauthorizedException;
 use Symfony\Component\HttpFoundation\Response;
-use App\Models\Business; // Import the Business model
+use App\Models\Business;
 
 class EnsureCorrectRole
 {
@@ -43,8 +43,12 @@ class EnsureCorrectRole
                 $activeRole = 'restricted-hr';
             } elseif ($user->hasRole('head-of-department')) {
                 $activeRole = 'head-of-department';
+            } elseif ($user->hasRole('chief-of-staff')) {
+                $activeRole = 'chief-of-staff';
             } elseif ($user->hasRole('business-hr')) {
                 $activeRole = 'business-hr';
+            } elseif ($user->hasRole('business-employee')) {
+                $activeRole = 'business-employee';
             } else {
                 // Fallback to the first role the user has
                 $userRoles = $user->getRoleNames()->toArray();
@@ -69,8 +73,8 @@ class EnsureCorrectRole
             return response()->json(['message' => 'Unauthorized: User does not have the required role'], 403);
         }
 
-        // Restrict `restricted-hr`, `head-of-department`, and `business-hr` for specific conditions
-        if (in_array($activeRole, ['restricted-hr', 'head-of-department', 'business-hr'])) {
+        // Restrict `restricted-hr`, `head-of-department`, `chief-of-staff`, and `business-hr` for specific conditions
+        if (in_array($activeRole, ['restricted-hr', 'head-of-department', 'chief-of-staff', 'business-hr'])) {
             $restrictedRoutes = [
                 'restricted-hr' => [
                     'business.index',
@@ -79,7 +83,37 @@ class EnsureCorrectRole
                 ],
                 'head-of-department' => [
                     'business.index',
-                    'business.clients.index',
+                    // 'business.clients.index',
+                    'business.locations.index',
+                    'business.organization-setup',
+                    'business.employees.index',
+                    'business.payroll.index',
+                    'business.payroll-settings',
+                    'business.attendances.index',
+                    'business.performance.tasks.index',
+                    'business.performance.kpis.index',
+                    'business.crm.contacts.index',
+                    'business.crm.leads.index',
+                    'business.crm.campaigns.index',
+                    'business.recruitment.jobs.index',
+                    'business.applicants.index',
+                    'business.applications.index',
+                    'business.profile.index',
+                    'business.support.index',
+                    'business.roles.index',
+                    'business.departments.index',
+                    'business.job-categories.index',
+                    'business.shifts.index',
+                    'business.roster.index',
+                    'business.pay-grades.index',
+                    'business.deductions',
+                    'business.reliefs.index',
+                    'business.employee-reliefs.index',
+                    'business.allowances.index',
+                ],
+                'chief-of-staff' => [
+                    'business.index',
+                    // 'business.clients.index',
                     'business.locations.index',
                     'business.organization-setup',
                     'business.employees.index',
@@ -111,7 +145,7 @@ class EnsureCorrectRole
                 ],
             ];
 
-            //payroll restricted to third-park hospital business-hr
+            // Payroll restricted to third-park hospital business-hr
             $business = Business::findBySlug(session('active_business_slug'));
             $businessSlug = $business->slug ?? null;
             if ($activeRole === 'business-hr' && $businessSlug === '3rd-park-hospital-ltd') {

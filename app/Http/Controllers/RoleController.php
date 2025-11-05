@@ -6,6 +6,7 @@ use App\Models\Role;
 use App\Models\Business;
 use App\Models\User;
 use App\Models\Employee;
+use App\Models\Department;
 use Illuminate\Http\Request;
 use App\Http\RequestResponse;
 use App\Traits\HandleTransactions;
@@ -71,9 +72,14 @@ class RoleController extends Controller
             $query->where('business_id', $businessModel->id);
         })->whereHas('roles', function ($query) use ($role) {
             $query->where('id', $role->id);
-        })->get();
+        })->with('employee.departments')->get();
 
-        return view('roles.show', compact('role', 'users', 'businessModel', 'businessSlug', 'roleUsers'));
+        // Load departments for the current business
+        $departments = Department::where('business_id', $businessModel->id)
+            ->orderBy('name', 'asc')
+            ->get();
+
+        return view('roles.show', compact('role', 'users', 'businessModel', 'businessSlug', 'roleUsers', 'departments'));
     }
 
     public function assign(Request $request)
@@ -81,6 +87,8 @@ class RoleController extends Controller
         $validatedData = $request->validate([
             'role_id' => 'required|exists:roles,id',
             'user_id' => 'required|exists:users,id',
+            'departments' => 'nullable|array',
+            'departments.*' => 'nullable|exists:departments,id',
             'remove' => 'nullable|boolean',
         ]);
 
@@ -105,16 +113,89 @@ class RoleController extends Controller
 
             if ($request->input('remove', false)) {
                 $user->removeRole($role);
+                // Also remove departments if chief-of-staff
+                if ($role->name === 'chief-of-staff') {
+                    $employee->departments()->detach();
+                }
                 return RequestResponse::ok('Role removed successfully.', ['role' => $role, 'user' => $user]);
             }
 
-            // $user->roles()->where('name', '!=', 'applicant')->detach();
             if (!$user->hasRole($role->name)) {
-    $user->assignRole($role);
-}
-            // $user->assignRole($role);
+                $user->assignRole($role);
+            }
+
+            // Assign departments for chief-of-staff role
+            if ($role->name === 'chief-of-staff') {
+                $departments = $validatedData['departments'] ?? [];
+                // Filter out null/empty values
+                $departments = array_filter($departments);
+
+                if (!empty($departments)) {
+                    $employee->departments()->sync($departments);
+                    Log::info('Departments assigned to chief-of-staff', [
+                        'employee_id' => $employee->id,
+                        'departments' => $departments
+                    ]);
+                }
+            }
 
             return RequestResponse::ok('Role assigned successfully.', ['role' => $role, 'user' => $user]);
         });
+    }
+
+    public function updateDepartments(Request $request, Business $business)
+    {
+        try {
+            $validatedData = $request->validate([
+                'user_id' => 'required|exists:users,id',
+                'role_id' => 'required|exists:roles,id',
+                'departments' => 'required|array',
+                'departments.*' => 'exists:departments,id',
+            ]);
+
+            $user = User::findOrFail($validatedData['user_id']);
+            $role = Role::findOrFail($validatedData['role_id']);
+
+            // Verify user has this role
+            if (!$user->hasRole($role)) {
+                return response()->json(['success' => false, 'message' => 'User does not have this role.'], 403);
+            }
+
+            // Get the employee for this business
+            $employee = Employee::where('user_id', $user->id)
+                ->where('business_id', $business->id)
+                ->first();
+
+            if (!$employee) {
+                return response()->json(['success' => false, 'message' => 'User is not an employee of this business.'], 400);
+            }
+
+            // Update departments
+            $employee->departments()->sync($validatedData['departments']);
+
+            Log::info('Departments updated for employee', [
+                'employee_id' => $employee->id,
+                'user_id' => $user->id,
+                'departments' => $validatedData['departments']
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Departments updated successfully.',
+                'data' => ['employee_id' => $employee->id]
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error('Error updating departments', [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error updating departments: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

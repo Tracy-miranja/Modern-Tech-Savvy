@@ -129,74 +129,78 @@ class EmployeeController extends Controller
 
     }
         //added this for dedicated leave entitlements
-    public function fetchForEntitlements(Request $request)
-    {
-        $validatedData = $request->validate([
-            'leave_period_id' => 'required|integer|exists:leave_periods,id',
-            'locations' => 'nullable|array',
-            'departments' => 'nullable|array',
-            'job_categories' => 'nullable|array',
-            'employment_terms' => 'nullable|array',
+   public function fetchForEntitlements(Request $request)
+{
+    try {
+        $business = Business::findBySlug(session('active_business_slug'));
+
+        $query = $business->employees()->with([
+            'department',
+            'location',
+            'jobCategory',
+            'employmentTerm',
+            'user'
         ]);
 
-        try {
-            $business = Business::findBySlug(session('active_business_slug'));
-
-            $query = $business->employees()->with([
-                'department',
-                'location',
-                'jobCategory',
-                'employmentTerm'
-            ]);
-
-            // Filter: Locations
-            if ($request->filled('locations') && !in_array('all', $request->locations)) {
-                $query->whereHas('location', function ($q) use ($request) {
-                    $q->whereIn('slug', $request->locations)
-                    ->orWhereIn('id', $request->locations);
+        // Filter: Locations
+        $locations = $request->input('locations');
+        if ($locations) {
+            $locations = is_string($locations) ? json_decode($locations, true) : $locations;
+            if (!empty($locations) && !in_array('all', $locations)) {
+                $query->whereHas('location', function ($q) use ($locations) {
+                    $q->whereIn('slug', $locations)->orWhereIn('id', $locations);
                 });
             }
-
-            // Filter: Departments
-            if ($request->filled('departments') && !in_array('all', $request->departments)) {
-                $query->whereHas('department', function ($q) use ($request) {
-                    $q->whereIn('slug', $request->departments)
-                    ->orWhereIn('id', $request->departments);
-                });
-            }
-
-            // Filter: Job Categories
-            if ($request->filled('job_categories') && !in_array('all', $request->job_categories)) {
-                $query->whereHas('jobCategory', function ($q) use ($request) {
-                    $q->whereIn('slug', $request->job_categories)
-                    ->orWhereIn('id', $request->job_categories);
-                });
-            }
-
-            // Filter: Employment Terms
-            if ($request->filled('employment_terms') && !in_array('all', $request->employment_terms)) {
-                $query->whereHas('employmentTerm', function ($q) use ($request) {
-                    $q->whereIn('slug', $request->employment_terms)
-                    ->orWhereIn('id', $request->employment_terms);
-                });
-            }
-
-            $employees = $query->get();
-
-            return response()->json([
-                'success' => true,
-                'employees' => $employees
-            ]);
-
-        } catch (\Exception $e) {
-            \Log::error('Error fetching employees: ' . $e->getMessage());
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Error fetching employees. Please try again later.'
-            ], 500);
         }
+
+        // Filter: Departments
+        $departments = $request->input('departments');
+        if ($departments) {
+            $departments = is_string($departments) ? json_decode($departments, true) : $departments;
+            if (!empty($departments) && !in_array('all', $departments)) {
+                $query->whereHas('department', function ($q) use ($departments) {
+                    $q->whereIn('slug', $departments)->orWhereIn('id', $departments);
+                });
+            }
+        }
+
+        // Filter: Job Categories
+        $jobCategories = $request->input('job_categories');
+        if ($jobCategories) {
+            $jobCategories = is_string($jobCategories) ? json_decode($jobCategories, true) : $jobCategories;
+            if (!empty($jobCategories) && !in_array('all', $jobCategories)) {
+                $query->whereHas('jobCategory', function ($q) use ($jobCategories) {
+                    $q->whereIn('slug', $jobCategories)->orWhereIn('id', $jobCategories);
+                });
+            }
+        }
+
+        // Filter: Employment Terms
+        $employmentTerms = $request->input('employment_terms');
+        if ($employmentTerms) {
+            $employmentTerms = is_string($employmentTerms) ? json_decode($employmentTerms, true) : $employmentTerms;
+            if (!empty($employmentTerms) && !in_array('all', $employmentTerms)) {
+                $query->whereHas('employmentTerm', function ($q) use ($employmentTerms) {
+                    $q->whereIn('slug', $employmentTerms)->orWhereIn('id', $employmentTerms);
+                });
+            }
+        }
+
+        $employees = $query->get();
+
+        return response()->json([
+            'success' => true,
+            'employees' => $employees
+        ]);
+
+    } catch (\Exception $e) {
+        \Log::error('Error fetching employees: ' . $e->getMessage());
+        return response()->json([
+            'success' => false,
+            'message' => 'Error fetching employees'
+        ], 500);
     }
+}
 
 
     public function store(Request $request)

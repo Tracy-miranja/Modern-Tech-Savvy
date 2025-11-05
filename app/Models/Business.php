@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 class Business extends Model implements HasMedia
 {
     use HasFactory, HasSlug, HasStatuses, InteractsWithMedia, LogsActivity;
-    protected $table = 'businesses'; 
+    protected $table = 'businesses';
 
     protected $fillable = [
         'user_id',
@@ -23,7 +23,7 @@ class Business extends Model implements HasMedia
         'slug',
         'industry',
         'company_size',
-        "email",  // added to match migration adding
+        "email",
         'hr_email',
         'phone',
         'country',

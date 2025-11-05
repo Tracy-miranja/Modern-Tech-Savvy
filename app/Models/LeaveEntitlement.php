@@ -90,4 +90,16 @@ class LeaveEntitlement extends Model
 
         return $this->days_remaining;
     }
+
+    public function applyPolicyNumbers(float $entitled, float $carryover = 0.0, float $accrued = 0.0): void
+{
+    $this->entitled_days = $entitled;
+    $this->accrued_days  = $accrued;
+    $this->total_days    = $entitled + $carryover + $accrued;
+    // days_taken stays as-is; recalc remaining:
+    $taken = (float) ($this->days_taken ?? 0);
+    $this->days_remaining = max(0, $this->total_days - $taken);
+}
+
+
 }

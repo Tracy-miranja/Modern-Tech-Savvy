@@ -77,6 +77,8 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
             Route::get('/pay-schedule', [DashboardController::class, 'paySchedule'])->name('pay-schedule');
 
             Route::get('/departments', [DashboardController::class, 'departments'])->name('departments.index');
+
+    Route::post('roles/update-departments', [RoleController::class, 'updateDepartments'])->name('roles.update-departments');
             Route::get('/employees', [DashboardController::class, 'employees'])->name('employees.index');
             Route::get('/employees/import', [DashboardController::class, 'importEmployees'])->name('employees.import');
             Route::get('/employees/warning', [DashboardController::class, 'warning'])->name('employees.warning');
