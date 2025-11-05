@@ -74,8 +74,9 @@ class RoleSwitchController extends Controller
             'business-employee' => 'myaccount.index',
             'general-hr' => 'business.index',
             'restricted-hr' => 'business.employees.index',
-            'head-of-department' => 'business.leave.index', // Redirect to leave requests
-            'business-head' => 'business.index', // Full access, including dashboard
+            'head-of-department' => 'business.leave.index',
+            'chief-of-staff' => 'business.leave.index',
+            'business-head' => 'business.index',
             default => 'dashboard',
         };
     }

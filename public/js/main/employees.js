@@ -1,9 +1,4 @@
-/*
-    Employee handling - by Anzar KE Labs
-    https://anzar.co.ke
-    copyright 2025
 
-*/
 import { btn_loader } from "/js/client/config.js";
 import RequestClient from "/js/client/RequestClient.js";
 import EmployeesService from "/js/client/EmployeesService.js";
@@ -15,7 +10,6 @@ let dataTable;
 document.addEventListener('DOMContentLoaded', () => {
     initializeDataTable();
     setupFilters();
-    setupDocumentHandlers();
 });
 
 function initializeDataTable() {
@@ -29,7 +23,9 @@ function initializeDataTable() {
             url: '/employees/fetch',
             type: 'POST',
             data: function (d) {
-                d.search = $('#search').val();
+                  d.search = {
+                    value: $('#search').val()
+                };
                 d.department = $('#filterDepartment').val();
                 d.location = $('#filterLocation').val();
                 d.job_category = $('#filterJobCategory').val();
@@ -101,9 +97,17 @@ function initializeDataTable() {
 // }
 
 function setupFilters() {
-    $('#search, #filterDepartment, #filterLocation, #filterJobCategory').on('change keyup', debounce(() => {
+    // Use separate event listeners for better control
+    $('#search').on('keyup', function() {
+        clearTimeout($(this).data('timeout'));
+        $(this).data('timeout', setTimeout(function() {
+            dataTable.ajax.reload();
+        }, 300));
+    });
+
+    $('#filterDepartment, #filterLocation, #filterJobCategory').on('change', function() {
         dataTable.ajax.reload();
-    }, 300));
+    });
 }
 
 function debounce(func, wait) {
@@ -111,8 +115,7 @@ function debounce(func, wait) {
     return function (...args) {
         clearTimeout(timeout);
         timeout = setTimeout(() => func.apply(this, args), wait);
-    };
-}
+}};
 
 function setupDocumentHandlers() {
     let addDocumentClicked = false;

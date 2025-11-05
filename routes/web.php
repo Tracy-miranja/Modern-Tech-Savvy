@@ -26,6 +26,7 @@ use App\Http\Controllers\LeavePeriodController;
 use App\Http\Controllers\LeaveTypeController;
 use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\LeaveEntitlementController;
+use App\Http\Controllers\AttendanceController;
 
 use App\Models\Business;
 
@@ -38,10 +39,16 @@ Route::get('/business/{businessSlug}/api-token', [BusinessController::class, 'sh
 Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http\Middleware\EnsureTwoFactorAuthenticated::class])->group(function () {
 
     Route::post('/switch-role', [RoleSwitchController::class, 'switchRole'])->name('switch.role');
+    Route::get('/attendance/geocode', [AttendanceController::class, 'geocode'])->name('attendance.geocode');
      //setup busines & modules
     Route::name('setup.')->prefix('setup')->group(function () {
         Route::get('business', [BusinessController::class, 'create'])->name('business');
         Route::get('modules', [ModuleController::class, 'create'])->name('modules');
+        Route::post('/attendance/settings', [AttendanceController::class, 'updateSettings'])->name('business.attendance.settings.update');
+        Route::get('/attendance/geocode', [AttendanceController::class, 'geocode'])->name('attendance.geocode');
+    
+
+
     });
 
     Route::middleware(['ensure_role', 'role:business-admin|business-hr|business-finance|head-of-department'])
@@ -56,6 +63,12 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
         ->prefix('business/{business:slug}')
         ->group(function () {
 
+            Route::post('/attendance/settings', [AttendanceController::class, 'updateSettings'])->name('attendance.settings.update');
+            Route::post('/locations/{location}/coords', [AttendanceController::class, 'updateLocationCoords'])->name('business.locations.coords.update');
+            Route::post('/employees/{employee}/mac', [AttendanceController::class, 'updateEmployeeMac'])->name('employees.mac.update');
+            //Route::get('/attendance/geocode', [AttendanceController::class, 'geocode'])->name('attendance.geocode');
+
+
             Route::get('/', [DashboardController::class, 'index'])->name('index');
             Route::get('/clients', [ClientController::class, 'index'])->name('clients.index');
             Route::get('/clients/{clientBusiness:slug}', [ClientController::class, 'view'])->name('clients.view');
@@ -64,6 +77,8 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
             Route::get('/pay-schedule', [DashboardController::class, 'paySchedule'])->name('pay-schedule');
 
             Route::get('/departments', [DashboardController::class, 'departments'])->name('departments.index');
+
+    Route::post('roles/update-departments', [RoleController::class, 'updateDepartments'])->name('roles.update-departments');
             Route::get('/employees', [DashboardController::class, 'employees'])->name('employees.index');
             Route::get('/employees/import', [DashboardController::class, 'importEmployees'])->name('employees.import');
             Route::get('/employees/warning', [DashboardController::class, 'warning'])->name('employees.warning');
@@ -200,6 +215,7 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
                 Route::get('/monthly', [DashboardController::class, 'monthlyAttendances'])->name('monthly');
                 Route::get('/clock-in', [DashboardController::class, 'clockIn'])->name('clock-in');
                 Route::get('/clock-out', [DashboardController::class, 'clockOut'])->name('clock-out');
+
             });
 
             Route::prefix('downloads')->name('downloads.')->group(function () {

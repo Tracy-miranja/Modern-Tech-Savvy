@@ -27,4 +27,8 @@ class Department extends Model
     {
         return SlugOptions::create()->generateSlugsFrom('name')->saveSlugsTo('slug');
     }
+    public function employees()
+{
+    return $this->belongsToMany(Employee::class, 'employee_departments');
+}
 }

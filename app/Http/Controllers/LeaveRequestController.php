@@ -682,7 +682,7 @@ class LeaveRequestController extends Controller
      * View permission:
      * - Employee: own only
      * - Others (HOD/HR/Admin/Head): any request in same business
-     */
+     
     public function canUserApprove(\App\Models\User $user): bool
     {
         // Must be pending to approve
@@ -727,7 +727,7 @@ class LeaveRequestController extends Controller
 
         return true;
     }
-
+*/
 
     /**
      * Upload document (owner only).

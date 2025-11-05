@@ -11,7 +11,11 @@
             @foreach($applicants as $applicant)
             <option value="{{ $applicant->id }}"
                 {{ isset($application) && $application->applicant_id == $applicant->id ? 'selected' : '' }}>
-                {{ $applicant->user->name }} - {{ $applicant->user->email }}
+                @if($applicant->user)
+                    {{ $applicant->user->name }} - {{ $applicant->user->email }}
+                @else
+                    {{ $applicant->id }} (No user assigned)
+                @endif
             </option>
             @endforeach
         </select>

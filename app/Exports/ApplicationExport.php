@@ -19,7 +19,9 @@ class ApplicationExport implements FromCollection, WithHeadings
     {
         return $this->applications->map(function ($application) {
             return [
-                'Applicant Name' => $application->applicant->user->name,
+                'Applicant Name' => $application->applicant->user
+                    ? $application->applicant->user->name
+                    : 'Applicant #' . $application->applicant->id,
                 'Position' => $application->jobPost->title,
                 'Status' => ucfirst($application->stage),
                 'Applied On' => $application->created_at->format('M d, Y'),
