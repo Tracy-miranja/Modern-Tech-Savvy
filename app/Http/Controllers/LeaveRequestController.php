@@ -25,53 +25,62 @@ class LeaveRequestController extends Controller
      * - Employees: only their own (by ACTIVE role)
      * - Others (HOD/HR/Admin/Head): all in current business
      */
-    public function fetch(Request $request)
-    {
-        $business = Business::findBySlug(session('active_business_slug'));
-        if (!$business) {
-            return RequestResponse::badRequest('Active business not found in session.');
-        }
-
-        $status = strtolower($request->get('status', 'pending'));
-        $query = LeaveRequest::with(['employee.user', 'leaveType'])
-            ->where('business_id', $business->id);
-
-        // Scope by ACTIVE role (not just hasRole)
-        $user = auth()->user();
-        $emp = $user->employee;
-        $activeRole = session('active_role');
-
-        if ($activeRole === 'business-employee' && $emp) {
-            $query->where('employee_id', $emp->id);
-        }
-
-        // HOD → only employees from same department
-        if ($activeRole === 'head-of-department' && $emp) {
-            // If HOD has no department, show nothing
-            if (empty($emp->department_id)) {
-                $query->whereRaw('1=0');
-            } else {
-                $deptId = (int) $emp->department_id;
-                $query->whereHas('employee', function ($q) use ($deptId) {
-                    $q->where('department_id', $deptId);
-                });
-            }
-        }
-
-        // Filter by tab status
-        if (in_array($status, ['pending', 'approved', 'rejected', 'declined'], true)) {
-            $query->status($status);
-        }
-
-        $leaveRequests = $query->latest('id')->get();
-        $currentBusiness = $business;
-
-        $html = view('leave._leave_requests_table', compact('leaveRequests', 'currentBusiness'))
-            ->with('status', $status)
-            ->render();
-
-        return RequestResponse::ok('Leave requests fetched successfully.', $html);
+public function fetch(Request $request)
+{
+    $business = Business::findBySlug(session('active_business_slug'));
+    if (!$business) {
+        return RequestResponse::badRequest('Active business not found in session.');
     }
+
+    $status = strtolower($request->get('status', 'pending'));
+    $query = LeaveRequest::with(['employee.user', 'leaveType'])
+        ->where('business_id', $business->id);
+
+    $user = auth()->user();
+    $emp = $user->employee;
+    $activeRole = session('active_role');
+
+    if ($activeRole === 'business-employee' && $emp) {
+        $query->where('employee_id', $emp->id);
+    }
+
+    if ($activeRole === 'head-of-department' && $emp) {
+        if (empty($emp->department_id)) {
+            $query->whereRaw('1=0');
+        } else {
+            $deptId = (int) $emp->department_id;
+            $query->whereHas('employee', function ($q) use ($deptId) {
+                $q->where('department_id', $deptId);
+            });
+        }
+    }
+
+    // NEW: chief-of-staff → requests from assigned departments (pivot)
+    if ($activeRole === 'chief-of-staff' && $emp) {
+        $deptIds = $emp->assignedDepartmentIds(); // uses the helper we added on Employee
+        if (empty($deptIds)) {
+            $query->whereRaw('1=0');
+        } else {
+            $query->whereHas('employee', function ($q) use ($deptIds) {
+                $q->whereIn('department_id', $deptIds);
+            });
+        }
+    }
+
+    if (in_array($status, ['pending', 'approved', 'rejected', 'declined'], true)) {
+        $query->status($status);
+    }
+
+    $leaveRequests = $query->latest('id')->get();
+    $currentBusiness = $business;
+
+    $html = view('leave._leave_requests_table', compact('leaveRequests', 'currentBusiness'))
+        ->with('status', $status)
+        ->render();
+
+    return RequestResponse::ok('Leave requests fetched successfully.', $html);
+}
+
 
     /**
      * Show one leave request.

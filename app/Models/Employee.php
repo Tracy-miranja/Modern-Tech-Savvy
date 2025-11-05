@@ -110,11 +110,11 @@ class Employee extends Model implements HasMedia
     {
         return $this->hasOne(EmployeeContactDetail::class);
     }
-    //added
-public function departments()
-{
-    return $this->belongsToMany(Department::class, 'employee_departments');
-}
+        //added
+    public function departments()
+    {
+        return $this->belongsToMany(Department::class, 'employee_departments');
+    }
     public function documents()
     {
         return $this->hasMany(EmployeeDocument::class);
@@ -223,5 +223,20 @@ public function departments()
     public function taskReviews()
     {
         return $this->hasMany(TaskReview::class, 'reviewer_id');
+        
     }
+
+public function assignedDepartmentIds(): array
+{
+    try {
+        // Prefer cached relationship to avoid extra queries on loops
+        return $this->relationLoaded('departments')
+            ? $this->departments->pluck('id')->map(fn ($i) => (int)$i)->all()
+            : $this->departments()->pluck('departments.id')->map(fn ($i) => (int)$i)->all();
+    } catch (\Throwable $e) {
+        return [];
+    }
+}
+
+
 }

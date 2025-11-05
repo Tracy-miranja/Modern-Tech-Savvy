@@ -280,7 +280,7 @@ class AttendanceController extends Controller
 
             $attendance->update([
                 'clock_out'       => now('Africa/Nairobi')->format('H:i:s'),
-                'overtime_hours'  => max(0, \Carbon\Carbon::parse($attendance->clock_in, 'Africa/Nairobi')->diffInHours(now('Africa/Nairobi')) - 8),
+                'overtime_hours'  => max(0, Carbon::parse($attendance->clock_in, 'Africa/Nairobi')->diffInHours(now('Africa/Nairobi')) - 8),
                 'remarks'         => $request->input('remarks', $attendance->remarks),
                 // record last punch meta
                 'device_mac'      => $device_mac ?: $attendance->device_mac,
@@ -315,7 +315,7 @@ class AttendanceController extends Controller
     }
 
     /** Collect all allowed geofences for this business */
-    private function getAllowedGeofences(\App\Models\Business $business): array
+    private function getAllowedGeofences(Business $business): array
     {
         $fences = [];
 
@@ -367,7 +367,7 @@ class AttendanceController extends Controller
     public function updateSettings(Request $request, $slug)
     {
         return $this->handleTransaction(function () use ($request, $slug) {
-            $business = \App\Models\Business::findBySlug($slug);
+            $business = Business::findBySlug($slug);
             if (!$business) return RequestResponse::badRequest('Business not found.');
 
             $enforce_geofence = (int) $request->boolean('enforce_geofence');
@@ -392,8 +392,8 @@ class AttendanceController extends Controller
             // AttendanceController@updateSettings
                 return response()->json([
                     'status'  => 'success',
-                    'message' => 'Attendance & Location settings saved.'
-                ], 200);H
+                    'message' => 'Attendance settings saved.'
+                ], 200);
 
         });
     }
@@ -402,7 +402,7 @@ class AttendanceController extends Controller
     public function updateLocationCoords(Request $request, $slug, $locationId)
     {
         return $this->handleTransaction(function () use ($request, $slug, $locationId) {
-            $business = \App\Models\Business::findBySlug($slug);
+            $business = Business::findBySlug($slug);
             if (!$business) return RequestResponse::badRequest('Business not found.');
 
             $validated = $request->validate([

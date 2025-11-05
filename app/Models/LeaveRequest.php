@@ -98,90 +98,112 @@ class LeaveRequest extends Model
     }
 
     // Who can approve (based on ACTIVE role, not just assigned roles)
-    public function canUserApprove(User $user): bool
-    {
-        // Only pending can be approved
-        if ($this->status !== 'pending') return false;
+public function canUserApprove(User $user): bool
+{
+    // Only pending can be approved
+    if ($this->status !== 'pending') return false;
 
-        // Resolve active role (prefer session)
-        $activeRole = strtolower((string)(session('active_role') ?? ''));
-        if ($activeRole === '' && method_exists($user, 'getRoleNames')) {
-            $activeRole = strtolower((string) ($user->getRoleNames()->first() ?? ''));
-        }
-        if ($activeRole === '') return false;
-
-        // Allowed approver roles
-        $approverRoles = ['head-of-department', 'business-hr', 'business-admin', 'business-head'];
-        if (!in_array($activeRole, $approverRoles, true)) return false;
-
-        // Prevent duplicate approval by the SAME user under the SAME role
-        $history = is_array($this->approval_history ?? null) ? $this->approval_history : [];
-        $alreadyApprovedSameRole = collect($history)->contains(function ($entry) use ($user, $activeRole) {
-            $sameUser  = (int)($entry['approver_id'] ?? 0) === (int)$user->id;
-            $entryRole = strtolower((string)($entry['approver_role'] ?? ''));
-            return $sameUser && ($entryRole !== '' && $entryRole === $activeRole);
-        });
-        if ($alreadyApprovedSameRole) return false;
-
-        // SPECIAL CASE: business-admin can approve for the whole business, even without an employee row
-        if ($activeRole === 'business-admin') {
-            $sameBusiness =
-                (int)($user->business_id ?? 0) === (int)$this->business_id // if users.business_id exists
-                || (method_exists($user, 'business')  && (int)optional($user->business)->id === (int)$this->business_id) // hasOne/belongsTo
-                || (method_exists($user, 'businesses') && $user->businesses->pluck('id')->contains((int)$this->business_id)); // many-to-many
-            return $sameBusiness;
-        }
-
-        // For other roles, require an employee record in the SAME business
-        $userEmployee = $user->employee;
-        if (!$userEmployee || (int)$userEmployee->business_id !== (int)$this->business_id) {
-            return false;
-        }
-
-        // Optional (tighten HOD to same department as the request’s employee)
-        if ($activeRole === 'head-of-department') {
-            $reqDept = (int) optional($this->employee)->department_id;
-            return $reqDept > 0 && (int)$userEmployee->department_id === $reqDept;
-        }
-
-        // HR / Head pass once same-business employee is confirmed
-        return true;
+    // Resolve active role (prefer session)
+    $activeRole = strtolower((string)(session('active_role') ?? ''));
+    if ($activeRole === '' && method_exists($user, 'getRoleNames')) {
+        $activeRole = strtolower((string) ($user->getRoleNames()->first() ?? ''));
     }
+    if ($activeRole === '') return false;
+
+    // Allowed approver roles
+    $approverRoles = ['head-of-department', 'chief-of-staff', 'business-hr', 'business-admin', 'business-head'];
+    if (!in_array($activeRole, $approverRoles, true)) return false;
+
+    // Prevent duplicate approval by the SAME user under the SAME role
+    $history = is_array($this->approval_history ?? null) ? $this->approval_history : [];
+    $alreadyApprovedSameRole = collect($history)->contains(function ($entry) use ($user, $activeRole) {
+        $sameUser  = (int)($entry['approver_id'] ?? 0) === (int)$user->id;
+        $entryRole = strtolower((string)($entry['approver_role'] ?? ''));
+        return $sameUser && ($entryRole !== '' && $entryRole === $activeRole);
+    });
+    if ($alreadyApprovedSameRole) return false;
+
+    // SPECIAL CASE: business-admin can approve for the whole business
+    if ($activeRole === 'business-admin') {
+        $sameBusiness =
+            (int)($user->business_id ?? 0) === (int)$this->business_id
+            || (method_exists($user, 'business')  && (int)optional($user->business)->id === (int)$this->business_id)
+            || (method_exists($user, 'businesses') && $user->businesses->pluck('id')->contains((int)$this->business_id));
+        return $sameBusiness;
+    }
+
+    // For other roles, require an employee record in the SAME business
+    $userEmployee = $user->employee;
+    if (!$userEmployee || (int)$userEmployee->business_id !== (int)$this->business_id) {
+        return false;
+    }
+
+    // HOD must match the request's employee department
+    if ($activeRole === 'head-of-department') {
+        $reqDept = (int) optional($this->employee)->department_id;
+        return $reqDept > 0 && (int)$userEmployee->department_id === $reqDept;
+    }
+
+    // Chief-of-staff must have the request's department in their assigned pivot departments
+    if ($activeRole === 'chief-of-staff') {
+        $reqDept = (int) optional($this->employee)->department_id;
+        if ($reqDept <= 0) return false;
+        $assigned = $userEmployee->assignedDepartmentIds(); // from Employee model
+        return in_array($reqDept, $assigned, true);
+    }
+
+    // HR / Head pass once same-business employee is confirmed
+    return true;
+}
 
 
     // Filter by ACTIVE role
-    public function scopeForRole($query, User $user, $businessId)
-    {
-        $userEmployee = $user->employee;
-        $activeRole   = session('active_role');
+public function scopeForRole($query, User $user, $businessId)
+{
+    $userEmployee = $user->employee;
+    $activeRole   = session('active_role');
 
-        switch ($activeRole) {
-            case 'business-employee':
-                if ($userEmployee) {
-                    return $query->where('business_id', $businessId)
-                                ->where('employee_id', $userEmployee->id);
-                }
-                return $query->whereRaw('1=0');
-
-            // HOD sees ALL requests in the business (not tied to a department)
-            case 'head-of-department':
-                if (!$userEmployee || empty($userEmployee->department_id)) {
-                    return $query->whereRaw('1=0');
-                }
+    switch ($activeRole) {
+        case 'business-employee':
+            if ($userEmployee) {
                 return $query->where('business_id', $businessId)
-                            ->whereHas('employee', function ($q) use ($userEmployee) {
-                                $q->where('department_id', (int)$userEmployee->department_id);
-                            });
+                             ->where('employee_id', $userEmployee->id);
+            }
+            return $query->whereRaw('1=0');
 
-            case 'business-hr':
-            case 'business-admin':
-            case 'business-head':
-                return $query->where('business_id', $businessId);
-
-            default:
+        case 'head-of-department':
+            if (!$userEmployee || empty($userEmployee->department_id)) {
                 return $query->whereRaw('1=0');
-        }
+            }
+            return $query->where('business_id', $businessId)
+                        ->whereHas('employee', function ($q) use ($userEmployee) {
+                            $q->where('department_id', (int)$userEmployee->department_id);
+                        });
+
+        case 'chief-of-staff':
+            if (!$userEmployee) {
+                return $query->whereRaw('1=0');
+            }
+            // Use assigned departments from pivot
+            $deptIds = $userEmployee->assignedDepartmentIds();
+            if (empty($deptIds)) {
+                return $query->whereRaw('1=0');
+            }
+            return $query->where('business_id', $businessId)
+                        ->whereHas('employee', function ($q) use ($deptIds) {
+                            $q->whereIn('department_id', $deptIds);
+                        });
+
+        case 'business-hr':
+        case 'business-admin':
+        case 'business-head':
+            return $query->where('business_id', $businessId);
+
+        default:
+            return $query->whereRaw('1=0');
     }
+}
+
 
     // Keep both for legacy code
     public function scopeStatus($query, $statusName)
