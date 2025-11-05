@@ -41,20 +41,34 @@
                                 <div class="invalid-feedback">Please select an employee.</div>
                             </div>
 
-                            @if($role->name === 'chief-of-staff')
-                            <div class="mb-3">
-                                <label for="departments" class="form-label">Assign Departments <span
-                                        class="text-danger">*</span></label>
-                                <select name="departments[]" id="departments" class="form-select" multiple required>
+                           @if($role->name === 'chief-of-staff')
+    <div class="mb-3">
+        <label for="departments" class="form-label">
+            Assign Departments <span class="text-danger">*</span>
+        </label>
+        @csrf
+        <select name="departments[]" id="departments" class="form-select" multiple required>
+            @foreach($departments as $department)
+                <option value="{{ $department->id }}">{{ $department->name }}</option>
+            @endforeach
+        </select>
+        <div class="invalid-feedback">Please select at least one department.</div>
+    </div>
 
-                                    @foreach($departments as $department)
-                                    <option value="{{ $department->id }}">{{ $department->name }}</option>
-                                    @endforeach
-                                </select>
-                                <small class="form-text text-muted">Hold Ctrl (or Cmd on Mac) to select multiple departments.</small>
-                                <div class="invalid-feedback">Please select at least one department.</div>
-                            </div>
-                            @endif
+    {{-- Include Select2 --}}
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            $('#departments').select2({
+                placeholder: "Select departments",
+                allowClear: true,
+                width: '50%'
+            });
+        });
+    </script>
+@endif
 
                             <button type="button" onclick="assignRole(this)" class="btn btn-primary">Assign
                                 Role</button>
@@ -175,58 +189,59 @@
             modal.show();
         }
 
-        function saveDepartments() {
-            const userId = document.getElementById('editUserId').value;
-            const departments = Array.from(document.getElementById('editDepartments').selectedOptions).map(o => o.value);
+       function saveDepartments() {
+        const userId = document.getElementById('editUserId').value;
+        const departments = Array.from(document.getElementById('editDepartments').selectedOptions).map(o => o.value);
 
-            if (departments.length === 0) {
-                alert('Please select at least one department');
-                return;
-            }
-
-            const url = '{{ route("business.roles.update-departments", ["business" => $businessSlug]) }}';
-            console.log('Sending request to:', url);
-            console.log('Payload:', { user_id: userId, role_id: {{ $role->id }}, departments: departments });
-
-            fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
-                },
-                body: JSON.stringify({
-                    user_id: userId,
-                    role_id: {{ $role->id }},
-                    departments: departments
-                })
-            })
-            .then(response => {
-                console.log('Response status:', response.status);
-                const contentType = response.headers.get('content-type');
-                console.log('Content-Type:', contentType);
-
-                if (!response.ok) {
-                    return response.text().then(text => {
-                        console.error('Response text:', text);
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    });
-                }
-                return response.json();
-            })
-            .then(data => {
-                console.log('Response data:', data);
-                if (data.success === true) {
-                    toastr.success('Departments updated successfully');
-                    location.reload();
-                } else {
-                    toastr.error('Error: ' + (data.message || 'Unknown error'));
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                toastr.error('Failed to update departments: ' + error.message);
-            });
+        if (departments.length === 0) {
+            alert('Please select at least one department');
+            return;
         }
+
+       const businessSlug = @json($businessModel->slug);
+    const url = `/business/${businessSlug}/roles/update-departments`;
+
+        console.log('Sending request to:', url);
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+            },
+            body: JSON.stringify({
+                user_id: userId,
+                role_id: {{ $role->id }},
+                departments: departments
+            })
+        })
+        .then(async response => {
+            const contentType = response.headers.get('content-type');
+            if (!response.ok) {
+                const text = await response.text();
+                console.error('Response text:', text);
+                throw new Error(`HTTP error ${response.status}`);
+            }
+            if (!contentType || !contentType.includes('application/json')) {
+                const text = await response.text();
+                console.error('Non-JSON response:', text);
+                throw new Error('Expected JSON, got HTML');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                toastr.success('Departments updated successfully');
+                location.reload();
+            } else {
+                toastr.error(data.message || 'Unknown error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            toastr.error('Failed to update departments: ' + error.message);
+        });
+    }
     </script>
     @endpush
 </x-app-layout>
