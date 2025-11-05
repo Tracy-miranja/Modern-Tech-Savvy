@@ -392,8 +392,8 @@ class AttendanceController extends Controller
             // AttendanceController@updateSettings
                 return response()->json([
                     'status'  => 'success',
-                    'message' => 'Attendance settings saved.'
-                ], 200);
+                    'message' => 'Attendance & Location settings saved.'
+                ], 200);H
 
         });
     }
