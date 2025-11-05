@@ -22,6 +22,7 @@ return new class extends Migration {
     {
         Schema::table('businesses', function (Blueprint $table) {
             $table->dropColumn(['enforce_geofence', 'enforce_mac', 'extra_geofences']);
+            
         });
     }
 };
