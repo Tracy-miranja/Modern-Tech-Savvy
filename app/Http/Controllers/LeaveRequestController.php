@@ -82,6 +82,36 @@ public function fetch(Request $request)
 }
 
 
+protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): bool
+{
+    $active = session('active_role');
+
+    // Owner
+    if ($active === 'business-employee') {
+        return (int)optional($user->employee)->id === (int)$leave->employee_id;
+    }
+
+    // HR / Admin / Head
+    if (in_array($active, ['business-hr','business-admin','business-head'], true)) {
+        return (int)$user->employee?->business_id === (int)$leave->business_id
+            || (int)$user->business_id === (int)$leave->business_id;
+    }
+
+    // HOD: same department
+    if ($active === 'head-of-department') {
+        return (int)$user->employee?->department_id === (int)optional($leave->employee)->department_id;
+    }
+
+    // Chief-of-staff: department in assigned pivot
+    if ($active === 'chief-of-staff') {
+        $dept = (int)optional($leave->employee)->department_id;
+        return $dept > 0 && in_array($dept, $user->employee?->assignedDepartmentIds() ?? [], true);
+    }
+
+    return false;
+}
+
+
     /**
      * Show one leave request.
      * - Employee: only own request
@@ -687,56 +717,6 @@ public function fetch(Request $request)
      * =========================
      */
 
-    /**
-     * View permission:
-     * - Employee: own only
-     * - Others (HOD/HR/Admin/Head): any request in same business
-     
-    public function canUserApprove(\App\Models\User $user): bool
-    {
-        // Must be pending to approve
-        if ($this->status !== 'pending') {
-            return false;
-        }
-
-        // Resolve active role from session (same helper logic as controller)
-        $activeRole = strtolower((string)(session('active_role') ?? ''));
-        if ($activeRole === '' && method_exists($user, 'getRoleNames')) {
-            $activeRole = strtolower($user->getRoleNames()->first() ?? '');
-        }
-        if ($activeRole === '') {
-            return false;
-        }
-
-        // Optional: ensure this role is allowed to approve at the current level
-        // (Adjust this mapping to your policy)
-        $allowedRoles = [
-            'head-of-department',
-            'business-hr',
-            'business-admin',
-            'business-head',
-            // add others that can approve
-        ];
-        if (!in_array($activeRole, $allowedRoles, true)) {
-            return false;
-        }
-
-        // Allow once per role: block only if SAME user already approved with SAME role
-        $history = is_array($this->approval_history ?? null) ? $this->approval_history : [];
-        $alreadyApprovedSameRole = collect($history)->contains(function ($entry) use ($user, $activeRole) {
-            $sameUser = (int)($entry['approver_id'] ?? 0) === (int)$user->id;
-            $entryRole = strtolower((string)($entry['approver_role'] ?? ''));
-            // If older entries have no role, do NOT block here (so user can approve under a different role)
-            return $sameUser && ($entryRole !== '' && $entryRole === $activeRole);
-        });
-
-        if ($alreadyApprovedSameRole) {
-            return false;
-        }
-
-        return true;
-    }
-*/
 
     /**
      * Upload document (owner only).
@@ -781,6 +761,60 @@ public function fetch(Request $request)
         return RequestResponse::ok('Document uploaded successfully. Your request will now proceed for approval.');
     }
 
+
+    public function revoke(Request $request)
+    {
+        $validated = $request->validate([
+            'reference_number'     => 'required|exists:leave_requests,reference_number',
+            'return_to_work_date'  => 'required|date',
+            'reason'               => 'nullable|string|max:500',
+        ]);
+
+        return $this->handleTransaction(function () use ($validated) {
+            $leave = LeaveRequest::where('reference_number', $validated['reference_number'])->firstOrFail();
+
+            if ($leave->status !== 'approved') {
+                return response()->json(['status' => 'error', 'message' => 'Only approved leaves can be revoked.'], 400);
+            }
+
+            if (!$leave->canUserRevoke(auth()->user())) {
+                return response()->json(['status' => 'error', 'message' => 'You do not have permission to revoke this leave.'], 403);
+            }
+
+            try {
+                $refund = $leave->revokeToReturnDate(
+                    Carbon::parse($validated['return_to_work_date']),
+                    $validated['reason'] ?? null,
+                    auth()->user()
+                );
+
+                // 🔁 Always recompute entitlement usage based on all approved leaves
+                LeaveEntitlement::recomputeUsageFor(
+                    (int) $leave->employee_id,
+                    (int) $leave->leave_type_id,
+                    (int) $leave->business_id
+                );
+
+                // Optional: notify the employee (your class already exists)
+                try {
+                    $leave->employee->user->notify(new LeaveStatusNotification($leave));
+                } catch (\Throwable $e) {
+                    Log::warning('Notification failed after revoke: '.$e->getMessage());
+                }
+
+                return response()->json([
+                    'status'         => 'success',
+                    'message'        => "Leave shortened successfully. Refunded {$refund} day(s).",
+                    'new_end_date'   => optional($leave->end_date)->toDateString(),
+                    'refunded_days'  => $refund,
+                    'new_total_days' => $leave->total_days,
+                ]);
+            } catch (\Throwable $e) {
+                Log::error("Revoke failed for {$leave->reference_number}: ".$e->getMessage());
+                return response()->json(['status' => 'error', 'message' => $e->getMessage() ?: 'Failed to revoke leave.'], 400);
+            }
+        });
+    }
     public function destroy(Request $request)
     {
         $validated = $request->validate([
@@ -861,6 +895,31 @@ public function fetch(Request $request)
     }
 
 
+    public function downloadPdf(Business $business, $reference)
+    {
+        $leave = LeaveRequest::with(['employee.user','leaveType','approvedBy'])
+            ->where('business_id', $business->id)
+            ->where('reference_number', $reference)
+            ->firstOrFail();
+
+        // View permission (same as show)
+        if (!$this->canUserViewLeaveRequest(auth()->user(), $leave)) {
+            abort(403);
+        }
+
+        if ($leave->status !== 'approved') {
+            abort(403, 'Only approved leaves can be exported.');
+        }
+
+        $pdf = \PDF::loadView('leave.pdf', [
+            'leave'    => $leave,
+            'business' => $business,
+        ])->setPaper('A4', 'portrait');
+
+        return $pdf->download("Leave-{$leave->reference_number}.pdf");
+    }
+
+ 
     // --------------------------
     // Debug helper (unchanged)
     // --------------------------
@@ -955,6 +1014,8 @@ public function fetch(Request $request)
 
         return response()->json($debugInfo, 200, [], JSON_PRETTY_PRINT);
     }
+
+  
 
     /**
      * Helper method to normalize gender values

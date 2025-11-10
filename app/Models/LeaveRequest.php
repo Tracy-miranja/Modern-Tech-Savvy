@@ -34,6 +34,7 @@ class LeaveRequest extends Model
         'approved_by',
         'approved_at',
         'rejection_reason',
+        'revocation_history',
     ];
 
     protected $casts = [
@@ -47,6 +48,7 @@ class LeaveRequest extends Model
         'is_tentative'           => 'boolean',
         'current_approval_level' => 'integer',
         'approval_history'       => 'array',
+        'revocation_history'     => 'array',
     ];
 
     /* ----------------
@@ -305,6 +307,118 @@ public function scopeForRole($query, User $user, $businessId)
         }
 
         return max(0, (float) $days);
+    }
+
+    public function canUserRevoke(User $user): bool
+    {
+        // Only approved leaves can be revoked/shortened
+        if ($this->status !== 'approved') return false;
+
+        // Active role
+        $activeRole = strtolower((string)(session('active_role') ?? ''));
+        if ($activeRole === '' && method_exists($user, 'getRoleNames')) {
+            $activeRole = strtolower((string) ($user->getRoleNames()->first() ?? ''));
+        }
+        if ($activeRole === '') return false;
+
+        $approverRoles = ['head-of-department','chief-of-staff','business-hr','business-admin','business-head'];
+        if (!in_array($activeRole, $approverRoles, true)) return false;
+
+        // Admins: anywhere within the business
+        if ($activeRole === 'business-admin') {
+            $sameBusiness =
+                (int)($user->business_id ?? 0) === (int)$this->business_id
+                || (method_exists($user, 'business')  && (int)optional($user->business)->id === (int)$this->business_id)
+                || (method_exists($user, 'businesses') && $user->businesses->pluck('id')->contains((int)$this->business_id));
+            return $sameBusiness;
+        }
+
+        // Others must be in same business
+        $emp = $user->employee;
+        if (!$emp || (int)$emp->business_id !== (int)$this->business_id) return false;
+
+        // HoD: department must match the leave's employee department
+        if ($activeRole === 'head-of-department') {
+            $reqDept = (int) optional($this->employee)->department_id;
+            return $reqDept > 0 && (int)$emp->department_id === $reqDept;
+        }
+
+        // Chief-of-staff: department must be in assigned pivot
+        if ($activeRole === 'chief-of-staff') {
+            $reqDept = (int) optional($this->employee)->department_id;
+            if ($reqDept <= 0) return false;
+            $assigned = $emp->assignedDepartmentIds();
+            return in_array($reqDept, $assigned, true);
+        }
+
+        // HR/Head
+        return true;
+    }
+
+
+
+    /**
+     * Shorten an approved leave to the day before $returnToWorkDate.
+     * Returns the number of days refunded (float).
+     */
+    public function revokeToReturnDate(Carbon $returnToWorkDate, ?string $reason, User $byUser): float
+    {
+        if ($this->status !== 'approved') {
+            throw new \RuntimeException('Only approved leaves can be revoked.');
+        }
+
+        $oldEnd   = $this->end_date->copy()->startOfDay();
+        $newEnd   = $returnToWorkDate->copy()->startOfDay()->subDay(); // last day off
+        $start    = $this->start_date->copy()->startOfDay();
+
+        if ($newEnd->lt($start)) {
+            throw new \InvalidArgumentException('Return date is before the leave start.');
+        }
+        if ($newEnd->gte($oldEnd)) {
+            throw new \InvalidArgumentException('Return date does not shorten the leave.');
+        }
+
+        // Calculate old/new totals with the same rules used everywhere
+        $leaveType = $this->leaveType ?: LeaveType::find($this->leave_type_id);
+        $oldTotal  = static::calculateTotalDays($start, $oldEnd, (bool)$this->half_day, $leaveType);
+        $newTotal  = static::calculateTotalDays($start, $newEnd, (bool)$this->half_day, $leaveType);
+
+        $refund = max(0.0, (float)$oldTotal - (float)$newTotal);
+
+        // Refund entitlement (reverse a portion of the original deduction)
+        $entitlement = \App\Models\LeaveEntitlement::where('employee_id', $this->employee_id)
+            ->where('leave_type_id', $this->leave_type_id)
+            ->first();
+
+        if ($entitlement) {
+            if (method_exists($entitlement, 'addBackDays')) {
+                $entitlement->addBackDays($refund);
+            } elseif (!is_null($entitlement->getAttribute('used_days'))) {
+                $entitlement->used_days = max(0, (float)($entitlement->used_days ?? 0) - $refund);
+                $entitlement->save();
+            } else {
+                // Fallback: call getRemainingDays() to ensure recompute path stays consistent
+                $entitlement->getRemainingDays();
+            }
+        }
+
+        // Persist new end date; total_days auto-recalculates in saving()
+        $this->end_date = $newEnd;
+        $history = is_array($this->revocation_history ?? null) ? $this->revocation_history : [];
+        $history[] = [
+            'revoked_at'           => now()->toDateTimeString(),
+            'revoked_by'           => (int)$byUser->id,
+            'revoked_by_name'      => $byUser->name,
+            'return_to_work_date'  => $returnToWorkDate->toDateString(),
+            'new_end_date'         => $newEnd->toDateString(),
+            'refund_days'          => $refund,
+            'reason'               => $reason,
+        ];
+        $this->revocation_history = $history;
+
+        $this->save();
+
+        return $refund;
     }
 
     /* ----------------

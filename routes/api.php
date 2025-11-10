@@ -15,3 +15,4 @@ Route::post('/external/contact-submissions', [ContactSubmissionController::class
 Route::get('/api/server-time', function () {
     return response()->json(['datetime' => now('Africa/Nairobi')->toIso8601String()]);
 })->name('api.server-time');
+
