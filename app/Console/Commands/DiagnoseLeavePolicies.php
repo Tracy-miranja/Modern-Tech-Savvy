@@ -206,7 +206,7 @@ class DiagnoseLeavePolicies extends Command
         $this->line("Gender: " . ($employee->gender ?? 'N/A'));
         $this->line("Department: " . ($employee->department?->name ?? 'N/A'));
         $this->line("Job Category: " . ($employee->jobCategory?->name ?? 'N/A'));
-        $this->line("Hire Date: " . ($employee->hire_date ?? 'N/A'));
+        $this->line("Employment Date: " . ($employee->employment_date ?? optional($employee->employmentDetail)->employment_date ?? 'N/A'));
         $this->newLine();
 
         if ($period) {

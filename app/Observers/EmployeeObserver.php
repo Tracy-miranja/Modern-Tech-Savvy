@@ -3,6 +3,7 @@
 namespace App\Observers;
 
 use App\Models\Employee;
+use App\Models\EmploymentDetail;
 use App\Models\LeaveType;
 use App\Models\LeavePeriod;
 use App\Services\LeavePolicyService;
@@ -44,7 +45,7 @@ class EmployeeObserver
      */
     public function updated(Employee $employee)
     {
-        $relevantChanges = $employee->wasChanged(['is_active', 'department_id', 'job_category_id', 'gender', 'hire_date']);
+        $relevantChanges = $employee->wasChanged(['is_active', 'department_id', 'job_category_id', 'gender', 'employment_date']);
 
         if (!$relevantChanges) {
             return;
@@ -73,8 +74,8 @@ class EmployeeObserver
         }
 
         // If hire date changed, recalculate prorated entitlements
-        if ($employee->wasChanged('hire_date')) {
-            Log::info("Employee {$employee->id} hire date changed. Recalculating entitlements.");
+        if ($employee->wasChanged('employment_date')) {
+            Log::info("Employee {$employee->id} employment date changed. Recalculating entitlements.");
             
             try {
                 $this->entitleEmployeeForActivePeriods($employee, true); // Force recalculation

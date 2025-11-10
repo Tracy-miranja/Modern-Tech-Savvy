@@ -110,7 +110,7 @@ class Employee extends Model implements HasMedia
     {
         return $this->hasOne(EmployeeContactDetail::class);
     }
-        //added
+        
     public function departments()
     {
         return $this->belongsToMany(Department::class, 'employee_departments');
@@ -237,6 +237,23 @@ public function assignedDepartmentIds(): array
         return [];
     }
 }
+
+    public function getEmploymentDateAttribute($value)
+    {
+        return $value ?? $this->employmentDetail->employment_date ?? null;
+    }
+    public function getDepartmentIdAttribute($value)
+    {
+        return $value ?? $this->employmentDetail->department_id ?? null;
+    }
+    public function getJobCategoryIdAttribute($value)
+    {
+        return $value ?? $this->employmentDetail->job_category_id ?? null;
+    }
+   public function employmentDetail()
+    {
+        return $this->hasOne(\App\Models\EmploymentDetail::class);
+    }
 
 
 }
