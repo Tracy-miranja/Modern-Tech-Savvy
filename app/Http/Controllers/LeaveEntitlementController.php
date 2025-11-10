@@ -87,6 +87,8 @@ $leavePeriod = LeavePeriod::where('business_id', $business->id)
         $typeIds = $validated['leave_type_ids'];
         $daysArr = $validated['entitled_days'] ?? [];
         $overridePolicy = $validated['override_policy'] ?? false;
+        //$overridePolicy = (bool)($validated['override_policy'] ?? (!empty($validated['entitled_days'])));
+
 
         // Validate parallel arrays
         if (!empty($daysArr) && count($daysArr) !== count($typeIds)) {
@@ -103,7 +105,7 @@ $leavePeriod = LeavePeriod::where('business_id', $business->id)
 
         foreach ($employeeIds as $employeeId) {
             // load user for name (avoid N+1 for name access)
-            $employee = Employee::with(['department', 'jobCategory', 'user'])->find($employeeId);
+            $employee = Employee::with(['department', 'jobCategory', 'employmentDetail', 'user'])->find($employeeId);
             if (!$employee) {
                 $errors[] = "Employee {$employeeId} not found.";
                 $skipped++;

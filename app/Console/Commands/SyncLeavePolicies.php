@@ -110,7 +110,7 @@ class SyncLeavePolicies extends Command
                 ->when(Schema::hasColumn('employees', 'is_active'), fn ($q) => $q->where('is_active', 1))
                 ->when(Schema::hasColumn('employees', 'status'), fn ($q) => $q->where('status', 'active'))
                 ->when(Schema::hasColumn('employees', 'deleted_at'), fn ($q) => $q->whereNull('deleted_at'))
-                ->with(['department', 'jobCategory', 'user'])
+                ->with(['department', 'jobCategory', 'user', 'employmentDetail'])
                 ->get();
 
             $this->info("  Found {$leaveTypes->count()} leave types and {$employees->count()} employees");
@@ -288,11 +288,15 @@ class SyncLeavePolicies extends Command
 
         // Minimum service check
         if ($policy->minimum_service_days_required > 0) {
-            $hireDate = $employee->hire_date ? Carbon::parse($employee->hire_date) : null;
-            if (!$hireDate) {
-                $reasons[] = "No hire date";
+            $employmentDate = $employee->employment_date
+                ?? optional($employee->employmentDetail)->employment_date
+                ?? null;
+
+            if (!$employmentDate) {
+                $reasons[] = "No employment date";
             } else {
-                $serviceDays = $hireDate->diffInDays($onDate);
+                $ed = Carbon::parse($employmentDate);
+                $serviceDays = $ed->diffInDays($onDate);
                 if ($serviceDays < $policy->minimum_service_days_required) {
                     $reasons[] = "Insufficient service days ({$serviceDays}/{$policy->minimum_service_days_required})";
                 }
