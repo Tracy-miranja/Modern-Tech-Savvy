@@ -21,6 +21,8 @@
             <th>Leave Type</th>
             <th>Entitled Days</th>
             <th>Total Days</th>
+            <th>Accrued Days</th>
+            <th>Carryover Days</th>
             <th>Days Taken</th>
             <th>Days <br> Remaining</th>
             <th style="width: 220px;">Action</th>
@@ -40,6 +42,8 @@
                 <td>{{ $entitlement->leaveType->name ?? 'N/A' }}</td>
                 <td>{{ number_format((float) $entitlement->entitled_days, 2) }}</td>
                 <td>{{ number_format((float) $entitlement->total_days, 2) }}</td>
+                <td>{{ number_format((float) $entitlement->accrued_days, 2) }}</td>
+                <td>{{  number_format((float) $entitlement->carryover_days, 2) }}</td>
                 <td>{{ number_format((float) $entitlement->days_taken, 2) }}</td>
                 <td>{{ number_format((float) $entitlement->days_remaining, 2) }}</td>
                 <td class="d-flex gap-1 flex-wrap">

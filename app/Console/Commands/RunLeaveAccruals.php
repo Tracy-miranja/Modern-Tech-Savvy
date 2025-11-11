@@ -1,56 +1,37 @@
 <?php
 
+// app/Console/Commands/RunLeaveAccruals.php
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use App\Models\Business;
 use App\Models\LeavePeriod;
-use App\Services\Leave\LeaveAccrualService;
+use App\Services\LeavePolicyService;
+use Carbon\Carbon;
 
 class RunLeaveAccruals extends Command
 {
-    protected $signature = 'leave:run-accruals
-                            {--business= : Business slug to scope accruals}
-                            {--period=   : Leave period slug to scope accruals}
-                            {--dry-run   : Compute without saving changes}';
+    protected $signature = 'leave:run-accruals {--as-of= : YYYY-MM-DD override}';
+    protected $description = 'Process daily leave accruals for all active periods';
 
-    protected $description = 'Run leave accruals for entitlements (monthly/quarterly/yearly), recomputing totals and remaining days.';
-
-    public function handle(LeaveAccrualService $service): int
+    public function handle(LeavePolicyService $svc): int
     {
-        $business = null;
-        $period = null;
+        $asOf = $this->option('as-of') ? Carbon::parse($this->option('as-of')) : now();
 
-        if ($slug = $this->option('business')) {
-            $business = Business::findBySlug($slug);
-            if (!$business) {
-                $this->error("Business not found for slug: {$slug}");
-                return self::FAILURE;
+        Business::query()->chunkById(50, function ($bizChunk) use ($svc, $asOf) {
+            foreach ($bizChunk as $biz) {
+                $periods = LeavePeriod::where('business_id', $biz->id)
+                    ->whereDate('start_date', '<=', $asOf)
+                    ->whereDate('end_date', '>=', $asOf)
+                    ->get();
+
+                foreach ($periods as $p) {
+                    $processed = $svc->processAccruals($p, $asOf);
+                    $this->info("{$biz->company_name} – {$p->name}: processed {$processed}");
+                }
             }
-        }
+        });
 
-        if ($slug = $this->option('period')) {
-            $period = LeavePeriod::where('slug', $slug)->first();
-            if (!$period) {
-                $this->error("LeavePeriod not found for slug: {$slug}");
-                return self::FAILURE;
-            }
-        }
-
-        $dryRun = (bool)$this->option('dry-run');
-
-        $this->info('Running leave accruals...');
-        $result = $service->run($business, $period, $dryRun);
-
-        $this->line("Processed entitlements: {$result['processed']}");
-        $this->line("Total days accrued:     {$result['accrued']}");
-
-        // Optional verbose dump
-        foreach ($result['details'] as $row) {
-            $this->line(json_encode($row));
-        }
-
-        $this->info($dryRun ? 'Dry run complete. No changes saved.' : 'Accrual run complete.');
         return self::SUCCESS;
     }
 }

@@ -64,3 +64,30 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+
+# Sync all businesses and periods
+php artisan leave:sync-policies
+
+# Sync specific business
+php artisan leave:sync-policies --business=amsol 
+
+# Sync specific period
+php artisan leave:sync-policies --business=amsol --period=leave-period-2025 -v
+
+# Dry run (show what would change)
+php artisan leave:sync-policies --dry-run
+
+php artisan leave:sync-policies --business=Amsol --period=leave-period-2025 --dry-run -vvv
+
+# Remove entitlements for ineligible employees
+php artisan leave:sync-policies --remove-ineligible
+
+# See all leave types and their policies
+php artisan leave:diagnose --business=Amsol --period=leave-period-2025
+
+# calculate carryover
+php artisan leave:sync-policies --business=Amsol --period=leave-period-2025 --simulate-carryover --dry-run -v
+
+#Accrual calculations
+php artisan leave:sync-policies --business=Amsol --period=leave-period-2025 --simulate-accruals --dry-run -v

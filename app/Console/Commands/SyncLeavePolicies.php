@@ -307,108 +307,104 @@ class SyncLeavePolicies extends Command
     }
 
     protected function processEntitlement(
-        Employee $employee,
-        LeaveType $leaveType,
-        LeavePeriod $period,
-        bool $dryRun,
-        bool $removeIneligible,
-        bool $simulateCarryover,
-        bool $simulateAccruals,
-        bool $verbose,
-        array &$stats
-    ): string {
-        $onDate = Carbon::parse($period->start_date);
-        $employeeName = $employee->user?->name ?: ('Employee ' . $employee->id);
+    Employee $employee,
+    LeaveType $leaveType,
+    LeavePeriod $period,
+    bool $dryRun,
+    bool $removeIneligible,
+    bool $simulateCarryover,
+    bool $simulateAccruals,
+    bool $verbose,
+    array &$stats
+): string {
+    $onDate = Carbon::parse($period->start_date);
+    $employeeName = $employee->user?->name ?: ('Employee ' . $employee->id);
 
-        // Find existing entitlement
-        $existing = LeaveEntitlement::where([
-            'business_id'   => $employee->business_id,
-            'employee_id'   => $employee->id,
-            'leave_type_id' => $leaveType->id,
-            'leave_period_id' => $period->id,
-        ])->first();
+    // Find existing entitlement
+    $existing = LeaveEntitlement::where([
+        'business_id'   => $employee->business_id,
+        'employee_id'   => $employee->id,
+        'leave_type_id' => $leaveType->id,
+        'leave_period_id' => $period->id,
+    ])->first();
 
-        // Resolve policy
-        $policy = $this->policyService->resolvePolicy($leaveType->id, $employee, $onDate);
+    // Resolve policy
+    $policy = $this->policyService->resolvePolicy($leaveType->id, $employee, $onDate);
 
-        if (!$policy && $verbose) {
-            $this->line("    {$employeeName} - {$leaveType->name}: No policy found");
-        }
-
-        // Check eligibility
-        $isEligible = $policy && $this->policyService->isEmployeeEligible($employee, $leaveType, $onDate);
-
-        if (!$isEligible) {
-            if ($existing && !$removeIneligible && $verbose) {
-                $reason = $this->getIneligibilityReason($employee, $leaveType, $policy, $onDate);
-                $this->warn("    KEEP (not eligible): {$employeeName} - {$leaveType->name}: {$reason}");
-            }
-            return 'skipped';
-        }
-
-        // Calculate entitled days
-        $entitledDays = $this->policyService->computeEntitledDays($policy, $employee, $period);
-
-        if ($entitledDays <= 0) {
-            if ($verbose) {
-                $this->line("    {$employeeName} - {$leaveType->name}: Entitled to 0 days");
-            }
-            return 'skipped';
-        }
-
-        // Calculate carryover
-        $carryover = $this->policyService->calculateCarryover($employee, $leaveType, $period, $policy);
-
-        if ($simulateCarryover) {
-            $this->info("    CARRYOVER: {$employeeName} - {$leaveType->name}: {$carryover} days " .
-                "(max allowed: {$policy->max_carryover_days})");
-        }
-
-        // Simulate accruals if requested
-        if ($simulateAccruals && $existing) {
-            $projectedAccruals = $this->policyService->calculateAccruedDays($existing, $policy, now());
-            $this->info("    ACCRUALS: {$employeeName} - {$leaveType->name}: {$projectedAccruals} days " .
-                "(frequency: {$policy->accrual_frequency}, amount: {$policy->accrual_amount})");
-        }
-
-        if ($existing) {
-            // Update existing entitlement
-            $oldEntitled = $existing->entitled_days;
-            $newEntitled = $entitledDays + $carryover;
-
-            if (!$dryRun) {
-                $existing->entitled_days = $newEntitled;
-                $existing->total_days = $newEntitled + (float)($existing->accrued_days ?? 0);
-                $existing->days_remaining = max(0, $existing->total_days - (float)($existing->days_taken ?? 0));
-                $existing->save();
-            }
-
-            if (abs($oldEntitled - $newEntitled) > 0.01) {
-                $this->line("  Updated: {$employeeName} - {$leaveType->name}: {$oldEntitled} → {$newEntitled} days " .
-                    "(base: {$entitledDays}, carryover: {$carryover})");
-                return 'updated';
-            }
-            return 'skipped';
-        } else {
-            // Create new entitlement
-            if (!$dryRun) {
-                LeaveEntitlement::create([
-                    'business_id'      => $employee->business_id,
-                    'employee_id'      => $employee->id,
-                    'leave_type_id'    => $leaveType->id,
-                    'leave_period_id'  => $period->id,
-                    'entitled_days'    => $entitledDays + $carryover,
-                    'accrued_days'     => 0,
-                    'total_days'       => $entitledDays + $carryover,
-                    'days_taken'       => 0,
-                    'days_remaining'   => $entitledDays + $carryover,
-                    'last_accrued_at'  => $period->start_date,
-                ]);
-            }
-
-            $this->line("  Created: {$employeeName} - {$leaveType->name}: " .
-                ($entitledDays + $carryover) . " days (base: {$entitledDays}, carryover: {$carryover})");
-            return 'created';
-        }
+    if (!$policy && $verbose) {
+        $this->line("    {$employeeName} - {$leaveType->name}: No policy found");
     }
+
+    // Check eligibility
+    $isEligible = $policy && $this->policyService->isEmployeeEligible($employee, $leaveType, $onDate);
+
+    if (!$isEligible) {
+        if ($existing && !$removeIneligible && $verbose) {
+            $reason = $this->getIneligibilityReason($employee, $leaveType, $policy, $onDate);
+            $this->warn("    KEEP (not eligible): {$employeeName} - {$leaveType->name}: {$reason}");
+        }
+        return 'skipped';
+    }
+
+    // Base entitlement = policy default (for record only)
+    $entitledDays = (float)($policy->default_days ?? 0);
+
+    // Carryover calculation
+    $carryover = $this->policyService->calculateCarryover($employee, $leaveType, $period, $policy);
+
+    if ($simulateCarryover) {
+        $this->info("    CARRYOVER: {$employeeName} - {$leaveType->name}: {$carryover} days (max allowed: {$policy->max_carryover_days})");
+    }
+
+    // Accruals simulation
+    $accruedDays = 0.0;
+    if ($simulateAccruals && $existing) {
+        $accruedDays = $this->policyService->calculateAccruedDays($existing, $policy, now());
+        $this->info("    ACCRUALS: {$employeeName} - {$leaveType->name}: {$accruedDays} days (frequency: {$policy->accrual_frequency}, amount: {$policy->accrual_amount})");
+    }
+
+    // Total days = accrued days + carryover
+    $totalDays = (float)$carryover + (float)$accruedDays;
+
+    if ($existing) {
+        $oldTotal = (float)$existing->total_days;
+
+        if (!$dryRun) {
+            $existing->entitled_days  = $entitledDays; // reference
+            $existing->carryover_days = $carryover;
+            $existing->accrued_days   = $accruedDays;
+            $existing->total_days     = $totalDays;
+            $existing->days_remaining = max(0, $totalDays - (float)($existing->days_taken ?? 0));
+            $existing->save();
+        }
+
+        if (abs($oldTotal - $totalDays) > 0.01) {
+            $this->line("  Updated: {$employeeName} - {$leaveType->name}: total {$oldTotal} → {$totalDays} (carryover {$carryover}, accrued {$accruedDays})");
+            return 'updated';
+        }
+
+        return 'skipped';
+    } else {
+        // Create new entitlement
+        if (!$dryRun) {
+            LeaveEntitlement::create([
+                'business_id'     => $employee->business_id,
+                'employee_id'     => $employee->id,
+                'leave_type_id'   => $leaveType->id,
+                'leave_period_id' => $period->id,
+                'entitled_days'   => $entitledDays,   // just for reference
+                'carryover_days'  => $carryover,
+                'accrued_days'    => $accruedDays,
+                'total_days'      => $totalDays,
+                'days_taken'      => 0,
+                'days_remaining'  => $totalDays,
+                'last_accrued_at' => $period->start_date,
+            ]);
+        }
+
+        $this->line("  Created: {$employeeName} - {$leaveType->name}: total {$totalDays} days (carryover {$carryover}, accrued {$accruedDays})");
+        return 'created';
+    }
+}
+
 }
