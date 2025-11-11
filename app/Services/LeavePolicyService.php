@@ -207,6 +207,61 @@ class LeavePolicyService
         $periodStart = Carbon::parse($period->start_date);
         $periodEnd   = Carbon::parse($period->end_date);
 
+        if ($asOfDate->lt($periodStart)) return 0.0;
+
+        // Anchor as requested
+        $anchor = $this->accrualAnchor($entitlement->employee, $period, $policy);
+        if ($anchor->gt($periodEnd)) {
+            // Joined after the period ends => no accrual
+            return 0.0;
+        }
+
+        $effectiveDate = $asOfDate->copy()->min($periodEnd);
+
+        // Whole intervals from anchor to effective
+        $amount  = (float)($policy->accrual_amount ?? 0);
+        $freq    = strtolower($policy->accrual_frequency ?? 'monthly');
+
+        $intervals = match ($freq) {
+            'monthly'   => $anchor->diffInMonths($effectiveDate),
+            'quarterly' => intdiv($anchor->diffInMonths($effectiveDate), 3),
+            'yearly'    => $anchor->diffInYears($effectiveDate),
+            default     => 0,
+        };
+
+        if ($intervals <= 0 || $amount <= 0) {
+            // If anchor is within the same month and you want “partial-month accruals”, implement here.
+            return 0.0;
+        }
+
+        $targetAccrued = $intervals * $amount;
+
+        // Cap by base entitlement for the period
+        $cap = $this->accrualCapForPeriod($policy);
+        if ($cap > 0) {
+            $targetAccrued = min($targetAccrued, $cap);
+        }
+
+        // Return the **total** accrued to date (not delta)
+        return round($targetAccrued, 2);
+    }
+
+    /** 
+    public function calculateAccruedDays(LeaveEntitlement $entitlement, LeavePolicy $policy, Carbon $asOfDate): float
+    {
+        $period = $entitlement->leavePeriod;
+        if (!$period || !(property_exists($period, 'can_accrue') ? $period->can_accrue : true)) {
+            return (float)($entitlement->accrued_days ?? 0);
+        }
+
+        $leaveType = $entitlement->leaveType;
+        if (!$leaveType || !(Schema::hasColumn('leave_types', 'allowance_accruable') ? $leaveType->allowance_accruable : true)) {
+            return (float)($entitlement->accrued_days ?? 0);
+        }
+
+        $periodStart = Carbon::parse($period->start_date);
+        $periodEnd   = Carbon::parse($period->end_date);
+
         if ($asOfDate->lt($periodStart)) return 0;
 
         $effectiveDate = $asOfDate->copy()->min($periodEnd);
@@ -241,7 +296,7 @@ class LeavePolicyService
 
         return round($totalAccrued, 2);
     }
-
+         */
     /**
      * Eligibility check (uses employment_date & dept/job from EmploymentDetail if needed)
      */
@@ -306,6 +361,9 @@ class LeavePolicyService
 
         $carryover = $this->calculateCarryover($employee, $leaveType, $period, $policy);
 
+        // Base entitled = default days (for reference/reporting)        
+        $entitledDays = (float)($policy->default_days ?? 0);
+
         $entitlement = LeaveEntitlement::firstOrNew([
             'business_id'    => $employee->business_id,
             'employee_id'    => $employee->id,
@@ -316,12 +374,15 @@ class LeavePolicyService
         $isNew = !$entitlement->exists;
 
         $entitlement->entitled_days  = $entitledDays;
+        $entitlement->carryover_days = $carryover;
+
         if ($isNew) {
             $entitlement->accrued_days   = 0;
-            $entitlement->last_accrued_at= $period->start_date;
+            $entitlement->last_accrued_at= Carbon::parse($period->start_date);
         }
 
-        $entitlement->total_days    = $entitledDays + $carryover + (float)($entitlement->accrued_days ?? 0);
+        $entitlement->total_days     = (float)$entitlement->carryover_days + (float)$entitlement->accrued_days;
+
 
         $daysTaken = LeaveRequest::where('employee_id', $employee->id)
             ->where('leave_type_id', $leaveType->id)
@@ -358,17 +419,17 @@ class LeavePolicyService
                 }
 
                 $oldAccrued = (float)($entitlement->accrued_days ?? 0);
-                $newAccrued = $this->calculateAccruedDays($entitlement, $policy, $asOfDate);
+                $targetAccrued = $this->calculateAccruedDays($entitlement, $policy, $asOfDate);
 
-                if ($newAccrued != $oldAccrued) {
-                    $entitlement->accrued_days   = $newAccrued;
+                if ($targetAccrued !== $oldAccrued) {
+                    $entitlement->accrued_days   = $targetAccrued;
                     $entitlement->last_accrued_at= $asOfDate;
-                    $entitlement->total_days     = (float)$entitlement->entitled_days + $newAccrued;
+                    $entitlement->total_days     = (float)$entitlement->carryover_days + $targetAccrued;
                     $entitlement->days_remaining = max(0, $entitlement->total_days - (float)$entitlement->days_taken);
                     $entitlement->save();
                     $processed++;
 
-                    Log::info("Accrual processed for entitlement {$entitlement->id}: {$oldAccrued} → {$newAccrued} days");
+                    Log::info("Accrual processed for entitlement {$entitlement->id}: {$oldAccrued} → {$targetAccrued} days");
                 }
             } catch (\Exception $e) {
                 Log::error("Error processing accrual for entitlement {$entitlement->id}: " . $e->getMessage());
@@ -378,4 +439,23 @@ class LeavePolicyService
         Log::info("Processed {$processed} accruals for period {$period->id} ({$period->name})");
         return $processed;
     }
+
+    private function accrualAnchor(Employee $e, LeavePeriod $period, LeavePolicy $policy): Carbon
+    {
+        $employment = $this->empEmploymentDate($e);
+        $start = Carbon::parse($period->start_date);
+
+        if ($policy->prorated_for_new_employees && $employment) {
+            // accrue from employment date, but never before period start
+            return $employment->gt($start) ? $employment->copy() : $start->copy();
+        }
+        return $start->copy();
+    }
+
+    private function accrualCapForPeriod(LeavePolicy $policy): float
+    {
+        // Cap = the base entitled days for the period
+        return (float)($policy->default_days ?? 0);
+    }
+
 }

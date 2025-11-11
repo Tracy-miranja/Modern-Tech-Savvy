@@ -27,6 +27,7 @@ class LeaveEntitlement extends Model
         'days_taken',
         'days_remaining',
         'last_accrued_at',
+        'carryover_days',
     ];
 
     protected $casts = [
@@ -36,6 +37,7 @@ class LeaveEntitlement extends Model
         'days_taken'      => 'float',
         'days_remaining'  => 'float',
         'last_accrued_at' => 'datetime',
+        'carryover_days'  => 'float',
     ];
 
     public function employee()
@@ -71,9 +73,10 @@ class LeaveEntitlement extends Model
         $entitled = (float)($this->entitled_days ?? 0);
         $accrued  = (float)($this->accrued_days ?? 0);
         $taken    = (float)($this->days_taken ?? 0);
+        $carryover = (float)($this->carryover_days ?? 0);
 
-        // Total days includes entitled + accrued (carryover is added to entitled when entitlement is created)
-        $this->total_days     = $entitled + $accrued;
+        // Total days includes accrued + carryover (carryover is added to entitled when entitlement is created)
+        $this->total_days     = $accrued + $carryover;
         $this->days_remaining = max(0, $this->total_days - $taken);
         $this->save();
     }
@@ -96,7 +99,8 @@ class LeaveEntitlement extends Model
 
         $entitled = (float)($this->entitled_days ?? 0);
         $accrued  = (float)($this->accrued_days ?? 0);
-        $total    = $entitled + $accrued;
+        $carryover = (float)($this->carryover_days ?? 0);
+        $total    = $$accrued + $carryover;
 
         $this->days_taken     = (float)$approvedUsed;
         $this->total_days     = $total;
@@ -118,8 +122,9 @@ class LeaveEntitlement extends Model
 
         // Recompute derived fields
         $entitled = (float)($this->entitled_days ?? 0);
+        $carryover = (float)($this->carryover_days ?? 0);
         $accrued  = (float)($this->accrued_days ?? 0);
-        $this->total_days     = $entitled + $accrued;
+        $this->total_days     = $accrued + $carryover;
         $this->days_remaining = max(0, $this->total_days - (float)$this->days_taken);
 
         $this->save();
@@ -173,7 +178,8 @@ class LeaveEntitlement extends Model
 
         $entitled = (float) ($entitlement->entitled_days ?? 0);
         $accrued  = (float) ($entitlement->accrued_days ?? 0);
-        $entitlement->total_days     = $entitled + $accrued;
+        $carryover = (float) ($entitlement->carryover_days ?? 0);
+        $entitlement->total_days     = $carryover + $accrued;
         $entitlement->days_remaining = max(0, $entitlement->total_days - $entitlement->days_taken);
 
         $entitlement->save();
@@ -189,9 +195,10 @@ class LeaveEntitlement extends Model
      */
     public function applyPolicyNumbers(float $entitled, float $carryover = 0.0, float $accrued = 0.0): void
     {
-        $this->entitled_days = $entitled + $carryover; // Include carryover in entitled_days
+        $this->entitled_days = $entitled; // Include carryover in entitled_days
         $this->accrued_days  = $accrued;
-        $this->total_days    = $this->entitled_days + $accrued;
+        $this->carryover_days = $carryover;
+        $this->total_days    = $carryover + $accrued;
         
         // days_taken stays as-is; recalc remaining:
         $taken = (float) ($this->days_taken ?? 0);
