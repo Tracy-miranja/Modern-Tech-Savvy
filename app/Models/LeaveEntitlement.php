@@ -100,7 +100,7 @@ class LeaveEntitlement extends Model
         $entitled = (float)($this->entitled_days ?? 0);
         $accrued  = (float)($this->accrued_days ?? 0);
         $carryover = (float)($this->carryover_days ?? 0);
-        $total    = $$accrued + $carryover;
+        $total    = $accrued + $carryover;
 
         $this->days_taken     = (float)$approvedUsed;
         $this->total_days     = $total;
