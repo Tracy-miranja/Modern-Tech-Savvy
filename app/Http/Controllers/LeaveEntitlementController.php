@@ -213,16 +213,25 @@ $leavePeriod = LeavePeriod::where('business_id', $business->id)
                         Log::info("Updated entitlement {$existing->id} for employee {$employee->id}");
                     } else {
                         // Create new
+                            // Decide if accrues
+                        $leaveType = LeaveType::find($leaveTypeId);
+                        $isAccruable = !Schema::hasColumn('leave_types','allowance_accruable')
+                            ? true
+                            : (bool)$leaveType->allowance_accruable;
+
+                        $accrued = $isAccruable ? 0.0 : (float)$entitledDays;
+
                         LeaveEntitlement::create([
                             'business_id'     => $business->id,
                             'employee_id'     => $employee->id,
                             'leave_type_id'   => $leaveTypeId,
                             'leave_period_id' => $leavePeriod->id,
                             'entitled_days'   => $entitledDays,
-                            'accrued_days'    => 0,
-                            'total_days'      => $entitledDays + $carryover,
+                            'carryover_days'  => $carryover,
+                            'accrued_days'    => $accrued,
+                            'total_days'      => $accrued + $carryover,
                             'days_taken'      => 0,
-                            'days_remaining'  => $entitledDays + $carryover,
+                            'days_remaining'  => $accrued + $carryover,
                             'last_accrued_at' => $leavePeriod->start_date,
                         ]);
 
@@ -617,6 +626,5 @@ public function delete(Request $request)
             ]);
         });
     }
-
 
  }
