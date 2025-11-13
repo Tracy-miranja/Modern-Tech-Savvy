@@ -25,8 +25,6 @@ class LeaveType extends Model
         'max_continuous_days',
         'min_notice_days',
         'is_active',
-
-                // New fields
         'allows_backdating',
         'approval_levels',
         'excluded_days',

@@ -44,6 +44,12 @@
                      value="{{ (float)$entitlement->accrued_days }}">
             </div>
 
+              <div class="col-6">
+              <label class="form-label">Carryover Days</label>
+              <input type="number" name="carryover_days" class="form-control calc-field" step="0.5" min="0"
+                     value="{{ (float)$entitlement->carryover_days }}">
+            </div>
+
             <div class="col-6">
               <label class="form-label">Days Taken</label>
               <input type="number" name="days_taken" class="form-control calc-field" step="0.5" min="0"
@@ -81,9 +87,10 @@
   function recalc() {
     const entitled = toNum(document.querySelector('[name="entitled_days"]').value);
     const accrued  = toNum(document.querySelector('[name="accrued_days"]').value);
+    const carryover = toNum(document.querySelector('[name="carryover_days"]').value);
     const taken    = toNum(document.querySelector('[name="days_taken"]').value);
 
-    const total = entitled + accrued;
+    const total = accrued + carryover;
     const remaining = Math.max(0, total - taken);
 
     document.getElementById('total_days_preview').value = total.toFixed(2);

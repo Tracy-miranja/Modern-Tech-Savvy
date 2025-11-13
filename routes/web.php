@@ -129,7 +129,6 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
                 Route::get('/{reference}/download', [LeaveRequestController::class, 'downloadPdf'])->name('download')->where('reference', '[A-Za-z0-9\-]+');                // Leave types (page)
                 Route::get('/leave-types/{slug}/edit', [LeaveTypeController::class, 'edit'])->name('leave-types.edit');
                 Route::delete('/leave-types/delete', [LeaveTypeController::class, 'destroy'])->name('leave-types.delete');
-
                 // Helper endpoints within business scope (namespaced to avoid collision with AJAX routes)
                 Route::post('/leave-types/remaining-days', [LeaveTypeController::class, 'getRemainingDays'])->name('leave-types.remaining-days');
                 Route::post('/leave-types/update', [LeaveTypeController::class, 'update'])->name('leave-types.update');
@@ -155,7 +154,9 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
                 Route::post('/delete', [LeaveEntitlementController::class, 'delete'])->name('leave-entitlements.delete');
                 Route::post('/by-period', [LeaveEntitlementController::class, 'getByPeriod'])->name('leave-entitlements.by-period');         
                 Route::post('/employees/filter', [EmployeeController::class, 'filter'])->name('leave-entitlements.employees.filter');
-            });
+                //Route::post('/recalculate', [LeaveEntitlementController::class, 'recalculate'])->name('leave-entitlements.recalculate');
+                //Route::post('/entitled-types', [LeaveEntitlementController::class, 'EntitledTypes'])->name('leave-entitlements.entitled-types');         
+          });
 
 
             Route::prefix('recruitment')->name('recruitment.')->group(function () {

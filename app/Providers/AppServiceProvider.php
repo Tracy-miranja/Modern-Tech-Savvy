@@ -7,6 +7,8 @@ use App\Models\Business;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
+use App\Models\LeaveEntitlement;
+use App\Observers\LeaveEntitlementObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -43,6 +45,8 @@ class AppServiceProvider extends ServiceProvider
                 ]);
             }
         });
+
+        LeaveEntitlement::observe(LeaveEntitlementObserver::class);
     }
 
 }
