@@ -192,56 +192,6 @@ class LeavePolicyService
         return $carryover;
     }
 
-public function calculateAccruedDays(LeaveEntitlement $entitlement, LeavePolicy $policy, Carbon $asOfDate): float
-{
-    $period = $entitlement->leavePeriod;
-    if (!$period || !(property_exists($period, 'can_accrue') ? $period->can_accrue : true)) {
-        return (float)($entitlement->accrued_days ?? 0);
-    }
-
-    $leaveType = $entitlement->leaveType;
-    // If the leave type does NOT accrue, keep whatever is in accrued_days (likely full upfront from creation)
-    if (!$leaveType || !(Schema::hasColumn('leave_types', 'allowance_accruable') ? $leaveType->allowance_accruable : true)) {
-        return (float)($entitlement->accrued_days ?? 0);
-    }
-
-    $periodStart = Carbon::parse($period->start_date);
-    $periodEnd   = Carbon::parse($period->end_date);
-    if ($asOfDate->lt($periodStart)) return 0.0;
-
-    $anchor = $this->accrualAnchor($entitlement->employee, $period, $policy);
-    if ($anchor->gt($periodEnd)) return 0.0;
-
-    $effectiveDate = $asOfDate->copy()->min($periodEnd);
-
-    $amount  = (float)($policy->accrual_amount ?? 0);
-    $freq    = strtolower($policy->accrual_frequency ?? 'monthly');
-
-    // >>> key change for yearly: credit once at anchor (period start) instead of waiting a whole year
-    $intervals = match ($freq) {
-        'yearly'    => ($effectiveDate->lt($anchor) ? 0 : 1),
-        'monthly'   => $anchor->diffInMonths($effectiveDate),
-        'quarterly' => intdiv($anchor->diffInMonths($effectiveDate), 3),
-        default     => 0,
-    };
-
-    if ($intervals <= 0 || $amount <= 0) {
-        return 0.0;
-    }
-
-    $targetAccrued = $intervals * $amount;
-
-    // Cap by base entitlement for the period
-    $cap = $this->accrualCapForPeriod($policy);
-    if ($cap > 0) {
-        $targetAccrued = min($targetAccrued, $cap);
-    }
-
-    return round($targetAccrued, 2);
-}
-
-
-    /** 
     public function calculateAccruedDays(LeaveEntitlement $entitlement, LeavePolicy $policy, Carbon $asOfDate): float
     {
         $period = $entitlement->leavePeriod;
@@ -257,41 +207,45 @@ public function calculateAccruedDays(LeaveEntitlement $entitlement, LeavePolicy 
         $periodStart = Carbon::parse($period->start_date);
         $periodEnd   = Carbon::parse($period->end_date);
 
-        if ($asOfDate->lt($periodStart)) return 0;
+        if ($asOfDate->lt($periodStart)) return 0.0;
 
-        $effectiveDate = $asOfDate->copy()->min($periodEnd);
-        $lastAccrued   = $entitlement->last_accrued_at ? Carbon::parse($entitlement->last_accrued_at) : $periodStart->copy();
-
-        if ($lastAccrued->gte($effectiveDate)) return (float)($entitlement->accrued_days ?? 0);
-
-        $accrualAmount = (float) $policy->accrual_amount;
-        $frequency     = strtolower($policy->accrual_frequency ?? 'monthly');
-
-        switch ($frequency) {
-            case 'monthly':
-                $intervalsEarned = $lastAccrued->diffInMonths($effectiveDate);
-                break;
-            case 'quarterly':
-                $intervalsEarned = intdiv($lastAccrued->diffInMonths($effectiveDate), 3);
-                break;
-            case 'yearly':
-                $intervalsEarned = $lastAccrued->diffInYears($effectiveDate);
-                break;
-            default:
-                Log::warning("Unknown accrual frequency: {$frequency}");
-                return (float)($entitlement->accrued_days ?? 0);
+        // Anchor as requested
+        $anchor = $this->accrualAnchor($entitlement->employee, $period, $policy);
+        if ($anchor->gt($periodEnd)) {
+            // Joined after the period ends => no accrual
+            return 0.0;
         }
 
-        if ($intervalsEarned <= 0) return (float)($entitlement->accrued_days ?? 0);
+        $effectiveDate = $asOfDate->copy()->min($periodEnd);
 
-        $newAccrual   = $intervalsEarned * $accrualAmount;
-        $totalAccrued = (float)($entitlement->accrued_days ?? 0) + $newAccrual;
+        // Whole intervals from anchor to effective
+        $amount  = (float)($policy->accrual_amount ?? 0);
+        $freq    = strtolower($policy->accrual_frequency ?? 'monthly');
 
-        Log::info("Accrual calculated for entitlement {$entitlement->id}: {$intervalsEarned} {$frequency} intervals × {$accrualAmount} = {$newAccrual} days (total: {$totalAccrued})");
+        $intervals = match ($freq) {
+            'monthly'   => $anchor->diffInMonths($effectiveDate),
+            'quarterly' => intdiv($anchor->diffInMonths($effectiveDate), 3),
+            'yearly'    => $anchor->diffInYears($effectiveDate),
+            default     => 0,
+        };
 
-        return round($totalAccrued, 2);
+        if ($intervals <= 0 || $amount <= 0) {
+            // If anchor is within the same month and you want “partial-month accruals”, implement here.
+            return 0.0;
+        }
+
+        $targetAccrued = $intervals * $amount;
+
+        // Cap by base entitlement for the period
+        $cap = $this->accrualCapForPeriod($policy);
+        if ($cap > 0) {
+            $targetAccrued = min($targetAccrued, $cap);
+        }
+
+        // Return the **total** accrued to date (not delta)
+        return round($targetAccrued, 2);
     }
-         */
+
     /**
      * Eligibility check (uses employment_date & dept/job from EmploymentDetail if needed)
      */
@@ -463,6 +417,79 @@ public function createOrUpdateEntitlement(Employee $employee, LeaveType $leaveTy
     {
         // Cap = the base entitled days for the period
         return (float)($policy->default_days ?? 0);
+    }
+
+    public function buildEntitlementSnapshot(
+        Employee $employee,
+        LeaveType $leaveType,
+        LeavePeriod $period,
+        LeavePolicy $policy,
+        Carbon $asOf
+    ): array {
+        // anchor date like we discussed (later of employment date and period start)
+        $periodStart = Carbon::parse($period->start_date);
+        $periodEnd   = Carbon::parse($period->end_date);
+        $employment  = $employee->employment_date
+            ?? optional($employee->employmentDetail)->employment_date
+            ?? null;
+
+        $eligibilityDate = $periodStart->copy();
+        if ($employment) {
+            $emp = Carbon::parse($employment);
+            if ($emp->gt($eligibilityDate)) {
+                $eligibilityDate = $emp->copy();
+            }
+        }
+        if ($eligibilityDate->gt($periodEnd)) {
+            // joined after period; nothing to accrue
+            return [
+                'entitled' => 0.0,
+                'carryover'=> 0.0,
+                'accrued'  => 0.0,
+                'total'    => 0.0,
+            ];
+        }
+
+        // base for reference
+        $entitledDays = (float)($policy->default_days ?? 0);
+
+        // carryover as you already do
+        $carryover = $this->calculateCarryover($employee, $leaveType, $period, $policy);
+
+        // should this type accrue?
+        $isAccruable = !Schema::hasColumn('leave_types', 'allowance_accruable')
+            ? true
+            : (bool)$leaveType->allowance_accruable;
+
+        // yearly = front-load; non-accruable = front-load
+        $freq = strtolower((string)($policy->accrual_frequency ?? ''));
+        $frontLoad = (!$isAccruable) || ($isAccruable && $freq === 'yearly');
+
+        // prepare a transient entitlement to pass into calculateAccruedDays if needed
+        $tmp = new LeaveEntitlement([
+            'employee_id'     => $employee->id,
+            'leave_type_id'   => $leaveType->id,
+            'leave_period_id' => $period->id,
+            'accrued_days'    => 0,
+            'last_accrued_at' => $period->start_date,
+        ]);
+        $tmp->setRelation('leaveType', $leaveType);
+        $tmp->setRelation('leavePeriod', $period);
+        $tmp->setRelation('employee', $employee);
+
+        $accrued = $frontLoad
+            ? $entitledDays
+            : (float)$this->calculateAccruedDays($tmp, $policy, $asOf);
+
+        // your new invariant
+        $total = (float)$carryover + (float)$accrued;
+
+        return [
+            'entitled' => $entitledDays,
+            'carryover'=> (float)$carryover,
+            'accrued'  => (float)$accrued,
+            'total'    => (float)$total,
+        ];
     }
 
 }

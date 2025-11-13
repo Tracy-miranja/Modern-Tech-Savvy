@@ -320,7 +320,7 @@ protected function processEntitlement(
     $onDate = Carbon::parse($period->start_date);
     $employeeName = $employee->user?->name ?: ('Employee ' . $employee->id);
 
-    // Find existing entitlement
+    // Existing entitlement (if any)
     $existing = LeaveEntitlement::where([
         'business_id'     => $employee->business_id,
         'employee_id'     => $employee->id,
@@ -331,9 +331,7 @@ protected function processEntitlement(
     // Resolve policy
     $policy = $this->policyService->resolvePolicy($leaveType->id, $employee, $onDate);
     if (!$policy) {
-        if ($verbose) {
-            $this->line("    {$employeeName} - {$leaveType->name}: No policy found");
-        }
+        if ($verbose) $this->line("    {$employeeName} - {$leaveType->name}: No policy found");
         return 'skipped';
     }
 
@@ -346,61 +344,63 @@ protected function processEntitlement(
         return 'skipped';
     }
 
-    // Base entitlement for reference only
+    // Reference: base/default (we no longer add this to totals directly)
     $entitledDays = (float) ($policy->default_days ?? 0);
 
-    // Carryover
+    // Carryover (from previous period, capped by policy)
     $carryover = $this->policyService->calculateCarryover($employee, $leaveType, $period, $policy);
     if ($simulateCarryover) {
-        $this->info("    CARRYOVER: {$employeeName} - {$leaveType->name}: {$carryover} days (max allowed: {$policy->max_carryover_days})");
+        $this->info("    CARRYOVER: {$employeeName} - {$leaveType->name}: {$carryover} days (max: {$policy->max_carryover_days})");
     }
 
-    // Determine if this leave type accrues
-    $isAccruable = !Schema::hasColumn('leave_types', 'allowance_accruable')
-        ? true
-        : (bool) $leaveType->allowance_accruable;
+    // Accrual toggles
+    $hasAccruableFlag = Schema::hasColumn('leave_types', 'allowance_accruable');
+    $isAccruable = $hasAccruableFlag ? (bool)$leaveType->allowance_accruable : true;
+    $freq = strtolower((string)($policy->accrual_frequency ?? 'monthly'));
 
-    // Compute accrued_days to persist now:
-    // - If NOT accruable: credit full entitlement up-front.
-    // - If accruable: compute via service (note: yearly front-loading handled inside the service).
-    if ($existing) {
-        $entForCalc = $existing;
-    } else {
-        // minimal transient entitlement for calculation context
-        $entForCalc = new LeaveEntitlement([
-            'employee_id'     => $employee->id,
-            'leave_type_id'   => $leaveType->id,
-            'leave_period_id' => $period->id,
-            'accrued_days'    => 0,
-            'last_accrued_at' => $period->start_date,
-        ]);
-        // attach relations in-memory if needed by the service (safe guard)
-        $entForCalc->setRelation('leaveType', $leaveType);
-        $entForCalc->setRelation('leavePeriod', $period);
-        $entForCalc->setRelation('employee', $employee);
-    }
+    // Front-load rule:
+    // - If NOT accruable  -> credit full now
+    // - OR if frequency is YEARLY -> credit full at period start (front-load)
+    $shouldFrontLoad = (!$isAccruable) || ($freq === 'yearly');
 
+    // Build a transient entitlement for accrual calc context if we don't have an existing row yet
+    $entForCalc = $existing ?: (new LeaveEntitlement([
+        'employee_id'     => $employee->id,
+        'leave_type_id'   => $leaveType->id,
+        'leave_period_id' => $period->id,
+        'accrued_days'    => 0,
+        'last_accrued_at' => $period->start_date,
+    ]));
+    $entForCalc->setRelation('leaveType', $leaveType);
+    $entForCalc->setRelation('leavePeriod', $period);
+    $entForCalc->setRelation('employee', $employee);
+
+    // Compute accrued now
     $asOf = now();
-    $accruedDays = $isAccruable
-        ? (float) $this->policyService->calculateAccruedDays($entForCalc, $policy, $asOf)
-        : (float) $entitledDays;
+    $accruedDays = $shouldFrontLoad
+        ? (float)$entitledDays
+        : (float)$this->policyService->calculateAccruedDays($entForCalc, $policy, $asOf);
 
     if ($simulateAccruals) {
-        $this->info("    ACCRUALS: {$employeeName} - {$leaveType->name}: {$accruedDays} days (frequency: {$policy->accrual_frequency}, amount: {$policy->accrual_amount})");
+        $this->info("    ACCRUALS: {$employeeName} - {$leaveType->name}: {$accruedDays} days (freq: {$freq}, amount: {$policy->accrual_amount})");
     }
 
-    // Total days = accrued + carryover
-    $totalDays = (float) $carryover + (float) $accruedDays;
+    // Totals follow the new rule
+    $totalDays = (float)$carryover + (float)$accruedDays;
 
     if ($existing) {
-        $oldTotal = (float) $existing->total_days;
+        $oldTotal = (float)$existing->total_days;
 
         if (!$dryRun) {
-            $existing->entitled_days  = $entitledDays;   // reference only
+            $existing->entitled_days  = $entitledDays;   // reference/reporting
             $existing->carryover_days = $carryover;
             $existing->accrued_days   = $accruedDays;
             $existing->total_days     = $totalDays;
-            $existing->days_remaining = max(0, $totalDays - (float) ($existing->days_taken ?? 0));
+            $existing->days_remaining = max(0, $totalDays - (float)($existing->days_taken ?? 0));
+            // For front-loaded types, anchor accrual at the start of the period
+            if ($shouldFrontLoad) {
+                $existing->last_accrued_at = $period->start_date;
+            }
             $existing->save();
         }
 
@@ -410,27 +410,30 @@ protected function processEntitlement(
         }
 
         return 'skipped';
-    } else {
-        if (!$dryRun) {
-            LeaveEntitlement::create([
-                'business_id'     => $employee->business_id,
-                'employee_id'     => $employee->id,
-                'leave_type_id'   => $leaveType->id,
-                'leave_period_id' => $period->id,
-                'entitled_days'   => $entitledDays,   // reference
-                'carryover_days'  => $carryover,
-                'accrued_days'    => $accruedDays,
-                'total_days'      => $totalDays,
-                'days_taken'      => 0,
-                'days_remaining'  => $totalDays,
-                'last_accrued_at' => $period->start_date,
-            ]);
-        }
-
-        $this->line("  Created: {$employeeName} - {$leaveType->name}: total {$totalDays} days (carryover {$carryover}, accrued {$accruedDays})");
-        return 'created';
     }
+
+    // Create new
+    if (!$dryRun) {
+        LeaveEntitlement::create([
+            'business_id'     => $employee->business_id,
+            'employee_id'     => $employee->id,
+            'leave_type_id'   => $leaveType->id,
+            'leave_period_id' => $period->id,
+            'entitled_days'   => $entitledDays,   // reference
+            'carryover_days'  => $carryover,
+            'accrued_days'    => $accruedDays,
+            'total_days'      => $totalDays,
+            'days_taken'      => 0,
+            'days_remaining'  => $totalDays,
+            // For front-loaded types, set anchor at period start
+            'last_accrued_at' => $shouldFrontLoad ? $period->start_date : $period->start_date,
+        ]);
+    }
+
+    $this->line("  Created: {$employeeName} - {$leaveType->name}: total {$totalDays} days (carryover {$carryover}, accrued {$accruedDays})");
+    return 'created';
 }
+
 
 
 }
