@@ -11,7 +11,7 @@ use Carbon\Carbon;
 
 class RunLeaveAccruals extends Command
 {
-    protected $signature = 'leave:run-accruals {--as-of= : YYYY-MM-DD override}';
+    protected $signature = 'leave:run-accruals {--as-of= : 2025-12-01 override}';
     protected $description = 'Process daily leave accruals for all active periods';
 
     public function handle(LeavePolicyService $svc): int
