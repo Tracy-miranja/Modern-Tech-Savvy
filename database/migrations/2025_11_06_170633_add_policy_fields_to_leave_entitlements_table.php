@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('leave_entitlements', function (Blueprint $table) {
+        //Schema::table('leave_entitlements', function (Blueprint $table) {
             //$table->json('policy_snapshot')->nullable()->after('carryover_days');
             //$table->timestamp('last_accrued_at')->nullable()->change();
        // });
