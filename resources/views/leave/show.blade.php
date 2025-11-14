@@ -29,9 +29,13 @@
             'business-hr'        => url('/dashboard'),
             'business-admin'     => url('/dashboard'),
             'business-head'      => url('/dashboard'),
+            'chief-of-staff'   => url('/dashboard'),
             'business-employee'  => url('/leave/requests'),
         ];
         $fallbackBackUrl = $roleFallbacks[$activeRole] ?? url('/');
+
+        // Business slug for business.* routes
+        $businessSlug = $currentBusiness->slug ?? session('active_business_slug');
     @endphp
 
     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -40,7 +44,7 @@
                 <i class="fa-solid fa-arrow-left me-1"></i> Back
             </button>
             <span class="text-muted small">
-                @if($activeRole === 'head-of-department')
+                @if($activeRole === 'head-of-department' || $activeRole === 'chief-of-staff')
                     Back takes you to your dashboard.
                 @elseif($activeRole === 'business-employee')
                     Back takes you to your leave requests.
@@ -102,6 +106,48 @@
                                     <small>{{ $progressPct }}%</small>
                                 </div>
                             </div>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        @endif
+
+        {{-- Revoke / Shorten (only when approved and allowed) --}}
+        @if($isApproverRole && method_exists($leave,'canUserRevoke') && $leave->status === 'approved' && $leave->canUserRevoke(auth()->user()))
+            <div class="col-md-4">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <h6 class="mb-3">Revoke / Shorten Leave</h6>
+                        <form id="revokeForm"
+                              action="{{ route('business.leave.revoke', ['business' => $businessSlug]) }}"
+                              method="post">
+                            @csrf
+                            <input type="hidden" name="reference_number" value="{{ $leave->reference_number }}">
+                            <div class="mb-2">
+                                <label class="form-label">Return To Work Date</label>
+                                <input type="date" name="return_to_work_date" class="form-control"
+                                       min="{{ now()->toDateString() }}" required>
+                                <small class="text-muted">Employee will resume on this date. Last leave day becomes the previous day.</small>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Reason (optional)</label>
+                                <input type="text" name="reason" class="form-control" maxlength="500" placeholder="Short note">
+                            </div>
+                            <button type="submit" class="btn btn-warning w-100">
+                                <i class="fa-solid fa-rotate-left me-1"></i> Revoke (Shorten)
+                            </button>
+                        </form>
+
+                        @if(is_array($leave->revocation_history ?? null) && count($leave->revocation_history))
+                            <hr>
+                            <small class="text-muted d-block mb-1">Revocation History</small>
+                            @foreach(array_reverse($leave->revocation_history) as $rev)
+                                <div class="small mb-1">
+                                    <div>On {{ \Carbon\Carbon::parse($rev['revoked_at'])->format('Y-m-d H:i') }} by {{ $rev['revoked_by_name'] ?? ('User #'.$rev['revoked_by']) }}</div>
+                                    <div>New End: {{ $rev['new_end_date'] ?? '—' }} • RTW: {{ $rev['return_to_work_date'] ?? '—' }} • Refunded: {{ $rev['refund_days'] ?? 0 }}</div>
+                                    @if(!empty($rev['reason'])) <div>Reason: {{ $rev['reason'] }}</div> @endif
+                                </div>
+                            @endforeach
                         @endif
                     </div>
                 </div>
@@ -182,6 +228,8 @@
                                     <form id="inlineUploadForm"
                                           action="{{ route('leave.upload-document') }}"
                                           method="post" enctype="multipart/form-data" class="mt-3">
+                                          {{-- NOTE: When you switch to business namespaced route, use:
+                                               action="{{ route('business.leave.upload-document', ['business' => $businessSlug]) }}" --}}
                                         @csrf
                                         <input type="hidden" name="reference_number" value="{{ $leave->reference_number }}">
                                         <div class="mb-2">
@@ -224,6 +272,16 @@
                                         <div class="text-danger">{{ $leave->rejection_reason }}</div>
                                     </div>
                                 @endif
+
+                                @if($statusName === 'approved' && ($isOwner || $isApproverRole))
+                                    <a href="{{ route('business.leave.download', [
+                                        'business'  => $businessSlug,
+                                        'reference' => $leave->reference_number
+                                    ]) }}" class="btn btn-outline-dark">
+                                        <i class="fa-solid fa-file-arrow-down me-1"></i> Download PDF
+                                    </a>
+                                @endif
+
                             </div>
                         </div>
                     </div>
@@ -239,10 +297,49 @@
                                      aria-valuenow="{{ $progressPct }}" aria-valuemin="0" aria-valuemax="100">
                                 </div>
                             </div>
+                            @if(is_array($leave->revocation_history ?? null) && count($leave->revocation_history))
+                                <div class="card shadow-sm mt-3">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">Revocation History</h6>
+                                    </div>
+                                    <div class="card-body p-0">
+                                        <div class="table-responsive">
+                                            <table class="table table-sm mb-0">
+                                                <thead>
+                                                    <tr>
+                                                        <th style="white-space:nowrap;">When</th>
+                                                        <th>By</th>
+                                                        <th>New End</th>
+                                                        <th>Return To Work</th>
+                                                        <th>Refunded</th>
+                                                        <th>Reason</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @foreach(array_reverse($leave->revocation_history) as $rev)
+                                                        <tr>
+                                                            <td>{{ \Carbon\Carbon::parse($rev['revoked_at'])->format('Y-m-d H:i') }}</td>
+                                                            <td>{{ $rev['revoked_by_name'] ?? ('#'.$rev['revoked_by']) }}</td>
+                                                            <td>{{ $rev['new_end_date'] ?? '—' }}</td>
+                                                            <td>{{ $rev['return_to_work_date'] ?? '—' }}</td>
+                                                            <td>{{ (float)($rev['refund_days'] ?? 0) }}</td>
+                                                            <td>{{ $rev['reason'] ?? '—' }}</td>
+                                                        </tr>
+                                                    @endforeach
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <small class="text-muted d-block px-3 py-2">Latest row reflects the most recent change.</small>
+                                    </div>
+                                </div>
+                            @endif
+
                         </div>
                     @endif
                 </div>
             </div>
+
+            
 
             <div class="card shadow-sm">
                 <div class="card-header">
@@ -354,6 +451,38 @@
                 window.location.href = fallbackUrl;
             });
 
+            // Revoke (shorten) handler
+            const revokeForm = document.getElementById('revokeForm');
+            if (revokeForm) {
+                revokeForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const fd = new FormData(revokeForm);
+                    try {
+                        const res = await fetch(revokeForm.getAttribute('action'), {
+                            method: 'POST',
+                            headers: { 'X-CSRF-TOKEN': @json(csrf_token()) },
+                            body: fd
+                        });
+                        const json = await res.json().catch(() => ({}));
+                        if (!res.ok || json?.status !== 'success') {
+                            throw new Error(json?.message || 'Failed to revoke leave.');
+                        }
+                        if (window.Swal) {
+                            await Swal.fire('Updated', json?.message || 'Leave shortened.', 'success');
+                        } else {
+                            alert(json?.message || 'Leave shortened.');
+                        }
+                        window.location.reload();
+                    } catch (err) {
+                        if (window.Swal) {
+                            Swal.fire('Error', err?.message || 'Failed to revoke leave.', 'error');
+                        } else {
+                            alert(err?.message || 'Failed to revoke leave.');
+                        }
+                    }
+                });
+            }
+
             // --- Inline upload: AJAX + SweetAlert, then refresh the page ---
             const form = document.getElementById('inlineUploadForm');
             if (form) {
@@ -392,3 +521,4 @@
         </script>
     @endpush
 </x-app-layout>
+

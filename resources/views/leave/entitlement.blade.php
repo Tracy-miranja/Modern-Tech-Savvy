@@ -13,7 +13,7 @@
                                 <select name="leave_period_id" id="leave_period_id" class="form-select" required>
                                     <option value="" disabled selected>Select Leave Period</option>
                                     @foreach ($leavePeriods as $leavePeriod)
-                                        <option value="{{ $leavePeriod->id }}">{{ $leavePeriod->name }}</option>
+                                        <option value="{{ $leavePeriod->id }}" data-slug="{{ $leavePeriod->slug }}">{{ $leavePeriod->name }}</option>
                                     @endforeach
                                 </select>
                             </div>
@@ -158,15 +158,15 @@
                 $('.select2-multiple').select2();
 
                 async function triggerFilterEmployees() {
-                    const leavePeriodId = document.getElementById('leave_period_id').value;
-                    const checkboxesContainer = document.getElementById('employee-checkboxes');
+                    const sel = document.getElementById('leave_period_id');
+                    const leavePeriodId   = sel.value || null;
+                    const leavePeriodSlug = sel.options[sel.selectedIndex]?.dataset.slug || null;
 
-                    // Show loading state
+                    const checkboxesContainer = document.getElementById('employee-checkboxes');
                     checkboxesContainer.innerHTML = '<p class="text-muted">Loading employees...</p>';
 
-                    // Collect filters from selects
                     const filters = {
-                        leave_period_id: leavePeriodId,
+                        leave_period_id: leavePeriodId, // employees list usually wants the ID
                         departments: $('#departments').val() || [],
                         job_categories: $('#job_categories').val() || [],
                         employment_terms: $('#employment_terms').val() || [],
@@ -174,25 +174,37 @@
                     };
 
                     try {
-                        // Wait for both to complete
+                        // Build a payload that works for both id or slug
+                        const entPayload = (leavePeriodId || leavePeriodSlug)
+                        ? { leave_period_id: leavePeriodId || undefined, leave_period_slug: leavePeriodSlug || undefined }
+                        : null;
+
+                        const employeesPromise   = window.getAllEmployeesList(filters);
+                        const entitlementsPromise = entPayload
+                        ? window.getLeaveEntitlementsByPeriod(entPayload)    // <-- pass OBJECT, not scalar
+                        : Promise.resolve({ data: [] });
+
                         const [employeesResponse, entitlementsResponse] = await Promise.all([
-                            window.getAllEmployeesList(filters),
-                            leavePeriodId ? window.getLeaveEntitlementsByPeriod(leavePeriodId) : Promise.resolve({ data: [] })
+                        employeesPromise,
+                        entitlementsPromise.catch(e => {
+                            console.warn('Entitlements fetch failed, continuing with employees only:', e);
+                            return { data: [] }; // don't break employees render
+                        })
                         ]);
 
-                        // Extract the actual data arrays from the responses
                         const allEmployees = employeesResponse.data || employeesResponse;
                         const entitlements = entitlementsResponse.data || entitlementsResponse;
 
-                        // Store employees data for search
-                        allEmployeesData = allEmployees.map(employee => ({
-                            ...employee,
-                            entitlement: Array.isArray(entitlements)
-                                ? entitlements.find(e => e.employee_id === employee.id)
-                                : null
+                        // map + render
+                        const entByEmp = Array.isArray(entitlements)
+                        ? new Map(entitlements.map(e => [e.employee_id, e]))
+                        : new Map();
+
+                        const allEmployeesData = allEmployees.map(employee => ({
+                        ...employee,
+                        entitlement: entByEmp.get(employee.id) || null
                         }));
 
-                        // Render employees
                         renderEmployees(allEmployeesData);
                         updateSearchCount(allEmployeesData.length, allEmployeesData.length);
 
@@ -200,7 +212,8 @@
                         console.error('Error fetching employees or entitlements:', error);
                         checkboxesContainer.innerHTML = "<p class=\"text-danger\">Error fetching employees. Please try again later.</p>";
                     }
-                }
+                    }
+
 
                 function renderEmployees(employees) {
                     const checkboxesContainer = document.getElementById('employee-checkboxes');

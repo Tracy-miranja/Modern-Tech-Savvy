@@ -166,16 +166,19 @@ document.addEventListener("DOMContentLoaded", function() {
         const employeeId  = employeeSelect ? employeeSelect.value : null;
 
         if (leaveTypeId) {
+            const payload = { leave_type_id: leaveTypeId };
+            // Only include employee_id if an admin selected someone
+            if (employeeId) {
+                payload.employee_id = employeeId;
+            }
+
             fetch("{{ route('business.leave.leave-types.remaining-days', $currentBusiness->slug) }}", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                     "X-CSRF-TOKEN": "{{ csrf_token() }}"
                 },
-                body: JSON.stringify({
-                    leave_type_id: leaveTypeId,
-                    employee_id: employeeId
-                })
+                body: JSON.stringify(payload)
             })
             .then(response => response.json())
             .then(data => {
@@ -186,6 +189,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 document.getElementById('remainingDays').innerText =
                     "Remaining Days: N/A";
             });
+
         }
     });
 

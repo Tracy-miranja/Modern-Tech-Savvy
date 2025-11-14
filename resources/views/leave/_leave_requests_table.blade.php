@@ -7,12 +7,7 @@
                 $activeRole = session('active_role');
                 $isEmployee = $activeRole === 'business-employee';
             @endphp
-
-            @if (in_array($activeRole, ['head-of-department','business-hr','business-admin','business-head'], true))
-                <a href="{{ url('/dashboard') }}" class="btn btn-outline-secondary btn-sm ms-2">
-                    <i class="fa-solid fa-arrow-left"></i> Back
-                </a>
-            @endif
+            
         </div>
 
         @if ($activeRole === 'business-admin')
@@ -111,10 +106,21 @@
 
                     {{-- Status --}}
                     <td>
+                        
+                        @php
+                            $hasRevocations = is_array($request->revocation_history ?? null) && count($request->revocation_history);
+                        @endphp
+
                         @if ($request->status === 'approved')
-                            <span class="badge bg-success">
-                                <i class="fa-solid me-1 fa-check-circle"></i> Approved
-                            </span>
+                            @if($hasRevocations)
+                                <span class="badge bg-secondary">
+                                    <i class="fa-solid me-1 fa-rotate-left"></i> Shortened / Revoked
+                                </span>
+                            @else
+                                <span class="badge bg-success">
+                                    <i class="fa-solid me-1 fa-check-circle"></i> Approved
+                                </span>
+                            @endif
                         @elseif ($request->status === 'pending')
                             @if($canApprove)
                                 <span class="badge bg-info">
@@ -230,7 +236,14 @@
                     </div>
                 </form>
             </div>
+            
         </div>
+
+                    @if (in_array($activeRole, ['head-of-department','business-hr','business-admin','business-head', 'chief-of-staff'], true))
+                <a href="{{ url('/dashboard') }}" class="btn btn-outline-secondary btn-sm ms-2">
+                    <i class="fa-solid fa-arrow-left"></i> Back
+                </a>
+            @endif
     </div>
 </div>
 
