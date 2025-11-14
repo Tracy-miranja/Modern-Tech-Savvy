@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('leave_entitlements', function (Blueprint $table) {
-            $table->decimal('carryover_days', 8, 2)->default(0)->after('accrued_days');
+          //  $table->decimal('carryover_days', 8, 2)->default(0)->after('accrued_days');
             $table->json('policy_snapshot')->nullable()->after('carryover_days');
             $table->timestamp('last_accrued_at')->nullable()->change();
         });
