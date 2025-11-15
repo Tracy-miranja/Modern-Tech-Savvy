@@ -63,11 +63,62 @@ function renderPayrollChart(trendsData, selectedYear) {
     const netPays = months.map(month => Number(trendsMap.get(month)?.total_net_pay || 0));
     const grossPays = months.map(month => Number(trendsMap.get(month)?.total_gross_pay || 0));
 
-    renderChart("payrollChart", "bar", [
-        { name: "Net Pay", data: netPays },
-        { name: "Gross Pay", data: grossPays }
-    ], monthNames, ["#00E396", "#FF4560"], `Months of ${selectedYear}`, "Amount (KES)");
+    if (charts["payrollChart"]) {
+        charts["payrollChart"].destroy();
+    }
+
+    charts["payrollChart"] = new ApexCharts(document.querySelector("#payrollChart"), {
+        chart: {
+            type: "area",   // ← important (gives the filled curved chart)
+            height: 380,
+            toolbar: { show: false }
+        },
+        stroke: {
+            curve: "smooth",   // ← makes the lines rounded
+            width: 3
+        },
+        series: [
+            {
+                name: "Gross Pay",
+                data: grossPays
+            },
+            {
+                name: "Net Pay",
+                data: netPays
+            }
+        ],
+        xaxis: {
+            categories: [
+                "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+            ],
+            labels: { style: { fontSize: "13px" } }
+        },
+        colors: ["#13C3C9", "#D79B3F"], // similar to the image
+        fill: {
+            type: "gradient",
+            gradient: {
+                opacityFrom: 0.4,
+                opacityTo: 0.0,
+            }
+        },
+        dataLabels: { enabled: false },
+        markers: { size: 0 },
+        legend: {
+            position: "top",
+            markers: { radius: 12 }
+        },
+        tooltip: {
+            shared: true
+        },
+        yaxis: {
+            title: { text: "Amount (KES)" }
+        }
+    });
+
+    charts["payrollChart"].render();
 }
+
 
 function renderAttendanceChart(trendsData, selectedYear) {
     const months = getMonthLabels(selectedYear);

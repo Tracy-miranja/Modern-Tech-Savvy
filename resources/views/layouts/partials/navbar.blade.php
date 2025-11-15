@@ -3,7 +3,47 @@
     use Illuminate\Support\Facades\Auth;
     $business = Business::findBySlug(session('active_business_slug'));
     $hidePayrollMenus = Auth::check() && Auth::user()->hasRole('business-hr') && $business && $business->slug === '3rd-park-hospital-ltd';
+
+
+
 @endphp
+{{-- Enhanced CSS – Forces white text & icons on active menu --}}
+<style>
+    /* Target the active menu item */
+    .sidebar__menu-item.active,
+    .sidebar__menu-item.active:hover {
+        background: #ff8c00 !important;
+        color: #fff !important;
+        font-weight: 600 !important;
+        border-radius: 6px !important;
+        box-shadow: none !important;
+    }
+
+    /* Force icon color to white */
+    .sidebar__menu-item.active .side-menu__icon i,
+    .sidebar__menu-item.active .side-menu__icon svg {
+        color: #fff !important;
+        fill: #fff !important;
+    }
+
+    /* Force label text to white */
+    .sidebar__menu-item.active .sidebar__menu-label {
+        color: #fff !important;
+        font-weight: 600 !important;
+    }
+
+    /* Keep dropdown arrow white when parent is active */
+    .slide.has-sub.active > a .side-menu__angle,
+    .slide.has-sub > a.active .side-menu__angle {
+        color: #fff !important;
+    }
+
+    /* Optional: Ensure sub-menu items also get white when active */
+    .sidebar-menu.child1 .sidebar__menu-item.active {
+        background: #e67e00 !important; /* slightly darker orange for sub-items */
+        color: #fff !important;
+    }
+</style>
 <div class="app-sidebar" id="sidebar">
     <div class="main-sidebar-header">
         <a href="{{ route('business.index', $currentBusiness->slug) }}" class="header-logo">

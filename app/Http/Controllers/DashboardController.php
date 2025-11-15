@@ -462,7 +462,7 @@ class DashboardController extends Controller
     }
 
 
-    
+
     public function setLeaveEntitlements(Request $request)
     {
     $page = 'Set Leave Entitlements';
