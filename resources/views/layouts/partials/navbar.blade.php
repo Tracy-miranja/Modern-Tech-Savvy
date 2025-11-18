@@ -41,16 +41,47 @@
     /* Optional: Ensure sub-menu items also get white when active */
     .sidebar-menu.child1 .sidebar__menu-item.active {
         background: #e67e00 !important; /* slightly darker orange for sub-items */
-        color: #fff !important;
+        color: #0c0909 !important;
     }
+
+    /* FIX CHILD MENU ACTIVE STYLING */
+.sidebar-menu.child1 li.active > .sidebar__menu-item {
+    background: #e67e00 !important; /* Orange highlight */
+    color: #130f0f !important;
+    font-weight: 600 !important;
+    border-radius: 6px !important;
+}
+
+/* Handle active class on either <li> or <a> */
+.sidebar-menu.child1 li.active > a,
+.sidebar-menu.child1 a.active {
+    background: #e67e00 !important;
+    color: #0c0a0a !important;
+}
+
+.main-sidebar-header .header-logo img {
+    display: block !important;
+    opacity: 1 !important;
+    max-height: 100% !important;
+}
+
+
 </style>
 <div class="app-sidebar" id="sidebar">
-    <div class="main-sidebar-header">
-        <a href="{{ route('business.index', $currentBusiness->slug) }}" class="header-logo">
-            <img class="main-logo" src="{{ asset('media/amsol-logo.png') }}" alt="{{ config('app.name') }}">
-            <img class="dark-logo" src="{{ asset('media/amsol-logo.png') }}" alt="{{ config('app.name') }}">
-        </a>
-    </div>
+   <div class="main-sidebar-header d-flex align-items-center justify-content-center"
+     style="height: 65px; padding: 0 !important; overflow: hidden;">
+
+    <a href="{{ route('business.index', $currentBusiness->slug) }}" class="header-logo"
+       style="height: 100%; display: flex; align-items: center; justify-content: center;">
+
+        <img class="main-logo"
+             src="{{ asset('media/krstlogo.png') }}"
+             alt="{{ config('app.name') }}"
+             style="max-height: 85%; width: auto; object-fit: contain;">
+    </a>
+</div>
+
+
     <div class="main-sidebar" id="sidebar-scroll">
         <nav class="main-menu-container nav nav-pills flex-column sub-open">
             <div class="sidebar-left" id="sidebar-left"></div>

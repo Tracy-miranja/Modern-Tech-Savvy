@@ -45,10 +45,10 @@
                 <div class="form-container">
                     <div class="authentication-top text-center mb-4">
                         <a href="javascript:;" class="authentication-logo">
-                            <img src="{{ asset('media/amsol-logo.png') }}" alt="{{ config('app.name') }}"
+                            <img src="{{ asset('media/krstlogo.png') }}" alt="{{ config('app.name') }}"
                                 class="img-fluid" style="max-height: 60px;">
                         </a>
-                        <h4 class="mt-4 mb-3">Sign up as <span class="amsol-text">AMSOL PayHR</span> Client</h4>
+                        <h4 class="mt-4 mb-3">Sign up as <span class="amsol-text">Krest PayHR</span> Client</h4>
                         <p class="text-muted">Complete the form below to create your account</p>
                     </div>
 

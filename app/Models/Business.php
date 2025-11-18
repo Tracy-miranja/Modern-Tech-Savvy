@@ -56,15 +56,20 @@ class Business extends Model implements HasMedia
         $this->addMediaCollection('tax_pin_certificates');
         $this->addMediaCollection('business_license_certificates');
     }
-    public function getImageUrl()
-    {
-        $media = $this->getFirstMedia('businesses');
-        if ($media && File::exists($media->getPath())) {
-            return $media->getUrl();
-        }
-        return asset('media/amsol-logo.png');
+  public function getImageUrl()
+{
+    // Option A – if you save the logo in collection 'logo' (most common)
+    $media = $this->getFirstMedia('logo');
+
+    // Option B – if you save it in collection 'businesses' (rare)
+    // $media = $this->getFirstMedia('businesses');
+
+    if ($media && File::exists($media->getPath())) {
+        return $media->getUrl();
     }
 
+    return asset('media/krstlogo.png');
+}
     public function modules()
     {
         return $this->belongsToMany(Module::class, 'business_modules')->withPivot('is_active', 'subscription_ends_at')->withTimestamps();

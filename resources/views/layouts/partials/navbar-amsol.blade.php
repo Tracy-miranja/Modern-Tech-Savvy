@@ -1,8 +1,8 @@
 <div class="app-sidebar" id="sidebar">
     <div class="main-sidebar-header">
         <a href="index.html" class="header-logo">
-            <img class="main-logo" src="{{ asset('media/amsol-logo.png') }}" alt="{{ config('app.name') }}">
-            <img class="dark-logo" src="{{ asset('media/amsol-logo.png') }}" alt="{{ config('app.name') }}">
+            <img class="main-logo" src="{{ asset('media/krstlogo.png') }}" alt="{{ config('app.name') }}">
+            <img class="dark-logo" src="{{ asset('media/krstlogo.png') }}" alt="{{ config('app.name') }}">
         </a>
     </div>
     <div class="main-sidebar" id="sidebar-scroll">
