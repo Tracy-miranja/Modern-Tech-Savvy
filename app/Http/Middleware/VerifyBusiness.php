@@ -25,10 +25,10 @@ class VerifyBusiness
             return redirect()->route('dashboard')->with('error', 'Business not found.');
         }
 
-        if (!$business->verified && $business->company_name !== 'amsol') {
+        if (!$business->verified && $business->company_name !== 'krest') {
             Log::warning('Business not verified', ['slug' => $business->slug]);
             return redirect()->route('business.activate', $business->slug)
-                ->with('message', 'Your business is not verified. Please contact Amsol support.');
+                ->with('message', 'Your business is not verified. Please contact krest support.');
         }
 
         // Store business slug in session for consistency

@@ -37,7 +37,7 @@
                     </div>
                     <div class="mb-3">
                         <button class="btn btn-primary w-100" type="button" onclick="login(this)">
-                            <i class="bi bi-check-circle me-1"></i> Login
+                            <i class="bi bi-check-circle me-1 bg-green-500"></i> Login
                         </button>
                     </div>
                 </form>
@@ -57,8 +57,8 @@
     </div>
     <style>
         .btn-primary {
-            background-color: #0A4B9F;
-            border-color: #0A4B9F;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            border-color: linear-gradient(135deg, #10b981 0%, #059669 100%);
             border-radius: 6px;
         }
 
