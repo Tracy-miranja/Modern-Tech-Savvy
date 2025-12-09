@@ -4,7 +4,7 @@
             <div class="card__wrapper">
                 <div class="authentication-top text-center mb-20">
                     <a href="javascript:;" class="authentication-logo logo-black">
-                        <img src="{{ asset('media/amsol-logo.png') }}" alt="{{ config('app.name') }}">
+                        <img src="{{ asset('media/krstlogo.png') }}" alt="{{ config('app.name') }}">
                     </a>
                     <h4 class="mb-15">{{ config('app.name') }}</h4>
                     <p class="mb-15">{{ $message }}</p>

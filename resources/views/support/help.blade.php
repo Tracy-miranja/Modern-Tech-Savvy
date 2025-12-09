@@ -14,9 +14,9 @@
                                         <h4>Contact Information</h4>
                                     </div>
                                     <div class="card-body">
-                                        <p><strong>Email:</strong> support@amsol.com</p>
-                                        <p><strong>Phone:</strong> +1-800-AMSOL-HELP</p>
-                                        <p><strong>Address:</strong> 123 Amsol Ave, Tech City, TC 12345</p>
+                                        <p><strong>Email:</strong> support@krest.com</p>
+                                        <p><strong>Phone:</strong> +1-800-krest-HELP</p>
+                                        <p><strong>Address:</strong> 123 krest Ave, Tech City, TC 12345</p>
                                         <p><strong>Support Hours:</strong> Mon-Fri, 9AM-5PM</p>
                                     </div>
                                 </div>

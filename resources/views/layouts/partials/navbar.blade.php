@@ -166,12 +166,12 @@
                                 Work Roster
                             </a>
                         </li>
-    <li class="slide">
+    {{-- <li class="slide">
     <a class="sidebar__menu-item"
-       href="https://hospitalrota.amsol.africa/" target="_blank" rel="noopener noreferrer">
+       href="" target="_blank" rel="noopener noreferrer">
         <span class="sidebar__menu-label">Hospital Rota</span>
     </a>
-</li>
+</li> --}}
 
 
                         <li class="slide {{ request()->routeIs('business.pay-grades.index') ? 'active' : '' }}">

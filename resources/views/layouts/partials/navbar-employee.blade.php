@@ -1,10 +1,11 @@
 <div class="app-sidebar" id="sidebar">
     <div class="main-sidebar-header">
-        <a href="{{ route('myaccount.index', $currentBusiness->slug) }}" class="header-logo">
-            <img class="main-logo" src="{{ asset('media/krstlogo.png') }}" alt="{{ config('app.name') }}">
-            <img class="dark-logo" src="{{ asset('media/krstlogo.png') }}" alt="{{ config('app.name') }}">
-        </a>
-    </div>
+    <a href="{{ route('myaccount.index', $currentBusiness->slug) }}" class="header-logo">
+        <img class="main-logo" src="{{ asset('media/krstlogo.png') }}" alt="{{ config('app.name') }}" style="width: 60px; height: auto;">
+        <img class="dark-logo" src="{{ asset('media/krstlogo.png') }}" alt="{{ config('app.name') }}" style="width: 60px; height: auto;">
+    </a>
+</div>
+
     <div class="main-sidebar" id="sidebar-scroll">
         <nav class="main-menu-container nav nav-pills flex-column sub-open">
             <div class="sidebar-left" id="sidebar-left"></div>

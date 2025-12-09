@@ -294,7 +294,7 @@
                 </div>
             </div>
 
-            @if($business->verified && $business->slug === 'amsol')
+            @if($business->verified && $business->slug === 'krest')
             <!-- API Token -->
             <p>API Token</p>
             <div class="card shadow-sm">

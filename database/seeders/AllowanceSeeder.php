@@ -21,7 +21,7 @@ class AllowanceSeeder extends Seeder
         // Truncate only the allowances table to start fresh
         DB::table('allowances')->truncate();
 
-        // Use existing business_id = 1 (assuming it’s 'amsol' from your dump)
+        // Use existing business_id = 1 (assuming it’s 'krest' from your dump)
         $businessId = 1;
 
         // Define popular allowances

@@ -23,62 +23,78 @@ class EmployeeDashboardController extends Controller
     // Dashboard Overview
 public function index(Request $request)
 {
-    $page = "Dashboard";
-    $user = Auth::user();
-    $employeeId = optional($user->employee)->id;
+    $page           = "Dashboard";
+    $user           = Auth::user();
+    $employeeId     = optional($user->employee)->id;
+
+    // Default fallback values — always defined
+    $leave_count        = 0;
+    $pending_leaves     = 0;
+    $approved_leaves    = 0;
+    $rejected_leaves    = 0;
+    $work_days          = 0;
+    $payslips           = 0;
+    $leave_balances     = [];
+    $errorMessage       = null;
 
     if (!$employeeId) {
-        return view('employee.index', compact('page'))
-            ->with('error', 'Employee record not found.');
+        $errorMessage = 'Your employee profile is not yet set up. Please contact HR to complete your registration.';
+    } else {
+        // Total leave requests ever made
+        $leave_count = LeaveRequest::where('employee_id', $employeeId)->count();
+
+        // Pending leaves
+        $pending_leaves = LeaveRequest::where('employee_id', $employeeId)
+            ->whereNull('approved_by')
+            ->whereNull('rejection_reason')
+            ->count();
+
+        // Approved leaves
+        $approved_leaves = LeaveRequest::where('employee_id', $employeeId)
+            ->whereNotNull('approved_by')
+            ->whereNull('rejection_reason')
+            ->count();
+
+        // Rejected leaves
+        $rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
+            ->whereNotNull('rejection_reason')
+            ->count();
+
+        // Total days worked (only count attendances with clock-in)
+        $work_days = Attendance::where('employee_id', $employeeId)
+            ->whereNotNull('clock_in')
+            ->count();
+
+        // Total payslips issued
+        $payslips = EmployeePayroll::where('employee_id', $employeeId)->count();
+
+        // Leave balances (for dropdown and details)
+        $leave_balances = \App\Models\LeaveEntitlement::with('leaveType')
+            ->where('employee_id', $employeeId)
+            ->get()
+            ->map(function ($entitlement) {
+                return [
+                    'leave_type'     => $entitlement->leaveType->name ?? 'Unknown Leave',
+                    'entitled_days'  => $entitlement->entitled_days ?? 0,
+                    'days_taken'     => $entitlement->days_taken ?? 0,
+                    'days_remaining' => $entitlement->days_remaining ?? 0,
+                ];
+            })
+            ->values()     // Keys: 0, 1, 2, 3...
+            ->toArray();   // Plain PHP array — perfect for Blade & JS
     }
 
-    // Total leaves requested
-    $leave_count = LeaveRequest::where('employee_id', $employeeId)->count();
-
- // Pending
-$pending_leaves = LeaveRequest::where('employee_id', $employeeId)
-    ->whereNull('approved_by')
-    ->whereNull('rejection_reason')
-    ->count();
-
-// Approved
-$approved_leaves = LeaveRequest::where('employee_id', $employeeId)
-    ->whereNotNull('approved_by')
-    ->whereNull('rejection_reason')
-    ->count();
-
-// Rejected
-$rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
-    ->whereNotNull('rejection_reason')
-    ->count();
-
-
-    $work_days = Attendance::where('employee_id', $employeeId)->count();
-
-
-    $payslips = EmployeePayroll::where('employee_id', $employeeId)->count();
-
-
-    $leave_balances = \App\Models\LeaveEntitlement::with('leaveType')
-        ->where('employee_id', $employeeId)
-        ->get()
-        ->map(function ($entitlement) {
-            return [
-                'leave_type' => $entitlement->leaveType->name ?? 'Unknown',
-                'entitled_days' => $entitlement->entitled_days,
-                'days_taken' => $entitlement->days_taken,
-                'days_remaining' => $entitlement->days_remaining,
-            ];
-        });
-
+    // Always return ALL variables — no more undefined errors
     return view('employee.index', compact(
         'page',
         'leave_count',
         'pending_leaves',
+        'approved_leaves',   // Now included
+        'rejected_leaves',   // Now included
         'work_days',
         'payslips',
         'leave_balances'
-    ));
+    ))->with('error', $errorMessage);
 }
 
 
@@ -209,7 +225,7 @@ $rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
     ->get()
     ->map(function ($ep) {
         if (!$ep->payroll) {
-            \Log::warning('Payroll record missing for EmployeePayroll', ['employee_payroll_id' => $ep->id, 'payroll_id' => $ep->payroll_id]);
+            Log::warning('Payroll record missing for EmployeePayroll', ['employee_payroll_id' => $ep->id, 'payroll_id' => $ep->payroll_id]);
             return null; // Skip records with missing payroll
         }
         return [

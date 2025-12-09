@@ -192,7 +192,7 @@
 <body>
     <div class="container py-4">
         <div class="header">
-            <img src="{{ asset('media/amsol-logo.png') }}" alt="{{ config('app.name') }}">
+            <img src="{{ asset('media/krstlogo.png') }}" alt="{{ config('app.name') }}">
             <h2 class="fw-bold">{{ $campaign->name }}</h2>
         </div>
         <div class="row justify-content-center">

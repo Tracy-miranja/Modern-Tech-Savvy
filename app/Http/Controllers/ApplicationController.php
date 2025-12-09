@@ -134,47 +134,25 @@ class ApplicationController extends Controller
 
         $applicant = Applicant::findOrFail($request->applicant_id);
         $user = $applicant->user;
-
-        // Only create lead if applicant has an associated user
         if ($user) {
-            $amsol = Business::where('slug', 'amsol')->first();
-            if (!$amsol) {
-                throw new \Exception('Amsol business not found');
-            }
+            if (!Lead::where('user_id', $user->id)->exists()) {
+                $lead = Lead::create([
+                    'business_id' => $business->id,
+                    'user_id'     => $user->id,
+                    'name'        => $user->name ?? 'Unknown',
+                    'email'       => $user->email ?? 'unknown@example.com',
+                    'phone'       => $user->phone,
+                    'source'      => 'job_application',
+                    'status'      => 'new',
+                    'label'       => 'Applicant',
+                ]);
 
-            $leadExists = Lead::where('user_id', $user->id)->exists();
-            if (!$leadExists) {
-                $leadData = [
-                    'business_id' => $amsol->id,
-                    'user_id' => $user->id,
-                    'name' => $user->name ?? 'Unknown',
-                    'email' => $user->email ?? 'unknown@example.com',
-                    'phone' => $user->phone,
-                    'source' => 'job_application',
-                    'status' => 'new',
-                    'label' => 'Applicant',
-                ];
-                Log::debug('Lead data prepared', ['lead_data' => $leadData]);
-
-                try {
-                    $lead = Lead::create($leadData);
-                    if (!$lead || !$lead->id) {
-                        Log::error('Failed to create lead or lead ID missing', ['user_id' => $user->id, 'lead_data' => $leadData]);
-                        throw new \Exception('Lead creation failed');
-                    }
-                    Log::debug('Lead created successfully', ['lead_id' => $lead->id, 'user_id' => $user->id]);
-
-                    LeadActivity::create([
-                        'lead_id' => $lead->id,
-                        'user_id' => $user->id,
-                        'activity_type' => 'note',
-                        'description' => 'Lead created from internal job application for job post ID: ' . $job_post->id,
-                    ]);
-                    Log::debug('Lead activity created', ['lead_id' => $lead->id, 'user_id' => $user->id]);
-                } catch (\Exception $e) {
-                    Log::error('Lead creation error', ['user_id' => $user->id, 'error' => $e->getMessage(), 'lead_data' => $leadData]);
-                    throw $e;
-                }
+                LeadActivity::create([
+                    'lead_id'       => $lead->id,
+                    'user_id'       => $user->id,
+                    'activity_type' => 'note',
+                    'description'   => 'Lead created from internal job application for job post ID: ' . $job_post->id,
+                ]);
             }
         } else {
             Log::info('Application created for applicant without user', ['applicant_id' => $applicant->id]);
@@ -195,105 +173,9 @@ class ApplicationController extends Controller
     });
 }
 
-    // public function store(Request $request)
-    // {
-    //     $request->validate([
-    //         'applicant_id' => [
-    //             'required',
-    //             'exists:applicants,id',
-    //             function ($attribute, $value, $fail) use ($request) {
-    //                 $job_post = JobPost::findBySlug($request->job_post_id);
-    //                 if (Application::where('applicant_id', $value)
-    //                     ->where('job_post_id', $job_post->id)
-    //                     ->exists()
-    //                 ) {
-    //                     $fail('You have already applied to this job.');
-    //                 }
-    //             },
-    //         ],
-    //         'job_post_id' => 'required|exists:job_posts,slug',
-    //         'cover_letter' => 'nullable|string',
-    //         'attachments.*' => 'file|mimes:pdf,doc,docx|max:2048',
-    //     ]);
 
-    //     return $this->handleTransaction(function () use ($request) {
-    //         $job_post = JobPost::findBySlug($request->job_post_id);
-    //         $business = $job_post->business;
-    //         $location = $job_post->location;
 
-    //         $application = Application::create([
-    //             'business_id' => $business?->id,
-    //             'location_id' => $location?->id,
-    //             'applicant_id' => $request->applicant_id,
-    //             'job_post_id' => $job_post->id,
-    //             'cover_letter' => $request->cover_letter,
-    //             'stage' => 'applied',
-    //             'created_by' => Auth::id(),
-    //         ]);
-
-    //         $application->setStatus(Status::APPLIED);
-
-    //         $amsol = Business::where('slug', 'amsol')->first();
-    //         if (!$amsol) {
-    //             throw new \Exception('Amsol business not found');
-    //         }
-
-    //         $applicant = Applicant::findOrFail($request->applicant_id);
-    //         $user = $applicant->user;
-    //         if (!$user) {
-    //             throw new \Exception('Applicant has no associated user');
-    //         }
-
-    //         $leadExists = Lead::where('user_id', $user->id)->exists();
-    //         if ($leadExists) {
-    //             throw new \Exception('Lead already exists.');
-    //         } else {
-    //             $leadData = [
-    //                 'business_id' => $amsol->id,
-    //                 'user_id' => $user->id,
-    //                 'name' => $user->name ?? 'Unknown',
-    //                 'email' => $user->email ?? 'unknown@example.com',
-    //                 'phone' => $user->phone,
-    //                 'source' => 'job_application',
-    //                 'status' => 'new',
-    //                 'label' => 'Applicant',
-    //             ];
-    //             Log::debug('Lead data prepared', ['lead_data' => $leadData]);
-
-    //             try {
-    //                 $lead = Lead::create($leadData);
-    //                 if (!$lead || !$lead->id) {
-    //                     Log::error('Failed to create lead or lead ID missing', ['user_id' => $user->id, 'lead_data' => $leadData]);
-    //                     throw new \Exception('Lead creation failed');
-    //                 }
-    //                 Log::debug('Lead created successfully', ['lead_id' => $lead->id, 'user_id' => $user->id]);
-
-    //                 LeadActivity::create([
-    //                     'lead_id' => $lead->id,
-    //                     'user_id' => $user->id,
-    //                     'activity_type' => 'note',
-    //                     'description' => 'Lead created from internal job application for job post ID: ' . $job_post->id,
-    //                 ]);
-    //                 Log::debug('Lead activity created', ['lead_id' => $lead->id, 'user_id' => $user->id]);
-    //             } catch (\Exception $e) {
-    //                 Log::error('Lead creation error', ['user_id' => $user->id, 'error' => $e->getMessage(), 'lead_data' => $leadData]);
-    //                 throw $e;
-    //             }
-    //         }
-
-    //         if ($request->hasFile('attachments')) {
-    //             foreach ($request->file('attachments') as $file) {
-    //                 $application->addMedia($file)->toMediaCollection('applications');
-    //             }
-    //         }
-
-    //         Mail::to($application->applicant->user->email)->send(new ApplicationReceived($application));
-
-    //         return RequestResponse::created('Application submitted successfully');
-    //     });
-    // }
-
-    public function externalStore(Request $request)
+public function externalStore(Request $request)
     {
         try {
             $validated = $request->validate([
@@ -340,7 +222,7 @@ class ApplicationController extends Controller
                 'jobId.exists' => 'The specified job post does not exist.',
             ]);
 
-            $business = Business::where('slug', 'amsol')->first();
+            $business = Business::where('slug', 'krest')->first();
 
             if (!$business || !$business->api_token || !password_verify($validated['api_token'], $business->api_token)) {
                 return RequestResponse::unauthorized('Invalid or unauthorized API token.');

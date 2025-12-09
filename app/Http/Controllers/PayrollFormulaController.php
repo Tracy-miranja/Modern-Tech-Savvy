@@ -209,9 +209,9 @@ class PayrollFormulaController extends Controller
             return RequestResponse::badRequest('Business not found.');
         }
 
-        // Restrict edit for non-amsol businesses
-        if ($business->slug !== 'amsol') {
-            return RequestResponse::forbidden('Only Amsol can edit payroll formulas.');
+        // Restrict edit for non-krest businesses
+        if ($business->slug !== 'krest') {
+            return RequestResponse::forbidden('Only krest can edit payroll formulas.');
         }
 
         $formula = null;
@@ -268,8 +268,8 @@ class PayrollFormulaController extends Controller
             return RequestResponse::badRequest('Business not found.');
         }
 
-        if ($business->slug !== 'amsol') {
-            return RequestResponse::forbidden('Only Amsol can update payroll formulas.');
+        if ($business->slug !== 'krest') {
+            return RequestResponse::forbidden('Only krest can update payroll formulas.');
         }
 
         $formula = PayrollFormula::where('id', $id)
@@ -371,9 +371,9 @@ class PayrollFormulaController extends Controller
     //             return RequestResponse::badRequest('Business not found.');
     //         }
 
-    //         // Restrict update for non-amsol businesses
-    //         if ($business->slug !== 'amsol') {
-    //             return RequestResponse::forbidden('Only Amsol can update payroll formulas.');
+    //         // Restrict update for non-krest businesses
+    //         if ($business->slug !== 'krest') {
+    //             return RequestResponse::forbidden('Onlykrest can update payroll formulas.');
     //         }
 
     //         $formula = PayrollFormula::where('id', $id)
@@ -435,9 +435,9 @@ class PayrollFormulaController extends Controller
                 return RequestResponse::badRequest('Business not found.');
             }
 
-            // Restrict delete for non-amsol businesses
-            if ($business->slug !== 'amsol') {
-                return RequestResponse::forbidden('Only Amsol can delete payroll formulas.');
+            // Restrict delete for non-krestl businesses
+            if ($business->slug !== 'krest') {
+                return RequestResponse::forbidden('Only krest can delete payroll formulas.');
             }
 
             $formula = PayrollFormula::where('id', $id)
@@ -511,12 +511,12 @@ class PayrollFormulaController extends Controller
      */
     protected function getFormulasForBusiness(Business $business)
     {
-        if ($business->slug === 'amsol') {
-            // Amsol fetches all formulas
+        if ($business->slug === 'krest') {
+            // krest fetches all formulas
             return PayrollFormula::with('brackets')->get();
         }
 
-        // Non-amsol businesses fetch formulas matching their country
+        // Non-krest businesses fetch formulas matching their country
         return PayrollFormula::with('brackets')
             ->where(function ($query) use ($business) {
                 $query->where('business_id', $business->id)

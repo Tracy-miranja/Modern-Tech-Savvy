@@ -53,7 +53,7 @@
         }
     });
 
-    window.businessSlug = '{{ request()->route('business') }}'; // Should be 'amsol'
+    window.businessSlug = '{{ request()->route('business') }}';
     console.log('Business Slug set to:', window.businessSlug);
 </script>
 @endpush

@@ -4,10 +4,10 @@
             <div class="col-md-12 mx-auto">
                 <div class="authentication-top mb-20 text-center">
                     <a href="javascript:;" class="authentication-logo logo-black">
-                        <img src="{{ asset('media/amsol-logo.png') }}" alt="{{ config('app.name') }} - Logo">
+                        <img src="{{ asset('media/krstlogo.png') }}" alt="{{ config('app.name') }} - Logo">
                     </a>
                     <a href="javascript:;" class="authentication-logo logo-white">
-                        <img src="{{ asset('media/amsol-logo.png') }}" alt="{{ config('app.name') }} - Logo">
+                        <img src="{{ asset('media/krstlogo.png') }}" alt="{{ config('app.name') }} - Logo">
                     </a>
                     <h4 class="mb-15">Choose Your Modules - Pick at least one</h4>
                     <p class="mb-15">

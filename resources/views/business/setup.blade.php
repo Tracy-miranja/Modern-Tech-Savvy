@@ -243,7 +243,7 @@
                 </div>
             </div>
 
-            @if($business->verified && $business->slug === 'amsol')
+            @if($business->verified && $business->slug === 'krest')
                 <p>API Token</p>
                 <div class="card shadow-sm">
                     <div class="card-body text-center">

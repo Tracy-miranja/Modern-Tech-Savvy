@@ -6,8 +6,8 @@ const requestClient = new RequestClient();
 const businessesService = new BusinessesService(requestClient);
 
 if (!window.currentBusinessSlug) {
-    console.warn("currentBusinessSlug not defined, falling back to 'amsol'");
-    window.currentBusinessSlug = 'amsol';
+    console.warn("currentBusinessSlug not defined, falling back to 'krest'");
+    window.currentBusinessSlug = 'krest';
 }
 
 window.getClients = async function (page = 1) {

@@ -44,7 +44,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <img class="logo" src="{{ config('app.url') }}/media/amsol-logo.png" alt="{{ config('app.name') }} Logo">
+            <img class="logo" src="{{ config('app.url') }}/media/krstlogo.png" alt="{{ config('app.name') }} Logo">
             <h2 class="title">Your Business Status: {{ ucfirst($status) }}</h2>
         </div>
         <div class="body">

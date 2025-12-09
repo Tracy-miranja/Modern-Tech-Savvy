@@ -48,18 +48,37 @@
                             <h4 class="mb-8"><a href="">{{ auth()->user()->name }}</a></h4>
                             <p>{{ formatStatus(session('active_role')) }}</p>
                         </div>
-                        <div class="employee__btn">
-                            <div class="row g-2">
-                                <div class="col-md-6">
-                                    <button type="button" class="btn w-100 btn-primary" onclick="clockIn(this)"
-                                        data-employee="{{ auth()->user()->employee->id }}">Check In</button>
-                                </div>
-                                <div class="col-md-6">
-                                    <button type="button" class="btn w-100 btn-danger" onclick="clockOut(this)"
-                                        data-employee="{{ auth()->user()->employee->id }}">Check Out</button>
-                                </div>
-                            </div>
-                        </div>
+                       @php
+    $employee = auth()->user()->employee;
+    if (!$employee) {
+        abort(403, 'You do not have an employee profile linked to your account. Please contact administrator.');
+    }
+@endphp
+
+<div class="employee__btn">
+    <div class="row g-2">
+        <div class="col-md-6">
+            @if($employee)
+                <button type="button" class="btn w-100 btn-primary" onclick="clockIn(this)"
+                    data-employee="{{ $employee->id }}">Check In</button>
+            @else
+                <button type="button" class="btn w-100 btn-primary" disabled>
+                    Check In (No Employee Profile)
+                </button>
+            @endif
+        </div>
+        <div class="col-md-6">
+            @if($employee)
+                <button type="button" class="btn w-100 btn-danger" onclick="clockOut(this)"
+                    data-employee="{{ $employee->id }}">Check Out</button>
+            @else
+                <button type="button" class="btn w-100 btn-danger" disabled>
+                    Check Out (No Employee Profile)
+                </button>
+            @endif
+        </div>
+    </div>
+</div>
                     </div>
                 </div>
             </div>

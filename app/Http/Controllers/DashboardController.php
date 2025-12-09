@@ -121,13 +121,13 @@ class DashboardController extends Controller
     function requestAccess(Request $request)
     {
         $page = 'Request Access';
-        $description = 'Choose this option if there is another AMSOL account you would like to manage. A request email will be sent to the email address you provide, allowing the account owner to grant access to the system.';
+        $description = 'Choose this option if there is another krest account you would like to manage. A request email will be sent to the email address you provide, allowing the account owner to grant access to the system.';
         return view('clients.access', compact('page', 'description'));
     }
     function grantAccess(Request $request)
     {
         $page = 'Grant Access';
-        $description = 'Select this option if you wish to grant access to your AMSOL account to another user. You will need to confirm their email address, and they will receive an email with access details.';
+        $description = 'Select this option if you wish to grant access to your krest account to another user. You will need to confirm their email address, and they will receive an email with access details.';
         $modules = Module::all();
         return view('clients.access', compact('page', 'description', 'modules'));
     }
