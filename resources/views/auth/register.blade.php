@@ -588,8 +588,8 @@
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="terms">
                                 <label class="form-check-label small text-muted" for="terms">
-                                    I agree to the <a href="#" class="amsol-link">Terms of Service</a> and <a href="#"
-                                        class="amsol-link">Privacy Policy</a>
+                                    I agree to the <a href="#" class="krest-link">Terms of Service</a> and <a href="#"
+                                        class="krest-link">Privacy Policy</a>
                                 </label>
                             </div>
                         </div>
@@ -608,7 +608,7 @@
                     <p class="text-center mb-0">
                         <span>Have an account?</span>
                         <a href="{{ route('login') }}">
-                            <span class="fw-bold amsol-link">Sign In</span>
+                            <span class="fw-bold krest-link">Sign In</span>
                         </a>
                     </p>
                 </div>

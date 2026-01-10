@@ -79,7 +79,8 @@ class LeavePeriodController extends Controller
 
         return $this->handleTransaction(function () use ($validatedData) {
             $business = Business::findBySlug(session('active_business_slug'));
-            $leavePeriod = $business->leavePeriods()->findBySlug($validatedData['leave_period_slug']);
+            // Fixed: Use where()->firstOrFail() instead of findBySlug()
+            $leavePeriod = $business->leavePeriods()->where('slug', $validatedData['leave_period_slug'])->firstOrFail();
 
             $leavePeriod->update([
                 'name' => $validatedData['name'],
@@ -97,14 +98,44 @@ class LeavePeriodController extends Controller
         });
     }
 
+    // Return leave period as JSON for editing
+    public function fetchJson($leavePeriodId)
+    {
+        $business = Business::findBySlug(session('active_business_slug'));
+        $leavePeriod = $business->leavePeriods()->findOrFail($leavePeriodId);
+
+        return response()->json([
+            'id' => $leavePeriod->id,
+            'name' => $leavePeriod->name,
+            'start_date' => $leavePeriod->start_date->format('Y-m-d'),
+            'end_date' => $leavePeriod->end_date->format('Y-m-d'),
+            'accept_applications' => $leavePeriod->accept_applications,
+            'can_accrue' => $leavePeriod->can_accrue,
+            'restrict_applications_within_dates' => $leavePeriod->restrict_applications_within_dates,
+            'autocreate' => $leavePeriod->autocreate,
+            'slug' => $leavePeriod->slug,
+        ]);
+    }
+
+    public function edit($leavePeriodId)
+    {
+        $business = Business::findBySlug(session('active_business_slug'));
+        $leavePeriod = $business->leavePeriods()->findOrFail($leavePeriodId);
+
+        $formView = view('leave._leave_period_form', compact('leavePeriod'))->render();
+        return RequestResponse::ok('Leave period form loaded.', $formView);
+    }
+
     public function destroy(Request $request)
     {
         $validatedData = $request->validate([
             'leave_period_slug' => 'required|string|exists:leave_periods,slug',
         ]);
+
         return $this->handleTransaction(function () use ($validatedData) {
             $business = Business::findBySlug(session('active_business_slug'));
-            $leavePeriod = $business->leavePeriods()->findBySlug($validatedData['leave_period_slug']);
+            // Fixed: Use where()->firstOrFail() instead of findBySlug()
+            $leavePeriod = $business->leavePeriods()->where('slug', $validatedData['leave_period_slug'])->firstOrFail();
 
             $leavePeriod->delete();
 

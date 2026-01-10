@@ -85,30 +85,42 @@ class LeaveEntitlement extends Model
      * Compute and persist remaining days by summing approved usage.
      * This method recalculates days_taken from actual approved requests.
      */
-    public function getRemainingDays(): float
-    {
-        $approvedUsed = LeaveRequest::where('employee_id', $this->employee_id)
-            ->where('leave_type_id', $this->leave_type_id)
-            ->whereNotNull('approved_by')
-            ->whereNull('rejection_reason')
-            ->whereBetween('start_date', [
-                $this->leavePeriod->start_date ?? now()->startOfYear(),
-                $this->leavePeriod->end_date ?? now()->endOfYear()
-            ])
-            ->sum('total_days');
-
-        $entitled = (float)($this->entitled_days ?? 0);
-        $accrued  = (float)($this->accrued_days ?? 0);
-        $carryover = (float)($this->carryover_days ?? 0);
-        $total    = $accrued + $carryover;
-
-        $this->days_taken     = (float)$approvedUsed;
-        $this->total_days     = $total;
-        $this->days_remaining = max(0, $total - (float)$approvedUsed);
-        $this->save();
-
-        return $this->days_remaining;
+public function getRemainingDays(): float
+{
+    // Determine the date window using the entitlement's leave period when possible
+    if ($this->leavePeriod && $this->leavePeriod->start_date && $this->leavePeriod->end_date) {
+        $from = \Carbon\Carbon::parse($this->leavePeriod->start_date)->startOfDay();
+        $to   = \Carbon\Carbon::parse($this->leavePeriod->end_date)->endOfDay();
+    } else {
+        // Fallback: current year window
+        $from = now()->copy()->startOfYear();
+        $to   = now()->copy()->endOfYear();
     }
+
+    // Sum approved usage that overlaps this window
+    $approvedUsed = LeaveRequest::query()
+        ->where('employee_id', $this->employee_id)
+        ->where('leave_type_id', $this->leave_type_id)
+        ->whereNotNull('approved_by')
+        ->whereNull('rejection_reason')
+        ->whereDate('start_date', '<=', $to)
+        ->whereDate('end_date', '>=', $from)
+        ->sum('total_days');
+
+    $entitled  = (float)($this->entitled_days ?? 0);
+    $accrued   = (float)($this->accrued_days ?? 0);
+    $carryover = (float)($this->carryover_days ?? 0);
+    $total     = $accrued + $carryover;
+
+    $this->days_taken     = (float)$approvedUsed;
+    $this->total_days     = $total;
+    $this->days_remaining = max(0, $total - $this->days_taken);
+
+    $this->save();
+
+    return $this->days_remaining;
+}
+
 
     /**
      * Add days back to entitlement (used when leave request is cancelled/rejected).
@@ -188,7 +200,7 @@ class LeaveEntitlement extends Model
     /**
      * Apply policy-calculated numbers (entitled, carryover, accrued) to entitlement.
      * This is typically called during policy synchronization.
-     * 
+     *
      * @param float $entitled Base entitled days from policy
      * @param float $carryover Carryover days from previous period
      * @param float $accrued Current accrued days
@@ -199,7 +211,7 @@ class LeaveEntitlement extends Model
         $this->accrued_days  = $accrued;
         $this->carryover_days = $carryover;
         $this->total_days    = $carryover + $accrued;
-        
+
         // days_taken stays as-is; recalc remaining:
         $taken = (float) ($this->days_taken ?? 0);
         $this->days_remaining = max(0, $this->total_days - $taken);

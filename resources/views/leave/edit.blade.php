@@ -80,9 +80,9 @@
             <div class="col-md-6">
                 <label class="form-label">Department</label>
                 <select class="form-select" name="department" required>
-                    <option value="all" @selected(old('department', optional($policy?->department)->slug) == 'all')>All Departments</option>
+                    <option value="all" @selected(old('department', $selectedDepartment ?? 'all') == 'all')>All Departments</option>
                     @foreach($departments as $department)
-                        <option value="{{ $department->slug }}" @selected(old('department', optional($policy?->department)->slug) == $department->slug)>{{ $department->name }}</option>
+                        <option value="{{ $department->slug }}" @selected(old('department', $selectedDepartment ?? 'all') == $department->slug)>{{ $department->name }}</option>
                     @endforeach
                 </select>
             </div>
@@ -90,9 +90,9 @@
             <div class="col-md-6">
                 <label class="form-label">Job Category</label>
                 <select class="form-select" name="job_category" required>
-                    <option value="all" @selected(old('job_category', optional($policy?->jobCategory)->slug) == 'all')>All Job Categories</option>
+                    <option value="all" @selected(old('job_category', $selectedJobCategory ?? 'all') == 'all')>All Job Categories</option>
                     @foreach($jobCategories as $jobCategory)
-                        <option value="{{ $jobCategory->slug }}" @selected(old('job_category', optional($policy?->jobCategory)->slug) == $jobCategory->slug)>{{ $jobCategory->name }}</option>
+                        <option value="{{ $jobCategory->slug }}" @selected(old('job_category', $selectedJobCategory ?? 'all') == $jobCategory->slug)>{{ $jobCategory->name }}</option>
                     @endforeach
                 </select>
             </div>

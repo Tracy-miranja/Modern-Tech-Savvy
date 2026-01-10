@@ -172,23 +172,37 @@ document.addEventListener("DOMContentLoaded", function() {
                 payload.employee_id = employeeId;
             }
 
-            fetch("{{ route('business.leave.leave-types.remaining-days', $currentBusiness->slug) }}", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-CSRF-TOKEN": "{{ csrf_token() }}"
-                },
-                body: JSON.stringify(payload)
-            })
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('remainingDays').innerText =
-                    "Remaining Days: " + (data.remaining_days ?? 0);
-            })
-            .catch(() => {
-                document.getElementById('remainingDays').innerText =
-                    "Remaining Days: N/A";
-            });
+fetch("{{ route('ajax.leave.remaining-days') }}", {
+    method: "POST",
+    headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "X-CSRF-TOKEN": "{{ csrf_token() }}"
+    },
+    body: JSON.stringify(payload)
+})
+.then(async (response) => {
+    const text = await response.text();
+    const ct = response.headers.get('content-type') || '';
+
+    if (!response.ok || !ct.includes('application/json')) {
+        console.error('Remaining days raw response:', response.status, response.statusText, text);
+        throw new Error('Failed to fetch remaining days');
+    }
+
+    return JSON.parse(text);
+})
+.then(data => {
+    console.log('Remaining days response:', data);
+    document.getElementById('remainingDays').innerText =
+        "Remaining Days: " + (data.remaining_days ?? 0);
+})
+.catch(err => {
+    console.error('Remaining days error:', err);
+    document.getElementById('remainingDays').innerText =
+        "Remaining Days: N/A";
+});
+
 
         }
     });

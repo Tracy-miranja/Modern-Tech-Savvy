@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Business;
 use App\Models\LeaveType;
+use App\Models\LeaveEntitlement;
+use App\Models\LeavePeriod;
+use App\Models\LeaveRequest;
 use App\Models\Department;
 use App\Models\JobCategory;
 use App\Models\LeavePolicy;
@@ -73,6 +76,10 @@ class LeaveTypeController extends Controller
         ]);
 
         return $this->handleTransaction(function () use ($validated, $business) {
+        $rawExcludedDates = $validated['excluded_dates'] ?? null;
+        $normalizedExcludedDates = (is_array($rawExcludedDates) && count($rawExcludedDates))
+            ? array_values(array_unique($rawExcludedDates))
+            : null;
             $leaveType = $business->leaveTypes()->create([
                 'name'                => $validated['name'],
                 'description'         => $validated['description'] ?? null,
@@ -86,10 +93,10 @@ class LeaveTypeController extends Controller
                 'is_active'           => true,
                 'allows_backdating'   => $validated['allows_backdating'],
                 'approval_levels'     => $validated['approval_levels'],
-                'excluded_days'       => $validated['excluded_days'] ?? [],
-                'excluded_dates'      => array_values(array_unique($validated['excluded_dates'] ?? [])),
-                'is_stepwise'         => $validated['is_stepwise'],
-                'stepwise_rules'      => $validated['stepwise_rules'] ?? [],
+                'excluded_days'  => $validated['excluded_days'] ?? null,
+                'excluded_dates' => $normalizedExcludedDates,
+                'is_stepwise'    => $validated['is_stepwise'],
+                'stepwise_rules' => $validated['stepwise_rules'] ?? null,
             ]);
 
             $businessId = $business->id;
@@ -174,13 +181,36 @@ class LeaveTypeController extends Controller
             ->with('leavePolicies')
             ->firstOrFail();
 
-        return view('leave.edit', [
-            'leaveType'     => $leaveType,
-            'businessSlug'  => $business->slug,
-            'departments'   => $business->departments,
-            'jobCategories' => $business->jobCategories,
-            'isAjax'        => false,
-        ]);
+            $policies = $leaveType->leavePolicies;
+
+            // Department
+            $departmentIds = $policies->pluck('department_id')->unique()->values();
+            $departmentValue = $departmentIds->count() === 1
+                ? optional(Department::find($departmentIds->first()))->slug
+                : 'all';
+
+            // Job Category
+            $jobCategoryIds = $policies->pluck('job_category_id')->unique()->values();
+            $jobCategoryValue = $jobCategoryIds->count() === 1
+                ? optional(JobCategory::find($jobCategoryIds->first()))->slug
+                : 'all';
+
+            // Gender
+            $genderValue = $policies->pluck('gender_applicable')->unique()->count() === 1
+                ? $policies->first()->gender_applicable
+                : 'all';
+
+
+            return view('leave.edit', [
+                'leaveType'         => $leaveType,
+                'departments'       => $departments,
+                'jobCategories'     => $jobCategories,
+                'selectedDepartment'=> $departmentValue,
+                'selectedJobCategory'=> $jobCategoryValue,
+                'selectedGender'    => $genderValue,
+                'isAjax'            => true,
+            ]);
+
     }
 
     public function show(Request $request)
@@ -199,7 +229,7 @@ class LeaveTypeController extends Controller
     }
 
     public function update(Request $request)
-{
+    {
     $slug = $request->input('leave_type_slug')
         ?? $request->input('slug')
         ?? $request->input('leave');
@@ -236,8 +266,8 @@ class LeaveTypeController extends Controller
         'is_stepwise'         => ['sometimes','in:0,1,true,false'],
         'excluded_days'       => ['sometimes','array'],
         'excluded_days.*'     => ['in:monday,tuesday,wednesday,thursday,friday,saturday,sunday'],
-        'excluded_dates'      => ['sometimes','array'],
-        'excluded_dates.*'    => ['date_format:Y-m-d'],
+        'excluded_dates'      => ['nullable','array'],
+        'excluded_dates.*'    => ['nullable','date_format:Y-m-d'],
 
         // Policy bits
         'department'     => ['sometimes','filled','string'],
@@ -276,12 +306,17 @@ class LeaveTypeController extends Controller
         // Save LeaveType
         $leaveType->fill($data);
 
-        if (array_key_exists('excluded_days', $data)) {
-            $leaveType->excluded_days = array_values(array_unique(
-                array_map('strtolower', $data['excluded_days'] ?? [])
-            ));
+        if ($request->exists('excluded_days')) {
+            $days = collect((array) $request->input('excluded_days', []))
+                ->map(fn ($d) => strtolower($d))
+                ->unique()
+                ->values()
+                ->all();
+
+            $leaveType->excluded_days = !empty($days) ? $days : null;
         }
-        
+
+
         // Use exists() so an intentionally empty array clears the field
         if ($request->exists('excluded_dates')) {
             $dates = collect((array)$request->input('excluded_dates', []))
@@ -291,10 +326,9 @@ class LeaveTypeController extends Controller
                 ->values()
                 ->all();
 
-            $leaveType->excluded_dates = $dates; // [] will clear it
+            // If user cleared all dates, store NULL instead of []
+            $leaveType->excluded_dates = !empty($dates) ? $dates : null;
         }
-
-
 
         if ($leaveType->isDirty()) {
             $leaveType->save();
@@ -442,17 +476,111 @@ class LeaveTypeController extends Controller
         return view('leave.leave_type_requests', compact('leaveType'));
     }
 
-    public function getRemainingDays(Request $request)
-    {
-        $employeeId  = $request->input('employee_id', auth()->user()->employee->id ?? null);
-        $leaveTypeId = $request->input('leave_type_id');
+public function getRemainingDays(Request $request, Business $business)
+{
+    Log::debug('getRemainingDays called', [
+        'business_slug' => $business->slug,
+        'payload'       => $request->all(),
+        'user_id'       => optional(auth()->user())->id,
+    ]);
 
-        $entitlement = \App\Models\LeaveEntitlement::where('employee_id', $employeeId)
-            ->where('leave_type_id', $leaveTypeId)
-            ->first();
+    $user = auth()->user();
+    $defaultEmployeeId = $user->employee?->id; // null-safe
 
-        $remaining = $entitlement ? $entitlement->getRemainingDays() : 0;
+    $employeeId  = $request->input('employee_id', $defaultEmployeeId);
+    $leaveTypeId = $request->input('leave_type_id');
 
-        return response()->json(['remaining_days' => $remaining]);
+    if (!$leaveTypeId) {
+        Log::warning('getRemainingDays: missing leave_type_id', [
+            'employee_id' => $employeeId,
+        ]);
+        return response()->json(['remaining_days' => 0]);
     }
+
+    if (!$employeeId) {
+        Log::warning('getRemainingDays: missing employee_id (no auth employee and none in payload)', [
+            'leave_type_id' => $leaveTypeId,
+        ]);
+        return response()->json(['remaining_days' => 0]);
+    }
+
+    $today = now()->toDateString();
+
+    /** @var LeaveEntitlement|null $entitlement */
+    $entitlement = LeaveEntitlement::query()
+        ->where('business_id', $business->id)
+        ->where('employee_id', $employeeId)
+        ->where('leave_type_id', $leaveTypeId)
+        ->whereHas('leavePeriod', function ($q) use ($today) {
+            $q->whereDate('start_date', '<=', $today)
+              ->whereDate('end_date', '>=', $today);
+        })
+        ->with('leavePeriod')
+        ->first();
+
+    if (!$entitlement) {
+        Log::info('getRemainingDays: no entitlement found', [
+            'business_id'   => $business->id,
+            'employee_id'   => $employeeId,
+            'leave_type_id' => $leaveTypeId,
+            'today'         => $today,
+        ]);
+
+        return response()->json(['remaining_days' => 0]);
+    }
+
+    $remaining = $entitlement->getRemainingDays();
+
+    Log::debug('getRemainingDays: computed remaining', [
+        'employee_id'   => $employeeId,
+        'leave_type_id' => $leaveTypeId,
+        'remaining'     => $remaining,
+    ]);
+
+    return response()->json(['remaining_days' => $remaining]);
+}
+
+public function getRemainingDaysAjax(Request $request)
+{
+    $user = auth()->user();
+    $business = \App\Models\Business::findBySlug(session('active_business_slug'));
+
+    if (!$business) {
+        return response()->json(['remaining_days' => 0]);
+    }
+
+    $defaultEmployeeId = $user->employee?->id;
+
+    $employeeId  = $request->input('employee_id', $defaultEmployeeId);
+    $leaveTypeId = $request->input('leave_type_id');
+
+    if (!$employeeId || !$leaveTypeId) {
+        return response()->json(['remaining_days' => 0]);
+    }
+
+    $today = now()->toDateString();
+
+    /** @var \App\Models\LeaveEntitlement|null $entitlement */
+    $entitlement = \App\Models\LeaveEntitlement::query()
+        ->where('business_id', $business->id)
+        ->where('employee_id', $employeeId)
+        ->where('leave_type_id', $leaveTypeId)
+        ->whereHas('leavePeriod', function ($q) use ($today) {
+            $q->whereDate('start_date', '<=', $today)
+              ->whereDate('end_date', '>=', $today);
+        })
+        ->with('leavePeriod')
+        ->first();
+
+    if (!$entitlement) {
+        return response()->json(['remaining_days' => 0]);
+    }
+
+    $remaining = $entitlement->getRemainingDays();
+
+    return response()->json(['remaining_days' => $remaining]);
+}
+
+
+
 }

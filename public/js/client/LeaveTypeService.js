@@ -49,7 +49,7 @@ class LeaveTypeService {
   }
 
   async delete(data) {
-    const res = await this.requestClient.post('/leave-types/delete', data);
+    const res = await this.requestClient.post('/leave-types/destroy', data);
     toastr.info(res.message || 'Deleted', 'Success');
   }
 }

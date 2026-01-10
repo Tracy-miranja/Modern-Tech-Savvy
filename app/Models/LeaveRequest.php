@@ -35,6 +35,7 @@ class LeaveRequest extends Model
         'approved_at',
         'rejection_reason',
         'revocation_history',
+        'status',
     ];
 
     protected $casts = [
@@ -353,6 +354,60 @@ public function scopeForRole($query, User $user, $businessId)
 
         // HR/Head
         return true;
+    }
+    public function revokeFully(?string $reason, User $byUser): float
+    {
+        if ($this->status !== 'approved') {
+            throw new \RuntimeException('Only approved leaves can be revoked.');
+        }
+
+        $today = now()->startOfDay();
+        if ($this->start_date->startOfDay()->lte($today)) {
+            throw new \RuntimeException('Leave has already started and cannot be fully revoked.');
+        }
+
+        $start  = $this->start_date->copy()->startOfDay();
+        $end    = $this->end_date->copy()->startOfDay();
+
+        $leaveType = $this->leaveType ?: LeaveType::find($this->leave_type_id);
+        $totalDays = static::calculateTotalDays(
+            $start,
+            $end,
+            (bool) $this->half_day,
+            $leaveType
+        );
+
+        // Refund entitlement fully
+        $entitlement = LeaveEntitlement::where('employee_id', $this->employee_id)
+            ->where('leave_type_id', $this->leave_type_id)
+            ->first();
+
+        if ($entitlement) {
+            if (method_exists($entitlement, 'addBackDays')) {
+                $entitlement->addBackDays($totalDays);
+            } elseif (!is_null($entitlement->used_days)) {
+                $entitlement->used_days = max(0, $entitlement->used_days - $totalDays);
+                $entitlement->save();
+            }
+        }
+
+        // Update leave
+        $this->status = 'revoked';
+
+        $history = is_array($this->revocation_history ?? null) ? $this->revocation_history : [];
+        $history[] = [
+            'revoked_at'      => now()->toDateTimeString(),
+            'revoked_by'      => (int) $byUser->id,
+            'revoked_by_name' => $byUser->name,
+            'type'            => 'full',
+            'refund_days'     => $totalDays,
+            'reason'          => $reason,
+        ];
+        $this->revocation_history = $history;
+
+        $this->save();
+
+        return (float) $totalDays;
     }
 
 

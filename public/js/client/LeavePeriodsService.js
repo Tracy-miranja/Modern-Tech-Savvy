@@ -6,7 +6,8 @@ class LeavePeriodsService {
     async fetch(data) {
         try {
             const response = await this.requestClient.post('/leave-periods/fetch', data);
-            return response.data;
+            // Return the data property from response
+            return response.data || response;
         } catch (error) {
             console.log(error)
             throw error;
@@ -17,29 +18,33 @@ class LeavePeriodsService {
         try {
             const response = await this.requestClient.post('/leave-periods/update', data);
             toastr.info(response.message, "Success");
-            this.handleRedirect(response.data.redirect_url);
+            if (response.data?.redirect_url) {
+                this.handleRedirect(response.data.redirect_url);
+            }
         } catch (error) {
             console.log(error)
             throw error;
         }
     }
 
-    async edit(data) {
+    async fetchOne(leavePeriodId) {
         try {
-            const response = await this.requestClient.post('/leave-periods/edit', data);
-            return response.data;
+            const response = await this.requestClient.get(`/leave-periods/${leavePeriodId}/json`);
+            // Return just the data, not wrapped
+            return response;
         } catch (error) {
-            console.log(error)
+            console.error('Fetch leave period error:', error);
             throw error;
         }
     }
 
-    async show(data) {
+    async show(leavePeriodId) {
         try {
-            const response = await this.requestClient.post('/leave-periods/show', data);
-            return response.data;
+            const response = await this.requestClient.get(`/leave-periods/${leavePeriodId}/details`);
+            // Return the data property which contains the HTML
+            return response.data || response;
         } catch (error) {
-            console.log(error)
+            console.error('Show leave period error:', error);
             throw error;
         }
     }
@@ -54,12 +59,12 @@ class LeavePeriodsService {
         }
     }
 
-    async delete(data) {
+    async delete(leave_period_slug) {
         try {
-            const response = await this.requestClient.post('/leave-periods/delete', data);
-            toastr.info(response.message, "Success");
+            const response = await this.requestClient.post('/leave-periods/delete', { leave_period_slug });
+            toastr.info(response.message || 'Leave period deleted.', 'Success');
         } catch (error) {
-            console.log(error)
+            console.error('Delete leave period error:', error);
             throw error;
         }
     }

@@ -36,6 +36,9 @@ Route::get('/business/{businessSlug}/api-token', [BusinessController::class, 'sh
     ->middleware('auth')
     ->name('business.api-token');
 
+Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http\Middleware\EnsureTwoFactorAuthenticated::class])
+    ->post('/ajax/leave/remaining-days', [LeaveTypeController::class, 'getRemainingDaysAjax'])
+    ->name('ajax.leave.remaining-days');
 Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http\Middleware\EnsureTwoFactorAuthenticated::class])->group(function () {
 
     Route::post('/switch-role', [RoleSwitchController::class, 'switchRole'])->name('switch.role');
@@ -46,7 +49,7 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
         Route::get('modules', [ModuleController::class, 'create'])->name('modules');
         Route::post('/attendance/settings', [AttendanceController::class, 'updateSettings'])->name('business.attendance.settings.update');
         Route::get('/attendance/geocode', [AttendanceController::class, 'geocode'])->name('attendance.geocode');
-    
+
     });
 
     Route::middleware(['ensure_role', 'role:business-admin|business-hr|business-finance|head-of-department'])
@@ -121,15 +124,15 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
                 Route::get('/requests', [DashboardController::class, 'leaveApplications'])->name('index');
                 Route::get('/requests/create', [DashboardController::class, 'requestLeave'])->name('create');
                 Route::get('/view/{leave}', [DashboardController::class, 'leaveApplication'])->name('show');
+                Route::post('/requests/export', [LeaveRequestController::class, 'export'])->name('requests.export');
                 Route::get('/types', [DashboardController::class, 'leaveTypes'])->name('types');
                 Route::get('/periods', [DashboardController::class, 'leavePeriods'])->name('periods');
                 Route::get('/entitlements', [DashboardController::class, 'leaveEntitlements'])->name('entitlements.index');
                 Route::get('/entitlements/set', [DashboardController::class, 'setLeaveEntitlements'])->name('entitlements.create');
-                Route::post('/revoke', [LeaveRequestController::class, 'revoke'])->name('revoke');             
-                Route::get('/{reference}/download', [LeaveRequestController::class, 'downloadPdf'])->name('download')->where('reference', '[A-Za-z0-9\-]+');                // Leave types (page)
+                Route::post('/revoke', [LeaveRequestController::class, 'revoke'])->name('revoke');
+                Route::get('/{reference}/download', [LeaveRequestController::class, 'downloadPdf'])->name('download')->where('reference', '[A-Za-z0-9\-]+');
                 Route::get('/leave-types/{slug}/edit', [LeaveTypeController::class, 'edit'])->name('leave-types.edit');
                 Route::delete('/leave-types/delete', [LeaveTypeController::class, 'destroy'])->name('leave-types.delete');
-                // Helper endpoints within business scope (namespaced to avoid collision with AJAX routes)
                 Route::post('/leave-types/remaining-days', [LeaveTypeController::class, 'getRemainingDays'])->name('leave-types.remaining-days');
                 Route::post('/leave-types/update', [LeaveTypeController::class, 'update'])->name('leave-types.update');
                 Route::post('/upload-document', [LeaveRequestController::class, 'uploadDocument'])->name('upload-document');
@@ -140,8 +143,10 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
                 Route::get('/fetch', [LeavePeriodController::class, 'fetch'])->name('fetch');
                 Route::post('/store', [LeavePeriodController::class, 'store'])->name('store');
                 Route::get('/{leavePeriod}/details', [LeavePeriodController::class, 'showDetails'])->name('details');
+                Route::get('/{leavePeriod}/json', [LeavePeriodController::class, 'fetchJson'])->name('json');
                 Route::post('/update', [LeavePeriodController::class, 'update'])->name('update');
-                Route::delete('/delete', [LeavePeriodController::class, 'destroy'])->name('delete');
+                Route::get('/{leavePeriod}/edit', [LeavePeriodController::class, 'edit'])->name('edit');
+                Route::post('/delete', [LeavePeriodController::class, 'destroy'])->name('delete');
             });
 
 
@@ -152,10 +157,10 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
                 Route::post('/edit',   [LeaveEntitlementController::class, 'edit'])->name('leave-entitlements.edit');
                 Route::post('/update', [LeaveEntitlementController::class, 'update'])->name('leave-entitlements.update');
                 Route::post('/delete', [LeaveEntitlementController::class, 'delete'])->name('leave-entitlements.delete');
-                Route::post('/by-period', [LeaveEntitlementController::class, 'getByPeriod'])->name('leave-entitlements.by-period');         
+                Route::post('/by-period', [LeaveEntitlementController::class, 'getByPeriod'])->name('leave-entitlements.by-period');
                 Route::post('/employees/filter', [EmployeeController::class, 'filter'])->name('leave-entitlements.employees.filter');
                 //Route::post('/recalculate', [LeaveEntitlementController::class, 'recalculate'])->name('leave-entitlements.recalculate');
-                //Route::post('/entitled-types', [LeaveEntitlementController::class, 'EntitledTypes'])->name('leave-entitlements.entitled-types');         
+                //Route::post('/entitled-types', [LeaveEntitlementController::class, 'EntitledTypes'])->name('leave-entitlements.entitled-types');
           });
 
 

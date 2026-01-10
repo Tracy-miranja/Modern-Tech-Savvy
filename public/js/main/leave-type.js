@@ -162,6 +162,7 @@ window.deleteLeaveType = async function (btn) {
   }).then(async (result) => {
     if (result.isConfirmed) {
       try {
+        // Pass as object
         await leaveTypeService.delete({ leave_type_slug: leave_type });
         await getLeaveType('pending', 1);
         Swal.fire('Deleted!', 'Leave type deleted.', 'success');
@@ -176,3 +177,4 @@ window.deleteLeaveType = async function (btn) {
     }
   });
 };
+

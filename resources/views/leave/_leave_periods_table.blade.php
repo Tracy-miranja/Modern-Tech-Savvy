@@ -13,7 +13,7 @@
                         <th>Accept <br> Applications</th>
                         <th>Restrict <br> Applications <br> Within Dates</th>
                         <th>Can Accrue</th>
-                        <th>Status</th> 
+                        <th>Status</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -53,15 +53,15 @@
                             </td>
                             <td>
                                 <div class="btn-group" role="group">
-                                    <button class="btn btn-info view-leave-period" data-id="{{ $leavePeriod->id }}" data-bs-toggle="modal" data-bs-target="#leavePeriodDetailsModal">
+                                    <button class="btn btn-info btn-sm" onclick="viewLeavePeriods(this)" data-id="{{ $leavePeriod->id }}">
                                         <i class="fas fa-eye"></i>
                                     </button>
-                                    <button class="btn btn-warning edit-leave-period" data-id="{{ $leavePeriod->id }}">
+                                    <button class="btn btn-warning btn-sm" onclick="editLeavePeriods(this)" data-id="{{ $leavePeriod->id }}">
                                         <i class="fas fa-edit"></i>
                                     </button>
-                                    <button class="btn btn-danger btn-delete-leave-period" data-leave-period-slug="{{ $leavePeriod->slug }}">
-    Delete
-</button>
+                                    <button class="btn btn-danger btn-sm" onclick="deleteLeavePeriods(this)" data-leave-period-slug="{{ $leavePeriod->slug }}">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
                                 </div>
                             </td>
                         </tr>
