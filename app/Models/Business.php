@@ -11,6 +11,9 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Database\Eloquent\Model;
 use Spatie\MediaLibrary\InteractsWithMedia;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Models\OrganogramPosition;
+
 
 class Business extends Model implements HasMedia
 {
@@ -259,4 +262,9 @@ class Business extends Model implements HasMedia
     {
         return $this->hasMany(Campaign::class);
     }
+   public function positions(): HasMany
+{
+    return $this->hasMany(OrganogramPosition::class, 'business_id');
+}
+
 }

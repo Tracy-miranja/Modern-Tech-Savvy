@@ -463,6 +463,7 @@ class BusinessController extends Controller
         });
     }
 
+
     public function showApiTokenForm($businessSlug)
     {
         $business = Business::findBySlug($businessSlug);

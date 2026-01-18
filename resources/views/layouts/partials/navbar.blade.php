@@ -166,13 +166,21 @@
                                 Work Roster
                             </a>
                         </li>
+<li class="slide {{ request()->routeIs('business.organogram.*') ? 'active' : '' }}">
+    <a class="sidebar__menu-item {{ request()->routeIs('business.organogram.*') ? 'active' : '' }}"
+       href="{{ route('business.organogram.index', ['business' => $currentBusiness->slug]) }}">
+        Organogram
+    </a>
+</li>
+
+
+
     {{-- <li class="slide">
     <a class="sidebar__menu-item"
        href="" target="_blank" rel="noopener noreferrer">
         <span class="sidebar__menu-label">Hospital Rota</span>
     </a>
 </li> --}}
-
 
                         <li class="slide {{ request()->routeIs('business.pay-grades.index') ? 'active' : '' }}">
                             <a class="sidebar__menu-item {{ request()->routeIs('business.pay-grades.index') ? 'active' : '' }}"
@@ -182,6 +190,7 @@
                         </li>
                     </ul>
                 </li>
+
 
                 <!-- Employee Management Dropdown -->
                 <li

@@ -27,6 +27,7 @@ use App\Http\Controllers\LeaveTypeController;
 use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\LeaveEntitlementController;
 use App\Http\Controllers\AttendanceController;
+use App\Http\Controllers\OrganogramController;
 
 use App\Models\Business;
 
@@ -74,6 +75,19 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
             Route::get('/locations', [DashboardController::class, 'locations'])->name('locations.index');
             Route::get('/organization-setup', [BusinessController::class, 'setup'])->name('organization-setup');
             Route::get('/pay-schedule', [DashboardController::class, 'paySchedule'])->name('pay-schedule');
+            Route::prefix('/organogram')->name('organogram.')->group(function () {
+    Route::get('',                 [OrganogramController::class, 'index'])  ->name('index');
+    Route::get('/create',           [OrganogramController::class, 'create']) ->name('create');
+    Route::post('/',                [OrganogramController::class, 'store'])  ->name('store');
+    Route::get('/{position}/edit',  [OrganogramController::class, 'edit'])   ->name('edit');
+    Route::put('/{position}',       [OrganogramController::class, 'update']) ->name('update');
+    Route::delete('/{position}',    [OrganogramController::class, 'destroy'])->name('destroy');
+
+    // Optional tree JSON endpoint for frontend library
+   Route::get('/tree', [OrganogramController::class, 'treeJson'])
+    ->name('tree');
+
+});
 
             Route::get('/departments', [DashboardController::class, 'departments'])->name('departments.index');
 
