@@ -177,19 +177,44 @@
             border-color: #c4b5fd;
         }
 
-        .input-icon {
-            position: relative;
+        .error-message {
+            color: #dc2626;
+            font-size: 0.8125rem;
+            margin-top: 0.375rem;
+            font-weight: 500;
         }
 
-        .input-icon svg {
-            position: absolute;
-            right: 1rem;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 1rem;
-            height: 1rem;
-            color: var(--text-secondary);
-            pointer-events: none;
+        .success-message {
+            color: #059669;
+            font-size: 0.8125rem;
+            margin-top: 0.375rem;
+            font-weight: 500;
+        }
+
+        .validation-errors {
+            background-color: #fee2e2;
+            border: 1px solid #fecaca;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .validation-errors ul {
+            margin: 0;
+            padding-left: 1.25rem;
+            list-style: none;
+        }
+
+        .validation-errors li {
+            color: #991b1b;
+            font-size: 0.875rem;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .required-indicator {
+            color: #dc2626;
+            margin-left: 0.25rem;
         }
 
         @media (max-width: 640px) {
@@ -253,6 +278,17 @@
             <p>Define roles and reporting structure</p>
         </div>
 
+        <!-- Validation Errors -->
+        @if ($errors->any())
+            <div class="validation-errors">
+                <ul>
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
         <!-- Form Card -->
         <form method="POST"
               action="{{ route('business.organogram.store', $business->slug) }}"
@@ -265,14 +301,21 @@
 
                 <!-- Position Title -->
                 <div class="form-group">
-                    <label for="position-title">Position Title</label>
+                    <label for="position-title">
+                        Position Title
+                        <span class="required-indicator">*</span>
+                    </label>
                     <input
                         id="position-title"
                         type="text"
                         name="title"
+                        value="{{ old('title') }}"
                         required
                         placeholder="e.g. HR Manager"
-                        class="form-control">
+                        class="form-control @error('title') border-red-500 @enderror">
+                    @error('title')
+                        <span class="error-message">{{ $message }}</span>
+                    @enderror
                 </div>
 
                 <!-- Reports To -->
@@ -281,14 +324,17 @@
                     <select
                         id="reports-to"
                         name="parent_id"
-                        class="form-control">
+                        class="form-control @error('parent_id') border-red-500 @enderror">
                         <option value="">— Top Level —</option>
                         @foreach($parents as $parent)
-                            <option value="{{ $parent->id }}">
+                            <option value="{{ $parent->id }}" @selected(old('parent_id') == $parent->id)>
                                 {{ $parent->title }}
                             </option>
                         @endforeach
                     </select>
+                    @error('parent_id')
+                        <span class="error-message">{{ $message }}</span>
+                    @enderror
                 </div>
 
                 <!-- Employee -->
@@ -297,14 +343,19 @@
                     <select
                         id="employee"
                         name="employee_id"
-                        class="form-control">
+                        class="form-control @error('employee_id') border-red-500 @enderror">
                         <option value="">— Vacant —</option>
-                        @foreach($employees as $employee)
-                            <option value="{{ $employee->id }}">
-                                {{ $employee->name }}
+                        @forelse($employees as $employee)
+                            <option value="{{ $employee->id }}" @selected(old('employee_id') == $employee->id)>
+                                {{ $employee->user->name ?? 'Unknown Employee' }}
                             </option>
-                        @endforeach
+                        @empty
+                            <option value="" disabled>No employees available</option>
+                        @endforelse
                     </select>
+                    @error('employee_id')
+                        <span class="error-message">{{ $message }}</span>
+                    @enderror
                 </div>
 
                 <!-- Action Button -->

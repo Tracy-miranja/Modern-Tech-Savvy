@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class OrganogramPosition extends Model
 {
     protected $fillable = [
-        'business_id', 'title', 'code', 'parent_id', 'personnel_position_id',
+        'business_id', 'title', 'code', 'name', 'parent_id', 'personnel_position_id',
         'level', 'sort_order', 'description', 'is_active'
     ];
 

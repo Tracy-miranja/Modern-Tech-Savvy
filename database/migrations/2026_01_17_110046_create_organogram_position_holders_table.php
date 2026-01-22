@@ -8,21 +8,15 @@ return new class extends Migration
 {
     public function up(): void
     {
-       Schema::create('organogram_position_holders', function (Blueprint $table) {
+    Schema::create('organogram_position_holders', function (Blueprint $table) {
     $table->id();
 
-    // MATCH EXACTLY (NO foreignId)
-    $table->unsignedBigInteger('organogram_position_id');
-    $table->foreign('organogram_position_id')
-          ->references('id')
-          ->on('organogram_positions')
+    $table->foreignId('organogram_position_id')
+          ->constrained('organogram_positions')
           ->cascadeOnDelete();
 
-    // MATCH personnel_employee.id (INT)
-    $table->integer('employee_id');
-    $table->foreign('employee_id')
-          ->references('id')
-          ->on('personnel_employee')
+    $table->foreignId('employee_id')
+          ->constrained('employees')
           ->cascadeOnDelete();
 
     $table->date('start_date');
@@ -35,6 +29,7 @@ return new class extends Migration
         'unique_position_holder'
     );
 });
+
 
     }
 

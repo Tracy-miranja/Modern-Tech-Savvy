@@ -2,125 +2,179 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
 use App\Models\Business;
+use App\Models\Employee;
 use App\Models\OrganogramPosition;
 use Illuminate\Http\Request;
 
 class OrganogramController extends Controller
 {
     /**
-     * Display organogram page
+     * Display organogram page with tree data
      */
     public function index($slug)
-{
-    $business = \App\Models\Business::where('slug', $slug)->firstOrFail();
+    {
+        $business = Business::where('slug', $slug)->firstOrFail();
 
-    // Fetch all positions for the parent dropdown
-    $parents = $business->positions()->get();
+        // Fetch root positions (no parent) with their hierarchy
+        $positions = OrganogramPosition::where('business_id', $business->id)
+            ->whereNull('parent_id')
+            ->with([
+                'children',
+                'holders.employee.user'
+            ])
+            ->orderBy('sort_order')
+            ->get();
 
-    return view('business.organogram.index', compact('business', 'parents'));
-}
-
+        return view('business.organogram.index', compact('business', 'positions'));
+    }
 
     /**
      * Show create form
      */
-public function create(Request $request)
-{
-    $slug = $request->route('business');
+    public function create(Request $request)
+    {
+        $slug = $request->route('business');
+        $business = Business::where('slug', $slug)->firstOrFail();
 
-    $business = Business::where('slug', $slug)->firstOrFail();
+        // Get all positions for parent dropdown
+        $parents = OrganogramPosition::where('business_id', $business->id)
+            ->orderBy('title')
+            ->get();
 
-    $parents = OrganogramPosition::where('business_id', $business->id)
-        ->orderBy('title')
-        ->get();
+        // Get all employees with their user relationship
+        // These are from the 'employees' table
+        $employees = Employee::whereNotNull('user_id')
+            ->with('user')
+            ->whereHas('user')  // Only include employees that have an actual user
+            ->orderBy('id')
+            ->get();
 
-    $employees = \App\Models\Employee::whereNotNull('user_id')
-    ->with('user')
-    ->orderBy('id')
-    ->get();
-
-
-
-    return view(
-        'business.organogram.create',
-        compact('business', 'parents', 'employees')
-    );
-}
-
-
-    /**
-     * Store new position
-     */
-public function store(Request $request)
-{
-    $business = Business::where('slug', $request->route('business'))->firstOrFail();
-
-    $data = $request->validate([
-        'title' => 'required|string|max:150',
-        'parent_id' => 'nullable|exists:organogram_positions,id',
-        'user_id' => 'nullable|exists:users,id',
-    ]);
-
-    $position = OrganogramPosition::create([
-        'business_id' => $business->id,
-        'title' => $data['title'],
-        'parent_id' => $data['parent_id'] ?? null,
-        'level' => $this->calculateLevel($data['parent_id'] ?? null),
-        'is_active' => 1,
-    ]);
-
-    // Attach employee if selected
- if (!empty($data['user_id'])) {
-    $user = \App\Models\User::find($data['user_id']);
-
-    // Validate employee record exists
-    if (!empty($data['employee_id'])) {
-    $position->holders()->create([
-        'employee_id' => $data['employee_id'],
-        'start_date' => now(),
-        'is_primary' => 1,
-    ]);
-}
-
-}
-
-
-    // AJAX response for OrgChart
-    if ($request->expectsJson()) {
-        return response()->json([
-            'id' => $position->id,
-            'parent_id' => $position->parent_id,
-            'title' => $position->title,
-            'name' => $position->currentHolder()?->name ?? 'Vacant',
-            'photo' => $position->currentHolder()?->photo
-                ? asset('storage/' . $position->currentHolder()->photo)
-                : null,
+        \Log::info('Organogram Create - Loading Employees', [
+            'count' => $employees->count(),
+            'employee_ids' => $employees->pluck('id')->toArray(),
+            'table' => (new Employee())->getTable(),
         ]);
+
+        return view(
+            'business.organogram.create',
+            compact('business', 'parents', 'employees')
+        );
     }
 
-    return redirect()
-        ->route('business.organogram.index', $business->slug)
-        ->with('success', 'Position added successfully');
+    /**
+     * Store new position with employee holder
+     */
+    public function store(Request $request)
+    {
+        $business = Business::where('slug', $request->route('business'))->firstOrFail();
+
+        // Validate incoming data
+        $data = $request->validate([
+            'title' => 'required|string|max:150',
+            'parent_id' => 'nullable|exists:organogram_positions,id',
+            'employee_id' => 'nullable|exists:employees,id',  // ✅ Validate against correct table
+        ]);
+
+        // Create the organogram position
+        // $position = OrganogramPosition::create([
+        //     'business_id' => $business->id,
+        //     'title' => $data['title'],
+        //     'parent_id' => $data['parent_id'] ?? null,
+        //     'level' => $this->calculateLevel($data['parent_id'] ?? null),
+        //     'is_active' => 1,
+        // ]);
+
+        $name = 'Vacant';
+
+if (!empty($data['employee_id'])) {
+    $employee = Employee::with('user')->find($data['employee_id']);
+    $name = $employee?->user?->name ?? 'Vacant';
 }
 
+$position = OrganogramPosition::create([
+    'business_id' => $business->id,
+    'title'       => $data['title'],
+    'name'        => $name,
+    'parent_id'   => $data['parent_id'] ?? null,
+    'level'       => $this->calculateLevel($data['parent_id'] ?? null),
+    'is_active'   => 1,
+]);
 
+
+        // Attach employee if selected
+        if (!empty($data['employee_id'])) {
+            // Verify the employee exists (validation already did this, but double-check)
+            $employee = Employee::find($data['employee_id']);
+
+            if ($employee) {
+                // Create the holder record
+                $position->holders()->create([
+                    'employee_id' => $employee->id,
+                    'start_date' => now(),
+                    'is_primary' => 1,
+                ]);
+
+                \Log::info('Organogram Position Created with Employee', [
+                    'position_id' => $position->id,
+                    'position_title' => $position->title,
+                    'employee_id' => $employee->id,
+                    'employee_name' => $employee->user?->name,
+                ]);
+            }
+        }
+
+        // AJAX response for OrgChart libraries
+        if ($request->expectsJson()) {
+            $holder = $position->currentHolder();
+            return response()->json([
+                'id' => $position->id,
+                'parent_id' => $position->parent_id,
+                'title' => $position->title,
+                'name' => $holder ? $holder->employee->user->name : 'Vacant',
+                'photo' => $holder && $holder->employee->getImageUrl()
+                    ? $holder->employee->getImageUrl()
+                    : null,
+            ]);
+        }
+
+        return redirect()
+            ->route('business.organogram.index', $business->slug)
+            ->with('success', 'Position added successfully');
+    }
 
     /**
-     * Edit form
+     * Show edit form
      */
     public function edit(Request $request, OrganogramPosition $position)
     {
-        $business = $request->route('business');
+        $slug = $request->route('business');
+        $business = Business::where('slug', $slug)->firstOrFail();
 
-        abort_if($position->business_id !== $business->id, 403);
+        if ($position->business_id !== $business->id) {
+            abort(403);
+        }
 
+        // Get positions for parent dropdown
         $parents = OrganogramPosition::where('business_id', $business->id)
             ->where('id', '!=', $position->id)
+            ->orderBy('title')
             ->get();
 
-        return view('business.organogram.edit', compact('business', 'position', 'parents'));
+        // Get all employees
+        $employees = Employee::whereNotNull('user_id')
+            ->with('user')
+            ->whereHas('user')
+            ->orderBy('id')
+            ->get();
+
+        // Get current holder if any
+        $currentHolder = $position->currentHolder();
+
+        return view(
+            'business.organogram.edit',
+            compact('business', 'position', 'parents', 'employees', 'currentHolder')
+        );
     }
 
     /**
@@ -128,23 +182,81 @@ public function store(Request $request)
      */
     public function update(Request $request, OrganogramPosition $position)
     {
-        $business = $request->route('business');
+        $slug = $request->route('business');
+        $business = Business::where('slug', $slug)->firstOrFail();
 
-        abort_if($position->business_id !== $business->id, 403);
+        if ($position->business_id !== $business->id) {
+            abort(403);
+        }
 
         $data = $request->validate([
             'title' => 'required|string|max:150',
             'code' => 'nullable|string|max:50',
             'parent_id' => 'nullable|exists:organogram_positions,id|not_in:' . $position->id,
-            'personnel_position_id' => 'nullable|integer',
+            'employee_id' => 'nullable|exists:employees,id',  // ✅ Validate against correct table
             'sort_order' => 'nullable|integer|min:1',
             'description' => 'nullable|string',
             'is_active' => 'boolean',
         ]);
 
-        $data['level'] = $this->calculateLevel($data['parent_id'] ?? null);
+        // Update position
+        $position->update([
+            'title' => $data['title'],
+            'code' => $data['code'] ?? $position->code,
+            'parent_id' => $data['parent_id'] ?? null,
+            'sort_order' => $data['sort_order'] ?? $position->sort_order,
+            'description' => $data['description'] ?? $position->description,
+            'is_active' => $data['is_active'] ?? $position->is_active,
+            'level' => $this->calculateLevel($data['parent_id'] ?? null),
+            // 'name' => $employee->user?->name ?? 'Vacant'
+        ]);
 
-        $position->update($data);
+        // Update employee holder if changed
+        if (!empty($data['employee_id'])) {
+            $employee = Employee::find($data['employee_id']);
+
+            if ($employee) {
+                $currentHolder = $position->currentHolder();
+
+                if ($currentHolder && $currentHolder->employee_id !== $employee->id) {
+                    // End the previous holder
+                    $currentHolder->update(['end_date' => now()]);
+
+                    // Create new holder
+                    $position->holders()->create([
+                        'employee_id' => $employee->id,
+                        'start_date' => now(),
+                        'is_primary' => 1,
+                    ]);
+                } elseif (!$currentHolder) {
+                    // No existing holder, create one
+                    $position->holders()->create([
+                        'employee_id' => $employee->id,
+                        'start_date' => now(),
+                        'is_primary' => 1,
+                    ]);
+                }
+            }
+        } elseif (empty($data['employee_id'])) {
+            // If employee_id is empty, end current holder
+            $currentHolder = $position->currentHolder();
+            if ($currentHolder) {
+                $currentHolder->update(['end_date' => now()]);
+            }
+        }
+
+        if ($request->expectsJson()) {
+            $holder = $position->currentHolder();
+            return response()->json([
+                'id' => $position->id,
+                'parent_id' => $position->parent_id,
+                'title' => $position->title,
+                'name' => $holder ? $holder->employee->user->name : 'Vacant',
+                'photo' => $holder && $holder->employee->getImageUrl()
+                    ? $holder->employee->getImageUrl()
+                    : null,
+            ]);
+        }
 
         return redirect()
             ->route('business.organogram.index', $business->slug)
@@ -156,54 +268,87 @@ public function store(Request $request)
      */
     public function destroy(Request $request, OrganogramPosition $position)
     {
-        $business = $request->route('business');
+        $slug = $request->route('business');
+        $business = Business::where('slug', $slug)->firstOrFail();
 
-        abort_if($position->business_id !== $business->id, 403);
+        if ($position->business_id !== $business->id) {
+            abort(403);
+        }
 
+        // Prevent deletion if position has subordinates
+        if ($position->children()->exists()) {
+            return redirect()
+                ->route('business.organogram.index', $business->slug)
+                ->with('error', 'Cannot delete position with subordinate positions. Reassign or delete them first.');
+        }
+
+        // Delete all holders for this position
+        $position->holders()->delete();
+
+        // Delete the position
         $position->delete();
 
-        return back()->with('success', 'Position removed');
+        return redirect()
+            ->route('business.organogram.index', $business->slug)
+            ->with('success', 'Position removed successfully');
     }
 
     /**
-     * JSON tree for frontend (drag & drop / chart libs)
+     * Get organogram tree as JSON
+     * Used by frontend chart/org chart libraries
      */
-public function treeJson($slug)
-{
-    $business = Business::where('slug', $slug)->firstOrFail();
+    public function treeJson($slug)
+    {
+        $business = Business::where('slug', $slug)->firstOrFail();
 
-    $positions = OrganogramPosition::with('holders')
-        ->where('business_id', $business->id)
-        ->where('is_active', 1)
-        ->orderBy('sort_order')
-        ->get();
+        // Fetch all active positions with their holders and employees
+        $positions = OrganogramPosition::with([
+            'holders.employee.user'
+        ])
+            ->where('business_id', $business->id)
+            ->where('is_active', 1)
+            ->orderBy('sort_order')
+            ->get();
 
-    return response()->json(
-        $positions->map(function ($position) {
-           $holder = $position->currentHolder();
-$name = $holder?->employee?->user?->name ?? 'Vacant';
+        // Map to format needed by org chart libraries
+        return response()->json(
+            $positions->map(function ($position) {
+                $holder = $position->currentHolder();
+                $employee = $holder?->employee;
 
+                // Get employee name from relationship
+                $name = $employee && $employee->user
+                    ? $employee->user->name
+                    : 'Vacant';
 
-            return [
-                'id'    => $position->id,
-                'pid'   => $position->parent_id,
-                'title' => $position->title,
-                'name'  => $holder?->employee?->user?->name ?? 'Vacant',
-'photo' => $holder?->employee?->user?->profile_photo_path
-    ? asset('storage/' . $holder->employee->user->profile_photo_path)
-    : null,
-'initials' => $holder?->employee?->user
-    ? collect(explode(' ', $holder->employee->user->name))->map(fn($n) => strtoupper($n[0]))->join('')
-    : '—',
+                // Get initials from employee name
+                $initials = $employee && $employee->user
+                    ? collect(explode(' ', $employee->user->name))
+                        ->map(fn($n) => strtoupper($n[0] ?? ''))
+                        ->filter(fn($i) => $i !== '')
+                        ->join('')
+                    : '—';
 
-            ];
-        })
-    );
-}
+                // Get photo URL
+                $photo = $employee
+                    ? $employee->getImageUrl()
+                    : null;
 
+                return [
+                    'id' => $position->id,
+                    'pid' => $position->parent_id,
+                    'title' => $position->title,
+                    'name' => $name,
+                    'photo' => $photo,
+                    'initials' => $initials,
+                    'level' => $position->level,
+                ];
+            })
+        );
+    }
 
     /**
-     * Calculate hierarchy level
+     * Calculate hierarchy level based on parent
      */
     private function calculateLevel(?int $parentId): int
     {
@@ -216,4 +361,3 @@ $name = $holder?->employee?->user?->name ?? 'Vacant';
         return $parent ? $parent->level + 1 : 1;
     }
 }
-

@@ -20,9 +20,14 @@
         <input id="position_title"
                class="w-full border p-2 rounded mb-4">
 
-        <label class="block mb-1 text-sm">Person Name</label>
+        {{-- <label class="block mb-1 text-sm">Person Name</label>
         <input id="position_name"
-               class="w-full border p-2 rounded mb-4">
+               class="w-full border p-2 rounded mb-4"> --}}
+               <label class="block mb-1 text-sm">Employee</label>
+<select id="employee_id" class="w-full border p-2 rounded mb-4">
+    <option value="">Vacant</option>
+</select>
+
 
         <div class="flex gap-2">
             <button onclick="savePosition()"
