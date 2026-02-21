@@ -45,6 +45,187 @@
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h4 class="h5 fw-bold mb-0 text-dark">Payroll Details</h4>
                 <div class="d-flex gap-2">
+                     {{-- ── Variance & AI Analysis ─────────────────────────────────── --}}
+            <a href="{{ route('business.payroll.variance', ['business' => $business->slug]) }}"
+               class="btn btn-outline-secondary modern-btn flex-shrink-0">
+                <i class="bi bi-graph-up-arrow me-1"></i> Variance & AI Analysis
+            </a>
+            {{-- ── END Variance ────────────────────────────────────────────── --}}
+                    {{-- ── NSSF Download Dropdown ─────────────────────────────────────────── --}}
+            <div class="dropdown d-inline-flex">
+               <button class="btn btn-outline-secondary modern-btn dropdown-toggle flex-shrink-0"
+        type="button"
+        data-bs-toggle="dropdown"
+        aria-expanded="false">
+
+                    <i class="bi bi-file-earmark-spreadsheet me-1"></i> NSSF
+                </button>
+
+                <ul class="dropdown-menu shadow-sm" style="min-width: 280px;">
+
+                    {{-- ── New NSSF (Return/Remittance) format ──────────────────────── --}}
+                    <li>
+                        <h6 class="dropdown-header text-uppercase fw-bold" style="font-size:.7rem; color:#1a1a2e;">
+                            New NSSF (Return/Remittance) Format
+                        </h6>
+                    </li>
+                    <li>
+                        <a class="dropdown-item d-flex align-items-center gap-2"
+                           href="{{ route('business.payroll.nssf.download', ['business' => $business->slug, 'format_type' => 'new_remittance', 'payroll_id' => $payroll->id, 'format' => 'xlsx']) }}">
+                            <i class="bi bi-file-earmark-excel text-success"></i> Export as XLSX
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item d-flex align-items-center gap-2"
+                           href="{{ route('business.payroll.nssf.download', ['business' => $business->slug, 'format_type' => 'new_remittance', 'payroll_id' => $payroll->id, 'format' => 'csv']) }}">
+                            <i class="bi bi-file-earmark-text text-secondary"></i> Export as CSV
+                        </a>
+                    </li>
+
+                    <li><hr class="dropdown-divider my-1"></li>
+
+                    {{-- ── Up to June 2018 ───────────────────────────────────────────── --}}
+                    <li>
+                        <h6 class="dropdown-header text-uppercase fw-bold" style="font-size:.7rem; color:#1a1a2e;">
+                            Up to June 2018
+                        </h6>
+                    </li>
+                    <li>
+                        <a class="dropdown-item d-flex align-items-center gap-2"
+                           href="{{ route('business.payroll.nssf.download', ['business' => $business->slug, 'format_type' => 'pre_2018', 'payroll_id' => $payroll->id, 'format' => 'xlsx']) }}">
+                            <i class="bi bi-file-earmark-excel text-success"></i> Export as XLSX
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item d-flex align-items-center gap-2"
+                           href="{{ route('business.payroll.nssf.download', ['business' => $business->slug, 'format_type' => 'pre_2018', 'payroll_id' => $payroll->id, 'format' => 'csv']) }}">
+                            <i class="bi bi-file-earmark-text text-secondary"></i> Export as CSV
+                        </a>
+                    </li>
+
+                    <li><hr class="dropdown-divider my-1"></li>
+
+                    {{-- ── Old NSSF Format ───────────────────────────────────────────── --}}
+                    <li>
+                        <h6 class="dropdown-header text-uppercase fw-bold" style="font-size:.7rem; color:#1a1a2e;">
+                            Old NSSF Format
+                        </h6>
+                    </li>
+                    <li>
+                        <a class="dropdown-item d-flex align-items-center gap-2"
+                           href="{{ route('business.payroll.nssf.download', ['business' => $business->slug, 'format_type' => 'old_format', 'payroll_id' => $payroll->id, 'format' => 'xlsx']) }}">
+                            <i class="bi bi-file-earmark-excel text-success"></i> Export as XLSX
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item d-flex align-items-center gap-2"
+                           href="{{ route('business.payroll.nssf.download', ['business' => $business->slug, 'format_type' => 'old_format', 'payroll_id' => $payroll->id, 'format' => 'csv']) }}">
+                            <i class="bi bi-file-earmark-text text-secondary"></i> Export as CSV
+                        </a>
+                    </li>
+
+                    <li><hr class="dropdown-divider my-1"></li>
+
+                    {{-- ── Schedule PDF ──────────────────────────────────────────────── --}}
+                    <li>
+                        <h6 class="dropdown-header text-uppercase fw-bold" style="font-size:.7rem; color:#1a1a2e;">
+                            Schedule
+                        </h6>
+                    </li>
+                    <li>
+                        <a class="dropdown-item d-flex align-items-center gap-2"
+                           href="{{ route('business.payroll.nssf.download', ['business' => $business->slug, 'format_type' => 'schedule', 'payroll_id' => $payroll->id, 'format' => 'pdf']) }}">
+                            <i class="bi bi-file-earmark-pdf text-danger"></i> Schedule (PDF)
+                        </a>
+                    </li>
+
+                    <li><hr class="dropdown-divider my-1"></li>
+
+                    {{-- ── Month by Month Report ─────────────────────────────────────── --}}
+                    <li>
+                        <h6 class="dropdown-header text-uppercase fw-bold" style="font-size:.7rem; color:#1a1a2e;">
+                            Month by Month Report
+                        </h6>
+                    </li>
+                    <li>
+                        <a class="dropdown-item d-flex align-items-center gap-2"
+                           href="{{ route('business.payroll.nssf.monthly_summary', ['business' => $business->slug, 'year' => $payroll->payrun_year, 'format' => 'xlsx']) }}">
+                            <i class="bi bi-file-earmark-excel text-success"></i> Export as XLSX
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item d-flex align-items-center gap-2"
+                           href="{{ route('business.payroll.nssf.monthly_summary', ['business' => $business->slug, 'year' => $payroll->payrun_year, 'format' => 'pdf']) }}">
+                            <i class="bi bi-file-earmark-pdf text-danger"></i> Export as PDF
+                        </a>
+                    </li>
+
+                    <li><hr class="dropdown-divider my-1"></li>
+
+                    {{-- ── Grouped by Department ─────────────────────────────────────── --}}
+                    <li>
+                        <h6 class="dropdown-header text-uppercase fw-bold" style="font-size:.7rem; color:#1a1a2e;">
+                            Grouped by Department
+                        </h6>
+                    </li>
+                    <li>
+                        <a class="dropdown-item d-flex align-items-center gap-2"
+                           href="{{ route('business.payroll.nssf.download', ['business' => $business->slug, 'format_type' => 'grouped', 'payroll_id' => $payroll->id, 'format' => 'xlsx', 'group_by' => 'department']) }}">
+                            <i class="bi bi-file-earmark-excel text-success"></i> Export as XLSX
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item d-flex align-items-center gap-2"
+                           href="{{ route('business.payroll.nssf.download', ['business' => $business->slug, 'format_type' => 'grouped', 'payroll_id' => $payroll->id, 'format' => 'pdf', 'group_by' => 'department']) }}">
+                            <i class="bi bi-file-earmark-pdf text-danger"></i> Export as PDF
+                        </a>
+                    </li>
+
+                    <li><hr class="dropdown-divider my-1"></li>
+
+                    {{-- ── Grouped by Location ───────────────────────────────────────── --}}
+                    <li>
+                        <h6 class="dropdown-header text-uppercase fw-bold" style="font-size:.7rem; color:#1a1a2e;">
+                            Grouped by Location
+                        </h6>
+                    </li>
+                    <li>
+                        <a class="dropdown-item d-flex align-items-center gap-2"
+                           href="{{ route('business.payroll.nssf.download', ['business' => $business->slug, 'format_type' => 'grouped', 'payroll_id' => $payroll->id, 'format' => 'xlsx', 'group_by' => 'location']) }}">
+                            <i class="bi bi-file-earmark-excel text-success"></i> Export as XLSX
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item d-flex align-items-center gap-2"
+                           href="{{ route('business.payroll.nssf.download', ['business' => $business->slug, 'format_type' => 'grouped', 'payroll_id' => $payroll->id, 'format' => 'pdf', 'group_by' => 'location']) }}">
+                            <i class="bi bi-file-earmark-pdf text-danger"></i> Export as PDF
+                        </a>
+                    </li>
+
+                    <li><hr class="dropdown-divider my-1"></li>
+
+                    {{-- ── Grouped by Job Category ───────────────────────────────────── --}}
+                    <li>
+                        <h6 class="dropdown-header text-uppercase fw-bold" style="font-size:.7rem; color:#1a1a2e;">
+                            Grouped by Job Category
+                        </h6>
+                    </li>
+                    <li>
+                        <a class="dropdown-item d-flex align-items-center gap-2"
+                           href="{{ route('business.payroll.nssf.download', ['business' => $business->slug, 'format_type' => 'grouped', 'payroll_id' => $payroll->id, 'format' => 'xlsx', 'group_by' => 'job_category']) }}">
+                            <i class="bi bi-file-earmark-excel text-success"></i> Export as XLSX
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item d-flex align-items-center gap-2"
+                           href="{{ route('business.payroll.nssf.download', ['business' => $business->slug, 'format_type' => 'grouped', 'payroll_id' => $payroll->id, 'format' => 'pdf', 'group_by' => 'job_category']) }}">
+                            <i class="bi bi-file-earmark-pdf text-danger"></i> Export as PDF
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+            {{-- ── END NSSF Dropdown ──────────────────────────────────────────────── --}}
                     <div class="dropdown">
                         <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button"
                             id="exportReportsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
@@ -227,6 +408,7 @@
                 <i class="bi bi-file-earmark-excel me-1"></i> Company Payslip XLSX
             </a>
 
+
              <!-- Download Table Footer as PDF Button -->
             <button class="btn btn-outline-secondary modern-btn flex-shrink-0" id="downloadTableFooterPdf">
                 <i class="bi bi-file-earmark-pdf me-1"></i> Download Totals PDF
@@ -245,6 +427,263 @@
                     <li><a class="dropdown-item download-bank-advice" href="#" data-format="pdf">Export as PDF</a></li>
                 </ul>
             </div>
+
+
+
+            {{-- ── Master Roll Download Dropdown ─────────────────────────────────── --}}
+<div class="dropdown d-inline-flex">
+ <button class="btn btn-outline-secondary modern-btn dropdown-toggle flex-shrink-0"
+        type="button"
+        data-bs-toggle="dropdown"
+        data-bs-auto-close="false"
+        aria-expanded="false">
+
+        <i class="bi bi-file-earmark-spreadsheet me-1"></i> Master Roll
+    </button>
+
+    <ul class="dropdown-menu dropdown-menu-end shadow-sm mt-0" style="min-width: 260px; ">
+
+        {{-- ── DETAILED ─────────────────────────────────────────────── --}}
+        <li>
+            <h6 class="dropdown-header text-uppercase fw-bold" style="font-size:.7rem; color:#1a1a2e;">
+                Detailed (All Columns)
+            </h6>
+        </li>
+
+        <li>
+            <a class="dropdown-item d-flex align-items-center gap-2" href="{{
+                route('business.payroll.master-roll', [
+                    'business' => $business->slug,
+                    'id'       => $payroll->id,
+                    'type'     => 'detailed',
+                    'format'   => 'xlsx',
+                ])
+            }}">
+                <i class="bi bi-file-earmark-excel text-success"></i> Detailed in Excel
+            </a>
+        </li>
+        <li>
+            <a class="dropdown-item d-flex align-items-center gap-2" href="{{
+                route('business.payroll.master-roll', [
+                    'business' => $business->slug,
+                    'id'       => $payroll->id,
+                    'type'     => 'detailed',
+                    'format'   => 'pdf',
+                ])
+            }}">
+                <i class="bi bi-file-earmark-pdf text-danger"></i> Detailed in PDF
+            </a>
+        </li>
+
+        <li><hr class="dropdown-divider my-1"></li>
+
+        {{-- ── SUMMARY ──────────────────────────────────────────────── --}}
+        <li>
+            <h6 class="dropdown-header text-uppercase fw-bold" style="font-size:.7rem; color:#1a1a2e;">
+                Summary (Key Columns)
+            </h6>
+        </li>
+        <li>
+            <a class="dropdown-item d-flex align-items-center gap-2" href="{{
+                route('business.payroll.master-roll', [
+                    'business' => $business->slug,
+                    'id'       => $payroll->id,
+                    'type'     => 'summary',
+                    'format'   => 'xlsx',
+                ])
+            }}">
+                <i class="bi bi-file-earmark-excel text-success"></i> Summary in Excel
+            </a>
+        </li>
+        <li>
+            <a class="dropdown-item d-flex align-items-center gap-2" href="{{
+                route('business.payroll.master-roll', [
+                    'business' => $business->slug,
+                    'id'       => $payroll->id,
+                    'type'     => 'summary',
+                    'format'   => 'pdf',
+                ])
+            }}">
+                <i class="bi bi-file-earmark-pdf text-danger"></i> Summary in PDF
+            </a>
+        </li>
+
+        <li><hr class="dropdown-divider my-1"></li>
+
+        {{-- ── GROUP DETAILED by Location ──────────────────────────── --}}
+        <li>
+            <h6 class="dropdown-header text-uppercase fw-bold" style="font-size:.7rem; color:#1a1a2e;">
+                Group Detailed — by Location
+            </h6>
+        </li>
+        <li>
+            <a class="dropdown-item d-flex align-items-center gap-2" href="{{
+                route('business.payroll.master-roll', [
+                    'business' => $business->slug,
+                    'id'       => $payroll->id,
+                    'type'     => 'detailed',
+                    'format'   => 'xlsx',
+                    'groupBy'  => 'location',
+                ])
+            }}">
+                <i class="bi bi-file-earmark-excel text-success"></i> Group detailed excel by location
+            </a>
+        </li>
+        <li>
+            <a class="dropdown-item d-flex align-items-center gap-2" href="{{
+                route('business.payroll.master-roll', [
+                    'business' => $business->slug,
+                    'id'       => $payroll->id,
+                    'type'     => 'detailed',
+                    'format'   => 'xlsx',
+                    'groupBy'  => 'department',
+                ])
+            }}">
+                <i class="bi bi-file-earmark-excel text-success"></i> Group detailed excel by department
+            </a>
+        </li>
+        <li>
+            <a class="dropdown-item d-flex align-items-center gap-2" href="{{
+                route('business.payroll.master-roll', [
+                    'business' => $business->slug,
+                    'id'       => $payroll->id,
+                    'type'     => 'detailed',
+                    'format'   => 'xlsx',
+                    'groupBy'  => 'job_category',
+                ])
+            }}">
+                <i class="bi bi-file-earmark-excel text-success"></i> Group detailed excel by job category
+            </a>
+        </li>
+        <li>
+            <a class="dropdown-item d-flex align-items-center gap-2" href="{{
+                route('business.payroll.master-roll', [
+                    'business' => $business->slug,
+                    'id'       => $payroll->id,
+                    'type'     => 'detailed',
+                    'format'   => 'pdf',
+                    'groupBy'  => 'location',
+                ])
+            }}">
+                <i class="bi bi-file-earmark-pdf text-danger"></i> Group detailed PDF by location
+            </a>
+        </li>
+        <li>
+            <a class="dropdown-item d-flex align-items-center gap-2" href="{{
+                route('business.payroll.master-roll', [
+                    'business' => $business->slug,
+                    'id'       => $payroll->id,
+                    'type'     => 'detailed',
+                    'format'   => 'pdf',
+                    'groupBy'  => 'department',
+                ])
+            }}">
+                <i class="bi bi-file-earmark-pdf text-danger"></i> Group detailed PDF by department
+            </a>
+        </li>
+        <li>
+            <a class="dropdown-item d-flex align-items-center gap-2" href="{{
+                route('business.payroll.master-roll', [
+                    'business' => $business->slug,
+                    'id'       => $payroll->id,
+                    'type'     => 'detailed',
+                    'format'   => 'pdf',
+                    'groupBy'  => 'job_category',
+                ])
+            }}">
+                <i class="bi bi-file-earmark-pdf text-danger"></i> Group detailed PDF by job category
+            </a>
+        </li>
+
+        <li><hr class="dropdown-divider my-1"></li>
+
+        {{-- ── GROUP SUMMARY ────────────────────────────────────────── --}}
+        <li>
+            <h6 class="dropdown-header text-uppercase fw-bold" style="font-size:.7rem; color:#1a1a2e;">
+                Group Summary
+            </h6>
+        </li>
+        <li>
+            <a class="dropdown-item d-flex align-items-center gap-2" href="{{
+                route('business.payroll.master-roll', [
+                    'business' => $business->slug,
+                    'id'       => $payroll->id,
+                    'type'     => 'summary',
+                    'format'   => 'xlsx',
+                    'groupBy'  => 'location',
+                ])
+            }}">
+                <i class="bi bi-file-earmark-excel text-success"></i> Group summary excel by location
+            </a>
+        </li>
+        <li>
+            <a class="dropdown-item d-flex align-items-center gap-2" href="{{
+                route('business.payroll.master-roll', [
+                    'business' => $business->slug,
+                    'id'       => $payroll->id,
+                    'type'     => 'summary',
+                    'format'   => 'xlsx',
+                    'groupBy'  => 'department',
+                ])
+            }}">
+                <i class="bi bi-file-earmark-excel text-success"></i> Group summary excel by department
+            </a>
+        </li>
+        <li>
+            <a class="dropdown-item d-flex align-items-center gap-2" href="{{
+                route('business.payroll.master-roll', [
+                    'business' => $business->slug,
+                    'id'       => $payroll->id,
+                    'type'     => 'summary',
+                    'format'   => 'xlsx',
+                    'groupBy'  => 'job_category',
+                ])
+            }}">
+                <i class="bi bi-file-earmark-excel text-success"></i> Group summary excel by job category
+            </a>
+        </li>
+        <li>
+            <a class="dropdown-item d-flex align-items-center gap-2" href="{{
+                route('business.payroll.master-roll', [
+                    'business' => $business->slug,
+                    'id'       => $payroll->id,
+                    'type'     => 'summary',
+                    'format'   => 'pdf',
+                    'groupBy'  => 'location',
+                ])
+            }}">
+                <i class="bi bi-file-earmark-pdf text-danger"></i> Group summary PDF by location
+            </a>
+        </li>
+        <li>
+            <a class="dropdown-item d-flex align-items-center gap-2" href="{{
+                route('business.payroll.master-roll', [
+                    'business' => $business->slug,
+                    'id'       => $payroll->id,
+                    'type'     => 'summary',
+                    'format'   => 'pdf',
+                    'groupBy'  => 'department',
+                ])
+            }}">
+                <i class="bi bi-file-earmark-pdf text-danger"></i> Group summary PDF by department
+            </a>
+        </li>
+        <li>
+            <a class="dropdown-item d-flex align-items-center gap-2" href="{{
+                route('business.payroll.master-roll', [
+                    'business' => $business->slug,
+                    'id'       => $payroll->id,
+                    'type'     => 'summary',
+                    'format'   => 'pdf',
+                    'groupBy'  => 'job_category',
+                ])
+            }}">
+                <i class="bi bi-file-earmark-pdf text-danger"></i> Group summary PDF by job category
+            </a>
+        </li>
+
+    </ul>
+</div>
 
             <!-- Download P9 Dropdown -->
             <div class="dropdown">

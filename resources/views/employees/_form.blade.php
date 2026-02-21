@@ -359,86 +359,147 @@
             </div>
         </div>
 
-        <!-- Payment Tab -->
-        <div class="tab-pane fade" id="payment" role="tabpanel">
-            <!-- Salary Group -->
-            <div class="mb-3">
-                <h6 class="text-muted fw-semibold mb-2">Salary</h6>
-                <div class="row g-2">
-                    <div class="col-md-8">
-                        <input type="number" name="basic_salary" id="basic_salary" class="form-control border-primary"
-                            value="{{ isset($employee) ? (optional($employee->paymentDetails)->basic_salary ?? '') : '' }}"
-                            placeholder="Basic Salary" required step="0.01">
-                    </div>
-                    <div class="col-md-4">
-                        <select name="currency" id="currency" class="form-select border-primary" required>
-                            <option value="">Select Currency</option>
-                            <option value="KES"
-                                {{ isset($employee) && optional($employee->paymentDetails)->currency === 'KES' ? 'selected' : '' }}>
-                                KES</option>
-                            <option value="USD"
-                                {{ isset($employee) && optional($employee->paymentDetails)->currency === 'USD' ? 'selected' : '' }}>
-                                USD</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Bank Details Group -->
-            <div class="mb-3">
-                <h6 class="text-muted fw-semibold mb-2">Bank Details</h6>
-                <div class="row g-2">
-                    <div class="col-md-6">
-                        <input type="text" name="account_name" id="account_name" class="form-control border-primary"
-                            value="{{ isset($employee) ? (optional($employee->paymentDetails)->account_name ?? '') : '' }}"
-                            placeholder="Account Name" required>
-                    </div>
-                    <div class="col-md-6">
-                        <input type="text" name="account_number" id="account_number" class="form-control border-primary"
-                            value="{{ isset($employee) ? (optional($employee->paymentDetails)->account_number ?? '') : '' }}"
-                            placeholder="Account Number" required>
-                    </div>
-                    <div class="col-md-6">
-                        <input type="text" name="bank_name" id="bank_name" class="form-control border-primary"
-                            value="{{ isset($employee) ? (optional($employee->paymentDetails)->bank_name ?? '') : '' }}"
-                            placeholder="Bank Name" required>
-                    </div>
-                    <div class="col-md-6">
-                        <select name="payment_mode" id="payment_mode" class="form-select border-primary" required>
-                            <option value="">Select Payment Mode</option>
-                            <option value="bank"
-                                {{ isset($employee) && optional($employee->paymentDetails)->payment_mode === 'bank' ? 'selected' : '' }}>
-                                Bank</option>
-                            <option value="mpesa"
-                                {{ isset($employee) && optional($employee->paymentDetails)->payment_mode === 'mpesa' ? 'selected' : '' }}>
-                                M-Pesa</option>
-                            <option value="cash"
-                                {{ isset($employee) && optional($employee->paymentDetails)->payment_mode === 'cash' ? 'selected' : '' }}>
-                                Cash</option>
-                            <option value="cheque"
-                                {{ isset($employee) && optional($employee->paymentDetails)->payment_mode === 'cheque' ? 'selected' : '' }}>
-                                Cheque</option>
-                        </select>
-                    </div>
-                    <div class="col-md-6">
-                        <input type="text" name="bank_code" id="bank_code" class="form-control border-primary"
-                            value="{{ isset($employee) ? (optional($employee->paymentDetails)->bank_code ?? '') : '' }}"
-                            placeholder="Bank Code">
-                    </div>
-                    <div class="col-md-6">
-                        <input type="text" name="bank_branch" id="bank_branch" class="form-control border-primary"
-                            value="{{ isset($employee) ? (optional($employee->paymentDetails)->bank_branch ?? '') : '' }}"
-                            placeholder="Bank Branch">
-                    </div>
-                    <div class="col-md-6">
-                        <input type="text" name="bank_branch_code" id="bank_branch_code"
-                            class="form-control border-primary"
-                            value="{{ isset($employee) ? (optional($employee->paymentDetails)->bank_branch_code ?? '') : '' }}"
-                            placeholder="Bank Branch Code">
-                    </div>
-                </div>
+<!-- Payment Tab -->
+<div class="tab-pane fade" id="payment" role="tabpanel">
+    <!-- Payment Type Selection -->
+    <div class="mb-3">
+        <h6 class="text-muted fw-semibold mb-2">Payment Type</h6>
+        <div class="row g-2">
+            <div class="col-md-12">
+                <select name="payment_type" id="payment_type" class="form-select border-primary" required>
+                    <option value="">Select Payment Type</option>
+                    <option value="salary"
+                        {{ isset($employee) && optional($employee->paymentDetails)->payment_type === 'salary' ? 'selected' : (!isset($employee) ? 'selected' : '') }}>
+                        Monthly Salary (Fixed)
+                    </option>
+                    <option value="hourly"
+                        {{ isset($employee) && optional($employee->paymentDetails)->payment_type === 'hourly' ? 'selected' : '' }}>
+                        Hourly Rate
+                    </option>
+                </select>
+                <small class="form-text text-muted">
+                    Choose how this employee will be paid: fixed monthly salary or hourly rate based on attendance.
+                </small>
             </div>
         </div>
+    </div>
+
+    <!-- Currency Selection (Shared for both payment types) -->
+    <div class="mb-3">
+        <h6 class="text-muted fw-semibold mb-2">Currency</h6>
+        <div class="row g-2">
+            <div class="col-md-6">
+                <select name="currency" id="currency" class="form-select border-primary" required>
+                    <option value="">Select Currency</option>
+                    <option value="KES"
+                        {{ isset($employee) && optional($employee->paymentDetails)->currency === 'KES' ? 'selected' : 'selected' }}>
+                        KES - Kenyan Shilling</option>
+                    <option value="USD"
+                        {{ isset($employee) && optional($employee->paymentDetails)->currency === 'USD' ? 'selected' : '' }}>
+                        USD - US Dollar</option>
+                    <option value="UGX"
+                        {{ isset($employee) && optional($employee->paymentDetails)->currency === 'UGX' ? 'selected' : '' }}>
+                        UGX - Uganda Shilling</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Salary Group (for salary-based employees) -->
+   <div class="mb-3" id="salary_group">
+    <h6 class="text-muted fw-semibold mb-2" id="salary_group_title">Monthly Salary</h6>
+    <div class="row g-2">
+        <div class="col-md-12">
+            <input type="number" name="basic_salary" id="basic_salary" class="form-control border-primary"
+                value="{{ isset($employee) ? (optional($employee->paymentDetails)->basic_salary ?? '') : '' }}"
+                placeholder="Basic Monthly Salary" step="0.01" min="0">
+        </div>
+    </div>
+</div>
+
+    <!-- Hourly Rate Group (for hourly employees) -->
+   <div class="mb-3" id="hourly_rate_group" style="display:none;">
+    <h6 class="text-muted fw-semibold mb-2" id="hourly_group_title">Hourly Rate</h6>
+    <div class="row g-2">
+        <div class="col-md-12">
+            <input type="number" name="hourly_rate" id="hourly_rate" class="form-control border-primary"
+                value="{{ isset($employee) ? (optional($employee->paymentDetails)->hourly_rate ?? '') : '' }}"
+                placeholder="Hourly Rate" step="0.01" min="0">
+            <small class="form-text text-muted">
+                <i class="fa fa-info-circle"></i> Regular hours will be paid at this rate.
+                Overtime will be calculated at 1.5x this rate automatically.
+            </small>
+        </div>
+    </div>
+
+        <!-- Hourly Pay Info Card -->
+        <div class="alert alert-info mt-3" role="alert">
+            <h6 class="alert-heading"><i class="fa fa-clock"></i> How Hourly Pay Works</h6>
+            <ul class="mb-0 small">
+                <li>Hours are calculated from attendance records (clock in/out times)</li>
+                <li>Regular hours: Paid at the hourly rate specified above</li>
+                <li>Overtime hours: Automatically paid at 1.5x the hourly rate</li>
+                <li>Gross pay = (Regular Hours × Hourly Rate) + (Overtime Hours × 1.5 × Hourly Rate)</li>
+                <li>Ensure attendance is tracked daily for accurate payroll</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Bank Details Group -->
+    <div class="mb-3">
+        <h6 class="text-muted fw-semibold mb-2">Bank Details</h6>
+        <div class="row g-2">
+            <div class="col-md-6">
+                <input type="text" name="account_name" id="account_name" class="form-control border-primary"
+                    value="{{ isset($employee) ? (optional($employee->paymentDetails)->account_name ?? '') : '' }}"
+                    placeholder="Account Name" required>
+            </div>
+            <div class="col-md-6">
+                <input type="text" name="account_number" id="account_number" class="form-control border-primary"
+                    value="{{ isset($employee) ? (optional($employee->paymentDetails)->account_number ?? '') : '' }}"
+                    placeholder="Account Number" required>
+            </div>
+            <div class="col-md-6">
+                <input type="text" name="bank_name" id="bank_name" class="form-control border-primary"
+                    value="{{ isset($employee) ? (optional($employee->paymentDetails)->bank_name ?? '') : '' }}"
+                    placeholder="Bank Name" required>
+            </div>
+            <div class="col-md-6">
+                <select name="payment_mode" id="payment_mode" class="form-select border-primary" required>
+                    <option value="">Select Payment Mode</option>
+                    <option value="bank"
+                        {{ isset($employee) && optional($employee->paymentDetails)->payment_mode === 'bank' ? 'selected' : '' }}>
+                        Bank</option>
+                    <option value="mpesa"
+                        {{ isset($employee) && optional($employee->paymentDetails)->payment_mode === 'mpesa' ? 'selected' : '' }}>
+                        M-Pesa</option>
+                    <option value="cash"
+                        {{ isset($employee) && optional($employee->paymentDetails)->payment_mode === 'cash' ? 'selected' : '' }}>
+                        Cash</option>
+                    <option value="cheque"
+                        {{ isset($employee) && optional($employee->paymentDetails)->payment_mode === 'cheque' ? 'selected' : '' }}>
+                        Cheque</option>
+                </select>
+            </div>
+            <div class="col-md-6">
+                <input type="text" name="bank_code" id="bank_code" class="form-control border-primary"
+                    value="{{ isset($employee) ? (optional($employee->paymentDetails)->bank_code ?? '') : '' }}"
+                    placeholder="Bank Code">
+            </div>
+            <div class="col-md-6">
+                <input type="text" name="bank_branch" id="bank_branch" class="form-control border-primary"
+                    value="{{ isset($employee) ? (optional($employee->paymentDetails)->bank_branch ?? '') : '' }}"
+                    placeholder="Bank Branch">
+            </div>
+            <div class="col-md-6">
+                <input type="text" name="bank_branch_code" id="bank_branch_code"
+                    class="form-control border-primary"
+                    value="{{ isset($employee) ? (optional($employee->paymentDetails)->bank_branch_code ?? '') : '' }}"
+                    placeholder="Bank Branch Code">
+            </div>
+        </div>
+    </div>
+</div>
 
         <!-- Documents Tab -->
         <div class="tab-pane fade" id="documents" role="tabpanel">
@@ -592,6 +653,8 @@
         padding: 0.4rem 0.8rem;
         font-size: 0.85rem;
     }
+
+
 </style>
 
 <script>
@@ -663,3 +726,4 @@
         }
     }
 </script>
+

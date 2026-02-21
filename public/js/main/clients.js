@@ -30,8 +30,10 @@ window.getClients = async function (page = 1) {
 window.impersonateBusiness = async function (businessSlug) {
     try {
         const response = await businessesService.post(`/businesses/${window.currentBusinessSlug}/clients/${businessSlug}/impersonate`, {});
-        if (response.data.redirect_url) {
-            window.location.href = response.data.redirect_url;
+
+
+        if (response.redirect_url) {
+            window.location.href = response.redirect_url;
         } else {
             Swal.fire({
                 icon: 'success',
@@ -39,6 +41,7 @@ window.impersonateBusiness = async function (businessSlug) {
                 text: response.message || 'Impersonation successful.',
             });
         }
+        return true;
     } catch (error) {
         console.error('Impersonation error:', error.response?.data);
         Swal.fire({
@@ -46,6 +49,7 @@ window.impersonateBusiness = async function (businessSlug) {
             title: 'Error',
             text: error.response?.data?.message || 'Failed to impersonate business.',
         });
+        return false;
     }
 };
 

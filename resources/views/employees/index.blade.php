@@ -109,5 +109,76 @@
             }
         });
     </script>
+    <script>
+// This function can be called multiple times safely
+function initEmployeePaymentToggle() {
+    const paymentType = document.getElementById("payment_type");
+    if (!paymentType) return;  // form not loaded yet → exit quietly
+
+    const salaryGroup    = document.getElementById("salary_group");
+    const hourlyGroup    = document.getElementById("hourly_rate_group");
+    if (!salaryGroup || !hourlyGroup) return;
+
+    const salaryTitle    = document.getElementById("salary_group_title");
+    const hourlyTitle    = document.getElementById("hourly_group_title");
+
+    const basicSalary    = document.getElementById("basic_salary");
+    const hourlyRate     = document.getElementById("hourly_rate");
+
+    function toggleFields() {
+        const type = paymentType.value.trim(); // trim just in case
+
+        if (type === "salary") {
+            salaryGroup.style.display = "block";
+            hourlyGroup.style.display = "none";
+            if (salaryTitle) salaryTitle.textContent = "Monthly Salary";
+            if (hourlyRate) hourlyRate.value = "";
+        } else if (type === "hourly") {
+            salaryGroup.style.display = "none";
+            hourlyGroup.style.display = "block";
+            if (hourlyTitle) hourlyTitle.textContent = "Hourly Rate";
+            if (basicSalary) basicSalary.value = "";
+        } else {
+            salaryGroup.style.display = "none";
+            hourlyGroup.style.display = "none";
+        }
+    }
+
+    // Run immediately (important!)
+    toggleFields();
+
+    // Listen for changes
+    paymentType.removeEventListener("change", toggleFields);     // prevent duplicate listeners
+    paymentType.addEventListener("change", toggleFields);
+
+    // Also trigger when switching to Payment tab inside modal
+    const paymentTabBtn = document.querySelector('#employeeModal #payment-tab');
+    if (paymentTabBtn) {
+        paymentTabBtn.removeEventListener('shown.bs.tab', toggleFields);
+        paymentTabBtn.addEventListener('shown.bs.tab', toggleFields);
+    }
+}
+
+// Run it right away (in case form is already there)
+initEmployeePaymentToggle();
+
+// Very important: Re-run after modal content is loaded via AJAX
+document.addEventListener('DOMContentLoaded', () => {
+    const modal = document.getElementById('employeeModal');
+    if (!modal) return;
+
+    modal.addEventListener('shown.bs.modal', function () {
+        // Give DOM a tiny moment to render the inserted HTML
+        setTimeout(initEmployeePaymentToggle, 100);
+        setTimeout(initEmployeePaymentToggle, 500); // second chance
+    });
+});
+
+// If your createEmployee() function uses .html() / .load() / fetch + innerHTML
+// → call this function manually after inserting content (best option)
+window.afterEmployeeFormLoaded = function() {
+    setTimeout(initEmployeePaymentToggle, 150);
+};
+</script>
     @endpush
 </x-app-layout>

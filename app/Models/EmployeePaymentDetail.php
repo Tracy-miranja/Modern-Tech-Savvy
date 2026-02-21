@@ -13,6 +13,8 @@ class EmployeePaymentDetail extends Model
     protected $fillable = [
         'employee_id',
         'basic_salary',
+         'hourly_rate',
+        'payment_type',
         'currency',
         'payment_mode',
         'account_name',
@@ -23,8 +25,28 @@ class EmployeePaymentDetail extends Model
         'bank_branch_code'
     ];
 
+     protected $casts = [
+        'basic_salary' => 'decimal:2',
+        'hourly_rate' => 'decimal:2',
+    ];
+
     public function employee()
     {
         return $this->belongsTo(Employee::class);
+    }
+    /**
+     * Check if the employee is paid hourly
+     */
+    public function isHourlyPaid(): bool
+    {
+        return $this->payment_type === 'hourly';
+    }
+
+    /**
+     * Check if the employee is paid salary
+     */
+    public function isSalaryPaid(): bool
+    {
+        return $this->payment_type === 'salary';
     }
 }
