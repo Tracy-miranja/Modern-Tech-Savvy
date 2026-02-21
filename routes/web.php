@@ -28,6 +28,9 @@ use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\LeaveEntitlementController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\OrganogramController;
+use App\Http\Controllers\OvertimeController;
+use App\Http\Controllers\WorkScheduleController;
+use App\Http\Controllers\HolidayController;
 
 use App\Models\Business;
 
@@ -263,6 +266,65 @@ Route::get('/payroll/variance/data', [PayrollController::class, 'varianceData'])
                 Route::get('/', [DashboardController::class, 'overtime'])->name('index');
                 Route::get('/rates', [DashboardController::class, 'overtimeRates'])->name('rates');
             });
+
+            Route::get('/work-schedules', [DashboardController::class, 'workSchedules'])->name('work-schedules.index');
+            // Work Schedules Routes
+            Route::prefix('work-schedules')->group(function () {
+                Route::post('/fetch', [WorkScheduleController::class, 'fetch'])->name('work-schedules.fetch');
+                Route::post('/store', [WorkScheduleController::class, 'store'])->name('work-schedules.store');
+                Route::post('/edit', [WorkScheduleController::class, 'edit'])->name('work-schedules.edit');
+                Route::post('/update', [WorkScheduleController::class, 'update'])->name('work-schedules.update');
+                Route::post('/delete', [WorkScheduleController::class, 'destroy'])->name('work-schedules.destroy');
+                Route::post('/schedule-info', [WorkScheduleController::class, 'getScheduleInfo'])->name('work-schedules.info');
+                Route::post('/create-form', [WorkScheduleController::class, 'createForm'])->name('work-schedules.create-form');
+                Route::post('/activate', [WorkScheduleController::class, 'activate'])->name('work-schedules.activate');
+                Route::post('/bulk-store', [WorkScheduleController::class, 'bulkStore'])->name('work-schedules.bulk-store');
+
+            });
+
+            Route::get('/holidays', [DashboardController::class, 'holidays'])->name('holidays.index');
+
+            // Holidays Routes
+            Route::prefix('holidays')->group(function () {
+                Route::post('/fetch', [HolidayController::class, 'fetch'])->name('holidays.fetch');
+                Route::post('/store', [HolidayController::class, 'store'])->name('holidays.store');
+                Route::post('/edit', [HolidayController::class, 'edit'])->name('holidays.edit');
+                Route::post('/update', [HolidayController::class, 'update'])->name('holidays.update');
+                Route::post('/delete', [HolidayController::class, 'destroy'])->name('holidays.destroy');
+                Route::post('/check', [HolidayController::class, 'checkHoliday'])->name('holidays.check');
+            });
+
+            // Enhanced Attendance Routes
+            Route::prefix('attendances')->group(function () {
+                Route::post('/fetch', [AttendanceController::class, 'fetch'])->name('attendances.fetch');
+                Route::post('/monthly', [AttendanceController::class, 'monthly'])->name('attendances.monthly');
+                Route::post('/clockin', [AttendanceController::class, 'clockIn'])->name('attendances.clockin');
+                Route::post('/clockout', [AttendanceController::class, 'clockOut'])->name('attendances.clockout');
+                Route::post('/clockins', [AttendanceController::class, 'clockIns'])->name('attendances.clockins');
+                Route::post('/employee-summary', [AttendanceController::class, 'getEmployeeSummary'])->name('attendances.summary');
+                Route::post('/edit', [AttendanceController::class, 'edit'])->name('attendances.edit');
+                Route::post('/view', [AttendanceController::class, 'view'])->name('attendances.view');
+                Route::post('/update', [AttendanceController::class, 'update'])->name('attendances.update');
+                Route::post('/delete', [AttendanceController::class, 'destroy'])->name('attendances.delete');
+                Route::post('/{slug}/settings', [AttendanceController::class, 'updateSettings'])->name('attendances.settings');
+                Route::post('/{slug}/locations/{locationId}/coords', [AttendanceController::class, 'updateLocationCoords'])->name('attendances.location.coords');
+                Route::post('/employees/{employeeId}/mac', [AttendanceController::class, 'updateEmployeeMac'])->name('attendances.employee.mac');
+                Route::get('/geocode', [AttendanceController::class, 'geocode'])->name('attendances.geocode');
+            });
+
+            // Enhanced Overtime Routes (replace existing overtime routes)
+            Route::prefix('overtime')->group(function () {
+                Route::post('/fetch', [OvertimeController::class, 'fetch'])->name('overtime.fetch');
+                Route::post('/store', [OvertimeController::class, 'store'])->name('overtime.store');
+                Route::post('/edit', [OvertimeController::class, 'edit'])->name('overtime.edit');
+                Route::post('/update', [OvertimeController::class, 'update'])->name('overtime.update');
+                Route::post('/destroy', [OvertimeController::class, 'destroy'])->name('overtime.destroy');
+                Route::post('/approve', [OvertimeController::class, 'approve'])->name('overtime.approve');
+                Route::post('/reject', [OvertimeController::class, 'reject'])->name('overtime.reject');
+                Route::post('/bulk-approve', [OvertimeController::class, 'bulkApprove'])->name('overtime.bulk-approve');
+                Route::post('/summary', [OvertimeController::class, 'getSummary'])->name('overtime.summary');
+            });
+
 
             Route::get('clock-in-out', [DashboardController::class, 'clockInOut'])->name('clock-in-out.index');
 

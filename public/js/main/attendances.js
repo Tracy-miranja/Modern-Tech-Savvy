@@ -6,7 +6,7 @@ import AttendancesService from "/js/client/AttendancesService.js";
 const requestClient = new RequestClient();
 const attendancesService = new AttendancesService(requestClient);
 
-// ---- Helpers: feature flags from meta ----
+
 function flag(name, def = 0) {
     const el = document.querySelector(`meta[name="${name}"]`);
     return el ? parseInt(el.content || "0", 10) : def;
@@ -14,7 +14,7 @@ function flag(name, def = 0) {
 const ENFORCE_GEOFENCE = flag("enforce_geofence", 0) === 1;
 const ENFORCE_MAC      = flag("enforce_mac", 0) === 1;
 
-// Show MAC input fields if company policy enforces MAC
+
 function showMacInputsIfNeeded() {
     if (!ENFORCE_MAC) return;
     const w1 = document.getElementById("clockin_mac_wrapper");
@@ -46,14 +46,14 @@ async function getPositionOnce() {
     });
 }
 
-// Attach MAC/coords to either FormData (clock-in flow) OR plain object (clock-out flow)
+
 async function attachPunchMeta(payload, { isFormData = true, isClockIn = true } = {}) {
     const setField = (k, v) => {
         if (isFormData) payload.set(k, v);
         else payload[k] = v;
     };
 
-    // MAC
+
     if (ENFORCE_MAC) {
         const inputId = isClockIn ? "clockin_device_mac_input" : "clockout_device_mac_input";
         const typed = document.getElementById(inputId)?.value || "";
@@ -62,20 +62,20 @@ async function attachPunchMeta(payload, { isFormData = true, isClockIn = true } 
         localStorage.setItem("device_mac", mac);
         setField("device_mac", mac);
     } else {
-        // If user typed a MAC anyway, include it
+
         const inputId = isClockIn ? "clockin_device_mac_input" : "clockout_device_mac_input";
         const typed = document.getElementById(inputId)?.value || "";
         if (typed) setField("device_mac", normMac(typed));
     }
 
-    // Coordinates
+
     if (ENFORCE_GEOFENCE) {
         try {
             const { lat, lng } = await getPositionOnce();
             setField("latitude", lat);
             setField("longitude", lng);
 
-            // Mirror to hidden debug fields if present
+
             const latEl = document.getElementById(isClockIn ? "clockin_latitude"  : "clockout_latitude");
             const lngEl = document.getElementById(isClockIn ? "clockin_longitude" : "clockout_longitude");
             if (latEl) latEl.value = lat;
@@ -84,7 +84,7 @@ async function attachPunchMeta(payload, { isFormData = true, isClockIn = true } 
             throw new Error("Location permission is required by your company policy.");
         }
     } else {
-        // Best-effort optional coords (won’t block)
+
         try {
             const { lat, lng } = await getPositionOnce();
             setField("latitude", lat);
@@ -95,7 +95,6 @@ async function attachPunchMeta(payload, { isFormData = true, isClockIn = true } 
     return payload;
 }
 
-// ---- RESTORED list-loading functions ----
 window.getAttendances = async function (date = null) {
     try {
         const data = { date: date };
@@ -148,7 +147,7 @@ window.getClockins = async function () {
     }
 };
 
-// ---- Punch actions ----
+
 window.clockIn = async function (btn) {
     const $btn = $(btn);
     btn_loader($btn, true);
@@ -181,11 +180,10 @@ window.clockOut = async function (btn) {
     const $btn = $(btn);
     btn_loader($btn, true);
 
-    // Keep original service signature (plain object), but attach MAC/coords
+
     let payload = {};
 
     if ($("#clockOutForm").length) {
-        // Admin page flow
         const form = document.getElementById("clockOutForm");
         const selectedEmployee = form.querySelector('#employee_id')?.value || '';
         if (!selectedEmployee) {
@@ -195,7 +193,6 @@ window.clockOut = async function (btn) {
         payload.employee = selectedEmployee;
         payload.remarks  = form.querySelector('#remarks')?.value || '';
     } else {
-        // Self-punch button on employee page
         payload.employee = $btn.data('employee');
     }
 
@@ -211,3 +208,124 @@ window.clockOut = async function (btn) {
         btn_loader($btn, false);
     }
 };
+
+function showModal(id) {
+  const modalEl = document.getElementById(id);
+  if (!modalEl) {
+    Swal.fire("Error!", `Modal #${id} is missing on page.`, "error");
+    return null;
+  }
+
+  // Bootstrap 5 modal
+  if (window.bootstrap?.Modal) {
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+    return modal;
+  }
+
+  // Bootstrap 4 / jQuery modal fallback
+  if (window.$ && typeof $(modalEl).modal === "function") {
+    $(modalEl).modal("show");
+    return true;
+  }
+
+  Swal.fire("Error!", "Bootstrap modal JS is not loaded.", "error");
+  return null;
+}
+
+function hideModal(id) {
+  const modalEl = document.getElementById(id);
+  if (!modalEl) return;
+
+  if (window.bootstrap?.Modal) {
+    bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+    return;
+  }
+
+  if (window.$ && typeof $(modalEl).modal === "function") {
+    $(modalEl).modal("hide");
+  }
+}
+
+window.viewAttendanceDetails = async function (btn) {
+  const id = $(btn).data("attendance");
+
+  $("#viewAttendanceContainer").html('<div class="text-center p-4">Loading...</div>');
+  showModal("viewAttendanceModal");
+
+  try {
+    const html = await attendancesService.view({ attendance: id });
+    $("#viewAttendanceContainer").html(html);
+  } catch (e) {
+    console.error(e);
+    $("#viewAttendanceContainer").html('<div class="alert alert-danger">Failed to load details.</div>');
+  }
+};
+
+window.editAttendance = async function (btn) {
+  const id = $(btn).data("attendance");
+
+  $("#editAttendanceContainer").html('<div class="text-center p-4">Loading...</div>');
+  showModal("editAttendanceModal");
+
+  try {
+    const html = await attendancesService.edit({ attendance: id });
+    $("#editAttendanceContainer").html(html);
+  } catch (e) {
+    console.error(e);
+    $("#editAttendanceContainer").html('<div class="alert alert-danger">Failed to load edit form.</div>');
+  }
+};
+
+window.submitAttendanceUpdate = async function (btn) {
+  const $btn = $(btn);
+  btn_loader($btn, true);
+
+  try {
+    const form = document.getElementById("attendanceEditForm");
+    const fd = new FormData(form);
+
+    // Checkbox fix: if unchecked it won't exist, keep it explicit for backend
+    if (!form.querySelector('input[name="is_absent"]').checked) {
+      fd.set("is_absent", "0");
+    }
+
+    await attendancesService.update(fd);
+    hideModal("editAttendanceModal");
+
+    // refresh current selected date
+    const date = $("#date").val();
+    await window.getAttendances(date);
+  } catch (e) {
+    console.error(e);
+    Swal.fire("Error", e.response?.data?.message || e.message || "Update failed", "error");
+  } finally {
+    btn_loader($btn, false);
+  }
+};
+
+window.deleteAttendance = function (btn) {
+  const id = $(btn).data("attendance");
+
+  Swal.fire({
+    title: "Delete attendance?",
+    text: "This will also delete any overtime generated from it.",
+    icon: "warning",
+    showCancelButton: true,
+    confirmButtonText: "Yes, delete",
+    cancelButtonText: "Cancel",
+  }).then(async (r) => {
+    if (!r.isConfirmed) return;
+
+    try {
+      await attendancesService.delete({ attendance: id });
+      const date = $("#date").val();
+      await window.getAttendances(date);
+    } catch (e) {
+      console.error(e);
+      Swal.fire("Error", e.response?.data?.message || e.message || "Delete failed", "error");
+    }
+  });
+};
+
+

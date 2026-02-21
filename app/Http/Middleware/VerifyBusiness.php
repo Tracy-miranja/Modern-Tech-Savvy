@@ -11,40 +11,33 @@ use Symfony\Component\HttpFoundation\Response;
 class VerifyBusiness
 {
     public function handle(Request $request, Closure $next): Response
-{
-    $routeBusiness = $request->route('business');
+    {
+        $param = $request->route('business'); // may be string slug or Business model
+        $slug  = is_object($param) ? ($param->slug ?? null) : $param;
 
-    // Handle route-model binding OR session slug
-    if ($routeBusiness instanceof Business) {
-        $business = $routeBusiness;
-    } else {
-        $slug = $routeBusiness ?? session('active_business_slug');
+        if (!$slug) {
+            $slug = session('active_business_slug');
+        }
+
+        Log::info('VerifyBusiness middleware: Checking business', ['slug' => $slug]);
+
         $business = Business::where('slug', $slug)->first();
+
+        if (!$business) {
+            Log::error('Business not found for slug', ['slug' => $slug]);
+            return redirect()->route('dashboard')->with('error', 'Business not found.');
+        }
+
+        if (!$business->verified && $business->company_name !== 'amsol') {
+            Log::warning('Business not verified', ['slug' => $business->slug]);
+            return redirect()->route('business.activate', $business->slug)
+                ->with('message', 'Your business is not verified. Please contact Amsol support.');
+        }
+
+        session(['active_business_slug' => $business->slug]);
+        Log::info('Business verified', ['slug' => $business->slug]);
+
+        return $next($request);
     }
-
-    Log::info('VerifyBusiness middleware: Checking business', [
-        'slug' => $business?->slug
-    ]);
-
-    if (!$business) {
-        Log::error('Business not found');
-        return redirect()->route('dashboard')
-            ->with('error', 'Business not found.');
-    }
-
-    if (!$business->verified && $business->company_name !== 'krest') {
-        Log::warning('Business not verified', ['slug' => $business->slug]);
-        return redirect()
-            ->route('business.activate', $business->slug)
-            ->with('message', 'Your business is not verified.');
-    }
-
-    // Always sync session
-    session(['active_business_slug' => $business->slug]);
-
-    Log::info('Business verified', ['slug' => $business->slug]);
-
-    return $next($request);
-}
 
 }
