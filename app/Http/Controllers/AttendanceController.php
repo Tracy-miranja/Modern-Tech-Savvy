@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use Carbon\Carbon;
 use App\Models\Business;
+use App\Models\Holiday;
 use App\Models\Overtime;
 use App\Models\Attendance;
+use App\Models\WorkSchedule;
 use Illuminate\Http\Request;
 use App\Http\RequestResponse;
 use App\Traits\HandleTransactions;
@@ -34,7 +36,7 @@ class AttendanceController extends Controller
 
         $attendances = Attendance::where('business_id', $business->id)
             ->whereDate('date', $date)
-            ->with('employee')
+            ->with('employee.user', 'shift')
             ->orderBy('date', 'desc')
             ->get();
 
@@ -60,7 +62,7 @@ class AttendanceController extends Controller
 
         $attendances = Attendance::where('business_id', $business->id)
             ->whereBetween('date', [$startDate, $endDate])
-            ->with('employee')
+            ->with('employee.user')
             ->get();
 
         $attendanceData = [];
@@ -84,7 +86,7 @@ class AttendanceController extends Controller
         return $this->handleTransaction(function () use ($request) {
             $user     = auth()->user();
             $business = Business::findBySlug(session('active_business_slug'));
-            $today    = now('Africa/Nairobi')->toDateString();
+            $today    = now('Africa/Nairobi');
 
             // Determine employee_id based on active role
             $employee_id = null;
@@ -117,22 +119,21 @@ class AttendanceController extends Controller
             $existing = Attendance::where([
                 'employee_id' => $employee_id,
                 'business_id' => $business->id,
-                'date'        => $today,
+                'date'        => $today->toDateString(),
             ])->first();
 
             if ($existing) {
                 if (!is_null($existing->clock_out)) {
-                    return RequestResponse::badRequest('You have already completed today’s attendance.');
+                    return RequestResponse::badRequest('You have already completed today\'s attendance.');
                 }
                 return RequestResponse::badRequest('You are already clocked in.');
             }
 
-            // -------- NEW: capture punch meta (coords + MAC) --------
-            $device_mac = $request->input('device_mac');      // nullable
-            $punch_lat  = $request->input('latitude');        // nullable
-            $punch_lng  = $request->input('longitude');       // nullable
+            // Capture punch meta (coords + MAC)
+            $device_mac = $request->input('device_mac');
+            $punch_lat  = $request->input('latitude');
+            $punch_lng  = $request->input('longitude');
 
-            // Validation rules depend on flags (only when selfPunch)
             if ($selfPunch && $business->enforce_geofence) {
                 $request->validate([
                     'latitude'  => 'required|numeric|between:-90,90',
@@ -159,50 +160,73 @@ class AttendanceController extends Controller
                     'device_mac.required' => 'A registered device is required to clock in.',
                 ]);
 
-                $employee = $user->employee; // already checked
+                $employee = $user->employee;
                 $registered = $employee->registered_device_mac;
                 if (!$registered) {
                     return RequestResponse::badRequest('No registered device found. Contact HR to register your device.');
                 }
-                // Normalize compare (case-insensitive, strip separators)
                 $norm = fn($m) => strtolower(preg_replace('/[^a-f0-9]/i', '', (string)$m));
                 if ($norm($device_mac) !== $norm($registered)) {
                     return RequestResponse::badRequest('This device is not authorized for clock-ins.');
                 }
             }
-            // -------- END NEW --------
 
-            Attendance::create([
+            // Determine if this is a working day
+            $schedule = WorkSchedule::getActiveSchedule($employee_id, $today, $business->id);
+            $isWorkingDay = $schedule ? $schedule->isWorkingDay($today) : true;
+ 
+            // Check if it's a holiday
+            $holiday = Holiday::isHoliday($business->id, $today);
+            $isHoliday = $holiday !== null;
+
+            // If it's a holiday marked as working day, treat as working day
+            if ($isHoliday && $holiday->is_working_day) {
+                $isWorkingDay = true;
+            }
+
+            // Create attendance record
+            $attendance = Attendance::create([
                 'employee_id'     => $employee_id,
                 'business_id'     => $business->id,
-                'date'            => $today,
-                'clock_in'        => now('Africa/Nairobi')->format('H:i:s'),
+                'work_schedule_id' => $schedule ? $schedule->id : null,
+                'shift_id' => $schedule?->shift_id,
+                'date'            => $today->toDateString(),
+                'clock_in'        => $today->format('H:i:s'),
                 'is_absent'       => $request->input('is_absent', false),
+                'is_working_day'  => $isWorkingDay,
+                'is_holiday'      => $isHoliday,
                 'remarks'         => $request->input('remarks'),
                 'logged_by'       => $user->id,
-                // NEW audit fields
                 'device_mac'      => $device_mac,
                 'punch_latitude'  => $punch_lat ? (float)$punch_lat : null,
                 'punch_longitude' => $punch_lng ? (float)$punch_lng : null,
             ]);
 
-            return RequestResponse::created('Clock-in successful.');
+            // Set expected times from schedule
+            if ($schedule && $schedule->shift) {
+                $expectedIn  = $today->copy()->setTimeFromTimeString($schedule->shift->start_time);
+                $expectedOut = $today->copy()->setTimeFromTimeString($schedule->shift->end_time);
+
+                // if shift crosses midnight
+                if ($expectedOut->lte($expectedIn)) {
+                    $expectedOut->addDay();
+                }
+
+                $attendance->expected_clock_in  = $expectedIn;
+                $attendance->expected_clock_out = $expectedOut;
+                $attendance->save();
+            }
+
+            $message = 'Clock-in successful.';
+            if (!$isWorkingDay) {
+                $message .= ' Note: This is a non-working day. All hours will be counted as overtime.';
+            }
+            if ($isHoliday) {
+                $message .= ' Note: This is a holiday (' . $holiday->name . ').';
+            }
+
+            return RequestResponse::created($message);
         });
-    }
-
-    public function clockIns(Request $request)
-    {
-        $business = Business::findBySlug(session('active_business_slug'));
-        $date = now('Africa/Nairobi')->format('Y-m-d');
-
-        $query = Attendance::where('business_id', $business->id)
-            ->whereDate('date', $date)
-            ->with(['employee', 'employee.user']);
-
-        $clockins = $query->orderBy('created_at', 'desc')->get();
-        $clockinsCards = view('attendances._clock_ins', compact('clockins'))->render();
-
-        return RequestResponse::ok('Ok.', $clockinsCards ?: '<p>No clock-ins found for today.</p>');
     }
 
     public function clockOut(Request $request)
@@ -210,7 +234,7 @@ class AttendanceController extends Controller
         return $this->handleTransaction(function () use ($request) {
             $user     = auth()->user();
             $business = Business::findBySlug(session('active_business_slug'));
-            $today    = now('Africa/Nairobi')->toDateString();
+            $today    = now('Africa/Nairobi');
 
             // Determine employee_id
             $active_role = session('active_role');
@@ -237,7 +261,7 @@ class AttendanceController extends Controller
             $attendance = Attendance::where([
                 'employee_id' => $employee_id,
                 'business_id' => $business->id,
-                'date'        => $today,
+                'date'        => $today->toDateString(),
             ])->first();
 
             if (!$attendance || !$attendance->clock_in) {
@@ -247,7 +271,7 @@ class AttendanceController extends Controller
                 return RequestResponse::badRequest('You have already clocked out today.');
             }
 
-            // NEW: capture meta (coords + MAC)
+            // Capture meta (coords + MAC)
             $device_mac = $request->input('device_mac');
             $punch_lat  = $request->input('latitude');
             $punch_lng  = $request->input('longitude');
@@ -278,33 +302,133 @@ class AttendanceController extends Controller
                 }
             }
 
+            // Update attendance
             $attendance->update([
-                'clock_out'       => now('Africa/Nairobi')->format('H:i:s'),
-                'overtime_hours'  => max(0, Carbon::parse($attendance->clock_in, 'Africa/Nairobi')->diffInHours(now('Africa/Nairobi')) - 8),
+                'clock_out'       => $today->format('H:i:s'),
                 'remarks'         => $request->input('remarks', $attendance->remarks),
-                // record last punch meta
                 'device_mac'      => $device_mac ?: $attendance->device_mac,
                 'punch_latitude'  => $punch_lat ? (float)$punch_lat : $attendance->punch_latitude,
                 'punch_longitude' => $punch_lng ? (float)$punch_lng : $attendance->punch_longitude,
             ]);
 
+            // Calculate all time metrics
+            $attendance->calculateTimeMetrics();
+            $attendance->save();
+
+            // Create overtime records if eligible
+            $attendance->load(['employee', 'business']);
+            $attendance->createOvertimeRecords();
+
+
             return RequestResponse::created('Clock-out recorded successfully.');
         });
     }
 
-
-    private function getOvertimeRate($business)
+    public function clockIns(Request $request)
     {
-        return $business->overtime_rate ?? 1.5;
+        $business = Business::findBySlug(session('active_business_slug'));
+        $date = now('Africa/Nairobi')->format('Y-m-d');
+
+        $query = Attendance::where('business_id', $business->id)
+            ->whereDate('date', $date)
+            ->with(['employee', 'employee.user']);
+
+        $clockins = $query->orderBy('created_at', 'desc')->get();
+        $clockinsCards = view('attendances._clock_ins', compact('clockins'))->render();
+
+        return RequestResponse::ok('Ok.', $clockinsCards ?: '<p>No clock-ins found for today.</p>');
     }
 
-        // Default radius if not provided
+    public function update(Request $request)
+    {
+        $validated = $request->validate([
+            'attendance_id' => 'required|exists:attendances,id',
+            'clock_in' => 'nullable',
+            'clock_out' => 'nullable',
+            'is_absent' => 'sometimes|boolean',
+            'remarks' => 'nullable|string|max:255',
+        ]);
+
+        return $this->handleTransaction(function () use ($validated) {
+            $attendance = Attendance::with(['employee','business'])->findOrFail($validated['attendance_id']);
+
+            $attendance->clock_in  = $validated['clock_in'] ?: $attendance->clock_in;
+            $attendance->clock_out = $validated['clock_out'] ?: $attendance->clock_out;
+            $attendance->is_absent = $validated['is_absent'] ?? $attendance->is_absent;
+            $attendance->remarks   = $validated['remarks'] ?? $attendance->remarks;
+
+            $attendance->calculateTimeMetrics();
+            $attendance->save();
+
+            $attendance->createOvertimeRecords();
+
+            return RequestResponse::ok('Attendance updated successfully.');
+        });
+    }
+
+    public function edit(Request $request)
+    {
+        $validated = $request->validate([
+            'attendance' => 'required|exists:attendances,id',
+        ]);
+
+        $attendance = Attendance::with(['employee.user', 'shift'])->findOrFail($validated['attendance']);
+
+        $html = view('attendances._attendance_edit_form', compact('attendance'))->render();
+        return RequestResponse::ok('Ok.', $html);
+    }
+
+    public function view(Request $request)
+    {
+        $validated = $request->validate([
+            'attendance' => 'required|exists:attendances,id',
+        ]);
+
+        $attendance = Attendance::with(['employee.user', 'shift'])->findOrFail($validated['attendance']);
+
+        $html = view('attendances._view_details', compact('attendance'))->render();
+        return RequestResponse::ok('Ok.', $html);
+    }
+
+    public function destroy(Request $request)
+    {
+        $validated = $request->validate([
+            'attendance' => 'required|exists:attendances,id',
+        ]);
+
+        return $this->handleTransaction(function () use ($validated) {
+            $attendance = Attendance::findOrFail($validated['attendance']);
+            Overtime::where('attendance_id', $attendance->id)->delete(); // remove linked OT
+            $attendance->delete();
+            return RequestResponse::ok('Attendance deleted successfully.');
+        });
+    }
+
+    /**
+     * Get attendance summary for an employee
+     */
+    public function getEmployeeSummary(Request $request)
+    {
+        $validated = $request->validate([
+            'employee_id' => 'required|exists:employees,id',
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after_or_equal:start_date',
+        ]);
+
+        $start = Carbon::parse($validated['start_date']);
+        $end = Carbon::parse($validated['end_date']);
+
+        $summary = Attendance::getEmployeeSummary($validated['employee_id'], $start, $end);
+
+        return RequestResponse::ok('Summary calculated', $summary);
+    }
+
+    // Geofence helper methods (keep existing ones)
     private const DEFAULT_RADIUS_M = 150;
 
-    /** Haversine distance in meters */
     private function distanceMeters(float $lat1, float $lng1, float $lat2, float $lng2): float
     {
-        $earth = 6371000; // meters
+        $earth = 6371000;
         $dLat = deg2rad($lat2 - $lat1);
         $dLng = deg2rad($lng2 - $lng1);
         $a = sin($dLat/2) * sin($dLat/2)
@@ -314,12 +438,10 @@ class AttendanceController extends Controller
         return $earth * $c;
     }
 
-    /** Collect all allowed geofences for this business */
     private function getAllowedGeofences(Business $business): array
     {
         $fences = [];
 
-        // 1) From locations table
         if (method_exists($business, 'locations')) {
             foreach ($business->locations()->whereNotNull('latitude')->whereNotNull('longitude')->get(['latitude','longitude','radius_m']) as $loc) {
                 $fences[] = [
@@ -330,7 +452,6 @@ class AttendanceController extends Controller
             }
         }
 
-        // 2) From business.extra_geofences JSON
         $extra = $business->extra_geofences;
         if (is_string($extra)) {
             $extra = json_decode($extra, true);
@@ -350,7 +471,6 @@ class AttendanceController extends Controller
         return $fences;
     }
 
-    /** True if the given point is inside ANY allowed fence */
     private function isWithinAnyFence(float $lat, float $lng, array $fences): bool
     {
         foreach ($fences as $f) {
@@ -360,10 +480,9 @@ class AttendanceController extends Controller
             }
         }
         return false;
-    
     }
 
-    // Save business attendance settings (toggles + extra geofences)
+    // Keep existing settings methods
     public function updateSettings(Request $request, $slug)
     {
         return $this->handleTransaction(function () use ($request, $slug) {
@@ -375,7 +494,6 @@ class AttendanceController extends Controller
 
             $extra = $request->input('extra_geofences');
             if ($extra && !is_array($extra)) {
-                // Allow JSON string
                 try {
                     $decoded = json_decode($extra, true, flags: JSON_THROW_ON_ERROR);
                     $extra = $decoded;
@@ -389,16 +507,13 @@ class AttendanceController extends Controller
             $business->extra_geofences  = $extra ?: null;
             $business->save();
 
-            // AttendanceController@updateSettings
-                return response()->json([
-                    'status'  => 'success',
-                    'message' => 'Attendance settings saved.'
-                ], 200);
-
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Attendance settings saved.'
+            ], 200);
         });
     }
 
-    // Save a single location’s coordinates
     public function updateLocationCoords(Request $request, $slug, $locationId)
     {
         return $this->handleTransaction(function () use ($request, $slug, $locationId) {
@@ -421,7 +536,6 @@ class AttendanceController extends Controller
         });
     }
 
-    // Save employee registered MAC
     public function updateEmployeeMac(Request $request, $employeeId)
     {
         return $this->handleTransaction(function () use ($request, $employeeId) {
@@ -436,8 +550,6 @@ class AttendanceController extends Controller
         });
     }
 
-
-    // ADD THIS: Geocode proxy for search boxes (Nominatim/OSM)
     public function geocode(Request $request)
     {
         $q = trim((string)$request->get('q', ''));
@@ -448,7 +560,7 @@ class AttendanceController extends Controller
             'format' => 'json',
             'addressdetails' => 1,
             'limit' => (int)$request->get('limit', 8),
-            'countrycodes' => $request->get('countrycodes',''), // e.g. "ke"
+            'countrycodes' => $request->get('countrycodes',''),
         ];
         $url = 'https://nominatim.openstreetmap.org/search?' . http_build_query($params);
         $ch = curl_init($url);
@@ -472,6 +584,4 @@ class AttendanceController extends Controller
 
         return response()->json($pruned);
     }
-
-
 }

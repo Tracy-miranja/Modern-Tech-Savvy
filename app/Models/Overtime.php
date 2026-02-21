@@ -12,15 +12,20 @@ class Overtime extends Model
     use HasFactory, HasStatuses, LogsActivity;
 
     protected $fillable = [
+        'attendance_id',
         'employee_id',
         'business_id',
         'location_id',
         'date',
         'overtime_hours',
+        'overtime_type',
         'rate',
         'total_pay',
         'description',
+        'status',
         'approved_by',
+        'approved_at',
+        'rejection_reason',
     ];
 
     protected $casts = [
@@ -28,7 +33,9 @@ class Overtime extends Model
         'overtime_hours' => 'decimal:2',
         'rate' => 'decimal:2',
         'total_pay' => 'decimal:2',
+        'approved_at' => 'datetime',
     ];
+
     public function employee()
     {
         return $this->belongsTo(Employee::class);

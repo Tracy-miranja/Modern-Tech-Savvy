@@ -3,6 +3,11 @@ class AttendancesService {
         this.requestClient = requestClient;
     }
 
+      base() {
+    // your routes use {business} parameter; you pass slug in the UI
+    return `/business/${window.businessSlug}/attendances`;
+  }
+
     async fetch(data) {
         try {
             const response = await this.requestClient.post('/attendances/fetch', data);
@@ -46,7 +51,7 @@ class AttendancesService {
 
     async edit(data) {
         try {
-            const response = await this.requestClient.post('/attendances/edit', data);
+            const response = await this.requestClient.post(`${this.base()}/edit`, data);
             return response.data;
         } catch (error) {
             console.log(error)
@@ -86,6 +91,12 @@ class AttendancesService {
         }
     }
 
+    async view(data) {
+    const response = await this.requestClient.post(`${this.base()}/view`, data);
+    return response.data;
+    }
+
+
     handleRedirect(route) {
         if (route) {
             setTimeout(() => {
@@ -94,5 +105,6 @@ class AttendancesService {
         }
     }
 }
+
 
 export default AttendancesService;

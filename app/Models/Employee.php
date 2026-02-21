@@ -41,7 +41,10 @@ class Employee extends Model implements HasMedia
         'is_exempt_from_payroll',
         'resident_status',
         'kra_employee_status',
-        'status'
+        'status',
+        'is_overtime_eligible',
+        'overtime_rate_regular',
+        'overtime_rate_holiday',
     ];
 
     protected $casts = [
@@ -51,6 +54,9 @@ class Employee extends Model implements HasMedia
         'is_exempt_from_payroll' => 'boolean',
         'kra_employee_status' => 'string',
         'status' => Status::class,
+        'is_overtime_eligible' => 'boolean',
+        'overtime_rate_regular' => 'decimal:2',
+        'overtime_rate_holiday' => 'decimal:2',
     ];
 
     // Relationships
@@ -110,7 +116,7 @@ class Employee extends Model implements HasMedia
     {
         return $this->hasOne(EmployeeContactDetail::class);
     }
-        
+        //added
     public function departments()
     {
         return $this->belongsToMany(Department::class, 'employee_departments');
@@ -237,23 +243,6 @@ public function assignedDepartmentIds(): array
         return [];
     }
 }
-
-    public function getEmploymentDateAttribute($value)
-    {
-        return $value ?? $this->employmentDetail->employment_date ?? null;
-    }
-    public function getDepartmentIdAttribute($value)
-    {
-        return $value ?? $this->employmentDetail->department_id ?? null;
-    }
-    public function getJobCategoryIdAttribute($value)
-    {
-        return $value ?? $this->employmentDetail->job_category_id ?? null;
-    }
-   public function employmentDetail()
-    {
-        return $this->hasOne(\App\Models\EmploymentDetail::class);
-    }
 
 
 }
