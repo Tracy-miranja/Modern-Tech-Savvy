@@ -62,18 +62,205 @@
         body {
             visibility: hidden;
         }
-    </style>
 
-    <div class="preloader" id="preloader">
-        <div class="loading">
-            <span></span>
-            <span></span>
-            <span></span>
-            <span></span>
-            <span></span>
-        </div>
+        .preloader {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+    height: 100% !important;
+        background: linear-gradient(135deg, #0f1729 0%, #1a2847 50%, #0d1525 100%);
+        z-index: 999999 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        opacity: 1;
+        transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.8s ease;
+        pointer-events: auto;
+        overflow: hidden;
+    }
+
+    .preloader::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background:
+            radial-gradient(circle at 20% 50%, rgba(243, 159, 4, 0.08) 0%, transparent 50%),
+            radial-gradient(circle at 80% 80%, rgba(243, 159, 4, 0.06) 0%, transparent 50%);
+        pointer-events: none;
+        animation: ambientShift 8s ease-in-out infinite;
+    }
+
+    @keyframes ambientShift {
+        0%, 100% { opacity: 0.8; }
+        50% { opacity: 1; }
+    }
+
+    .preloader.hidden {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+    }
+
+    .loader-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        position: relative;
+        z-index: 1;
+    }
+
+    .modern-spinner {
+        width: 80px;
+        height: 80px;
+        position: relative;
+        margin-bottom: 2.5rem;
+    }
+
+
+
+    .modern-spinner::before,
+    .modern-spinner::after {
+        content: '';
+        position: absolute;
+        border-radius: 50%;
+        border: 2px solid transparent;
+        inset: 0;
+    }
+
+    .modern-spinner::before {
+         border-top-color: #f39f04;
+    border-right-color: #f39f04;
+    animation: spinOuter 1.2s linear infinite;
+        box-shadow:
+            0 0 20px rgba(243, 159, 4, 0.4),
+            inset 0 0 20px rgba(243, 159, 4, 0.1);
+    }
+
+    .modern-spinner::after {
+        border-bottom-color: rgba(243, 159, 4, 0.25);
+    border-left-color: rgba(243, 159, 4, 0.25);
+    animation: spinInner 1.2s linear infinite reverse;
+        inset: 8px;
+    }
+
+    @keyframes spinOuter {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+
+    @keyframes spinInner {
+        from { transform: rotate(360deg); }
+        to { transform: rotate(0deg); }
+    }
+
+    .loader-text {
+        color: #f39f04;
+        font-size: 0.85rem;
+        font-weight: 600;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        margin-top: 2.5rem;
+        animation: fadeInOutText 2.5s ease-in-out infinite;
+    }
+
+    @keyframes fadeInOutText {
+        0%, 100% { opacity: 0.5; }
+        50% { opacity: 1; }
+    }
+
+    .loader-accent {
+        position: absolute;
+        background: radial-gradient(circle, #f39f04 0%, rgba(243, 159, 4, 0.4) 100%);
+        border-radius: 50%;
+        opacity: 0.4;
+    }
+
+    .loader-accent-1 {
+        width: 8px;
+        height: 8px;
+        top: 15%;
+        left: 10%;
+        animation: floatAccent1 6s ease-in-out infinite;
+    }
+
+    .loader-accent-2 {
+        width: 6px;
+        height: 6px;
+        top: 20%;
+        right: 15%;
+        animation: floatAccent2 7s ease-in-out infinite;
+    }
+
+    .loader-accent-3 {
+        width: 6px;
+        height: 6px;
+        bottom: 20%;
+        left: 12%;
+        animation: floatAccent3 8s ease-in-out infinite;
+    }
+
+    .loader-accent-4 {
+        width: 8px;
+        height: 8px;
+        bottom: 15%;
+        right: 10%;
+        animation: floatAccent4 6.5s ease-in-out infinite;
+    }
+
+    @keyframes floatAccent1 {
+        0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.3; }
+        50% { transform: translate(-10px, -15px) scale(1.3); opacity: 0.7; }
+    }
+
+    @keyframes floatAccent2 {
+        0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.3; }
+        50% { transform: translate(12px, -12px) scale(1.3); opacity: 0.6; }
+    }
+
+    @keyframes floatAccent3 {
+        0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.3; }
+        50% { transform: translate(10px, 15px) scale(1.3); opacity: 0.6; }
+    }
+
+    @keyframes floatAccent4 {
+        0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.3; }
+        50% { transform: translate(-12px, 12px) scale(1.3); opacity: 0.7; }
+    }
+</style>
+
+<script>
+    // Show preloader immediately on page load
+    document.body.style.visibility = 'visible';
+
+    // Hide preloader when page fully loads
+    window.addEventListener('load', function() {
+        const preloader = document.getElementById('preloader');
+        if (preloader) {
+            preloader.classList.add('hidden');
+            setTimeout(() => {
+                preloader.remove();
+            }, 800);
+        }
+    });
+</script>
+
+<!-- Modern Preloader -->
+<div class="preloader" id="preloader">
+    <div class="loader-accent loader-accent-1"></div>
+    <div class="loader-accent loader-accent-2"></div>
+    <div class="loader-accent loader-accent-3"></div>
+    <div class="loader-accent loader-accent-4"></div>
+    <div class="loader-container">
+        <div class="modern-spinner"></div>
+        <div class="loader-text">Loading</div>
     </div>
-
+</div>
     <div class="page__full-wrapper">
 
         @php
@@ -188,27 +375,6 @@
                     }
                 });
             });
-
-
-            // $(".switch-role").click(function() {
-            //     let selectedRole = $(this).data("role");
-
-            //     $.ajax({
-            //         url: $("#switchRoleForm").attr("action"),
-            //         method: "POST",
-            //         data: {
-            //             _token: $('meta[name="csrf-token"]').attr("content"),
-            //             role: selectedRole
-            //         },
-            //         success: function(response) {
-            //             window.location.href = response.redirect;
-            //         },
-            //         error: function(error) {
-            //             console.log(error);
-            //             alert("You do not have permission to switch to this role.");
-            //         }
-            //     });
-            // });
 
 
             // Initialize all dropdowns with global configuration

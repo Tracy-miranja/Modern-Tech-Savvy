@@ -23,15 +23,15 @@
   --clr-text-taxonomy: #A9ABB6;
   --clr-text-secondary: #525252;
   --clr-text-rating: #EC8D1D;
-  --clr-theme-primary: #6C5FFC;
+  --clr-theme-primary: #f5c115;
   --clr-theme-secondary: #1ABC9C;
   --clr-theme-tertiary: #ABA3FD;
   --clr-action-danger: #FF3A29;
-  --clr-action-info: #80CAFF;
+  --clr-action-info: #f5ac0f;
   --clr-action-link: #9747FF;
   --clr-action-success: #34B53A;
   --clr-action-warning: #FFB200;
-  --clr-bg-primary: #6C5FFC;
+  --clr-bg-primary: #f89616;
   --clr-bg-secondary: #1ABC9C;
   --clr-bg-body: #f0f4f9;
   --clr-bg-card: #FFFFFF;
@@ -49,8 +49,8 @@
   --clr-chart-1: #7A7A7A;
   --clr-chart-2: #262a2a;
   --clr-footer-1: #878787;
-  --clr-gradient-1: linear-gradient(90deg, #6C5FFC 0%, #003cff 100%);
-  --clr-gradient-2: linear-gradient(90deg, #FF6339 0%, #FF2259 100%);
+  --clr-gradient-1: linear-gradient(90deg, #f89310 0%, #e29507 100%);
+  --clr-gradient-2: linear-gradient(90deg, hsl(29, 88%, 52%) 0%, #FF2259 100%);
   /**
   @font weight declaration
   */
@@ -106,6 +106,37 @@ h6 {
   margin-top: 0px;
   line-height: 1;
   margin-bottom: 0;
+}
+
+/* spinner */
+.dots-loader {
+    position: relative;
+    width: 100px;
+    height: 100px;
+}
+
+.dots-loader span {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: #d89504;          /* indigo-500 */
+    border-radius: 50%;
+    animation: pulseDots 1.8s infinite ease-in-out;
+    box-shadow: 0 0 15px rgba(211, 145, 3, 0.6);
+}
+
+.dots-loader span:nth-child(1) { top: 0; left: 40%; animation-delay: 0s; }
+.dots-loader span:nth-child(2) { top: 15%; left: 75%; animation-delay: 0.15s; }
+.dots-loader span:nth-child(3) { top: 40%; left: 90%; animation-delay: 0.3s;  }
+.dots-loader span:nth-child(4) { top: 75%; left: 75%; animation-delay: 0.45s; }
+.dots-loader span:nth-child(5) { top: 90%; left: 40%; animation-delay: 0.6s;  }
+.dots-loader span:nth-child(6) { top: 75%; left: 5%;  animation-delay: 0.75s; }
+.dots-loader span:nth-child(7) { top: 40%; left: 0%;  animation-delay: 0.9s;  }
+.dots-loader span:nth-child(8) { top: 15%; left: 5%;  animation-delay: 1.05s; }
+
+@keyframes pulseDots {
+    0%, 100% { transform: scale(0.4); opacity: 0.3; }
+    50%      { transform: scale(1.2); opacity: 1; }
 }
 
 h1 {
@@ -2179,8 +2210,8 @@ input[type=file] {
 }
 @keyframes pulse {
   0% {
-    -moz-box-shadow: 0 0 0 0 rgb(85, 174, 251);
-    box-shadow: 0 0 0 0 rgb(85, 174, 251);
+    -moz-box-shadow: 0 0 0 0 rgb(247, 185, 17);
+    box-shadow: 0 0 0 0 rgb(241, 139, 5);
   }
   70% {
     -moz-box-shadow: 0 0 0 25px rgba(255, 255, 255, 0);

@@ -111,6 +111,14 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
 
             Route::get('/payroll', [DashboardController::class, 'payroll'])->name('payroll.index');
             Route::get('/payroll/all', [DashboardController::class, 'payrollAll'])->name('payroll.all');
+             // variance report
+Route::get('/payroll/variance', [PayrollController::class, 'variancePage'])
+    ->name('payroll.variance');
+Route::get('/payroll/variance/download', [PayrollController::class, 'downloadVarianceReport'])
+    ->name('payroll.variance.download');
+Route::get('/payroll/variance/data', [PayrollController::class, 'varianceData'])
+    ->name('payroll.variance.data');
+
             Route::get('/payroll/{id}', [DashboardController::class, 'viewPayroll'])->name('payroll.view');
             Route::get('/payroll/{id}/download/{format}', [DashboardController::class, 'downloadPayroll'])->name('payroll.reports');
             Route::get('/payroll/{id}/download-column/{column}/{format}', [DashboardController::class, 'downloadColumn'])->name('payroll.download_column');
@@ -124,7 +132,29 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
             Route::get('/payroll/p9/{employeeId}/{year}/{format}', [PayrollController::class, 'downloadSingleP9'])->name('payroll.download_single_p9');
 
             Route::post('/payroll/send-payslips', [PayrollController::class, 'sendPayslips'])->name('payroll.send_payslips');
+   Route::get('/payroll/{id}/master-roll',
+    [PayrollController::class, 'downloadMasterRoll'])
+    ->name('payroll.master-roll');
 
+
+            // Monthly Summary Downloads
+            Route::get('/download-nssf-summary', [PayrollController::class, 'downloadNssfMonthlySummary'])
+                ->name('download-nssf-summary');
+
+            Route::get('/download-shif-summary', [PayrollController::class, 'downloadShifMonthlySummary'])
+                ->name('download-shif-summary');
+
+            Route::get('/download-nhif-summary', [PayrollController::class, 'downloadNhifMonthlySummary'])
+                ->name('download-nhif-summary');
+
+                // ─── NSSF per-payroll format downloads ───────────────────────────────
+            // Handles: new_remittance | pre_2018 | old_format | schedule | grouped
+            Route::get('/payroll/nssf/download', [PayrollController::class, 'downloadNssf'])
+                ->name('payroll.nssf.download');
+
+            // ─── NSSF month-by-month summary (full year, xlsx + pdf) ─────────────
+            Route::get('/payroll/nssf/monthly-summary', [PayrollController::class, 'downloadNssfMonthlySummaryWithFormat'])
+                ->name('payroll.nssf.monthly_summary');
             Route::get('reliefs', [DashboardController::class, 'reliefs'])->name('reliefs.index');
             Route::get('employee-reliefs', [DashboardController::class, 'employeeReliefs'])->name('employee-reliefs.index');
 
@@ -386,3 +416,15 @@ require __DIR__ . '/requests.php';
 Route::get('/test-leave-types/{slug}/edit', function($slug) {
     return "Edit page for $slug";
 });
+
+Route::middleware(['ensure_role', 'role:business-admin|business-hr|business-finance'])
+    ->name('business.')
+    ->prefix('business/{business:slug}')
+    ->group(function () {
+
+
+        Route::get('/employees/{employee}/payment-details', [EmployeeController::class, 'editPaymentDetails'])
+            ->name('employees.payment-details.edit');
+        Route::post('/employees/{employee}/payment-details', [EmployeeController::class, 'storePaymentDetails'])
+            ->name('employees.payment-details.store');
+    });
