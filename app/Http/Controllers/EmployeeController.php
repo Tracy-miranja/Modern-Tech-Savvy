@@ -65,37 +65,173 @@ class EmployeeController extends Controller
         return view('employees.index', compact('employees', 'departments', 'locations', 'jobCategories', 'business', 'page'));
     }
 
-    public function fetch(Request $request)
+    /**
+ * Show edit form for employee payment details
+ */
+public function editPaymentDetails(Request $request, $businessSlug, $employeeId)
+{
+    try {
+        $business = Business::findBySlug($businessSlug);
+        if (!$business) {
+            return response()->json([
+                'message' => 'Business not found.',
+                'data' => null
+            ], 404);
+        }
+
+        $employee = Employee::with(['user', 'paymentDetails'])
+            ->where('business_id', $business->id)
+            ->findOrFail($employeeId);
+
+        $form = view('employees._payment_details_form', compact('employee', 'business'))->render();
+
+        return response()->json([
+            'message' => 'Payment details form loaded successfully.',
+            'data' => $form
+        ], 200);
+    } catch (\Exception $e) {
+        Log::error('Error loading payment details form: ' . $e->getMessage());
+        return response()->json([
+            'message' => 'Failed to load payment details form: ' . $e->getMessage(),
+            'data' => null
+        ], 500);
+    }
+}
+
+/**
+ * Store or update employee payment details (including hourly rate)
+ */
+public function storePaymentDetails(Request $request, $businessSlug, $employeeId)
+{
+    $validated = $request->validate([
+        'payment_type' => 'required|in:salary,hourly',
+        'basic_salary' => 'required_if:payment_type,salary|nullable|numeric|min:0',
+        'hourly_rate' => 'required_if:payment_type,hourly|nullable|numeric|min:0',
+        'currency' => 'required|string|size:3|in:KES,USD,UGX',
+        'payment_mode' => 'required|string|in:bank,cash,cheque,mpesa',
+        'account_name' => 'required|string|max:255',
+        'account_number' => 'required|string|max:50',
+        'bank_name' => 'required|string|max:255',
+        'bank_code' => 'nullable|string|max:50',
+        'bank_branch' => 'nullable|string|max:255',
+        'bank_branch_code' => 'nullable|string|max:50',
+    ]);
+
+    try {
+        DB::beginTransaction();
+
+        $business = Business::findBySlug($businessSlug);
+        if (!$business) {
+            return RequestResponse::badRequest('Business not found.');
+        }
+
+        $employee = Employee::where('business_id', $business->id)->findOrFail($employeeId);
+
+        // Prepare payment data
+        $paymentData = [
+            'payment_type' => $validated['payment_type'],
+            'currency' => $validated['currency'],
+            'payment_mode' => $validated['payment_mode'],
+            'account_name' => $validated['account_name'],
+            'account_number' => $validated['account_number'],
+            'bank_name' => $validated['bank_name'],
+            'bank_code' => $validated['bank_code'] ?? null,
+            'bank_branch' => $validated['bank_branch'] ?? null,
+            'bank_branch_code' => $validated['bank_branch_code'] ?? null,
+        ];
+
+        // Set salary or hourly rate based on payment type
+        if ($validated['payment_type'] === 'hourly') {
+            $paymentData['hourly_rate'] = $validated['hourly_rate'];
+            $paymentData['basic_salary'] = 0; // Set salary to 0 for hourly employees
+
+            Log::info('Storing hourly payment details', [
+                'employee_id' => $employeeId,
+                'hourly_rate' => $validated['hourly_rate']
+            ]);
+        } else {
+            $paymentData['basic_salary'] = $validated['basic_salary'];
+            $paymentData['hourly_rate'] = 0; // Set hourly rate to 0 for salaried employees
+
+            Log::info('Storing salary payment details', [
+                'employee_id' => $employeeId,
+                'basic_salary' => $validated['basic_salary']
+            ]);
+        }
+
+        // Check for duplicate account number (excluding current employee)
+        $duplicateAccount = EmployeePaymentDetail::where('account_number', $validated['account_number'])
+            ->where('employee_id', '!=', $employeeId)
+            ->first();
+
+        if ($duplicateAccount) {
+            return RequestResponse::badRequest('Account number already exists for another employee.');
+        }
+
+        // Update or create payment details
+        $employee->paymentDetails()->updateOrCreate(
+            ['employee_id' => $employee->id],
+            $paymentData
+        );
+
+        DB::commit();
+
+        $message = $validated['payment_type'] === 'hourly'
+            ? 'Hourly payment details updated successfully.'
+            : 'Salary payment details updated successfully.';
+
+        Log::info('Payment details updated successfully', [
+            'employee_id' => $employeeId,
+            'payment_type' => $validated['payment_type']
+        ]);
+
+        return RequestResponse::ok($message);
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        Log::error('Failed to update payment details', [
+            'employee_id' => $employeeId,
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+
+        return RequestResponse::badRequest('Failed to update payment details: ' . $e->getMessage());
+    }
+}
+
+public function fetch(Request $request)
 {
     $business = Business::findBySlug(session('active_business_slug'));
 
     $query = Employee::where('business_id', $business->id)
-        ->with(['user', 'department', 'location', 'paymentDetails', 'employmentDetails.jobCategory']);
+        ->with([
+            'user',
+            'department',
+            'location',
+            'employmentDetails.jobCategory',
+            'paymentDetails'  // already correct
+        ]);
 
-    // Search filter
+    // Your filters...
     if ($search = $request->input('search.value')) {
         $query->where(function ($q) use ($search) {
             $q->whereHas('user', fn($q) => $q->where('name', 'like', "%{$search}%"))
               ->orWhere('employee_code', 'like', "%{$search}%");
         });
     }
-
     if ($department = $request->input('department')) {
         $query->where('department_id', $department);
     }
-
     if ($location = $request->input('location')) {
         $query->where('location_id', $location);
     }
-
     if ($jobCategory = $request->input('job_category')) {
         $query->whereHas('employmentDetails', function ($q) use ($jobCategory) {
             $q->where('job_category_id', $jobCategory);
         });
     }
 
-    // DataTables pagination params
-    $start  = $request->input('start', 0);
+    $start = $request->input('start', 0);
     $length = $request->input('length', 10);
 
     $recordsTotal    = Employee::where('business_id', $business->id)->count();
@@ -104,21 +240,35 @@ class EmployeeController extends Controller
     $employees = $query->skip($start)->take($length)->get();
 
     $data = $employees->map(function ($employee) {
+        $payment = $employee->paymentDetails;
+        $currency = $payment?->currency ?? 'KES';
+
+        $hourly  = '—';
+        $monthly = '—';
+
+        if ($payment) {
+            if ($payment->payment_type === 'hourly') {
+                $hourly = number_format((float) ($payment->hourly_rate ?? 0), 2) . ' ' . $currency . '/hr';
+            } else {
+                $monthly = number_format((float) ($payment->basic_salary ?? 0), 2) . ' ' . $currency;
+            }
+        }
+
         return [
-            'id' => $employee->id,
-            'name' => $employee->user->name,
-            'employee_code' => $employee->employee_code,
-            'department' => $employee->department ? $employee->department->name : 'N/A',
-            'job_category' => optional($employee->employmentDetails)->jobCategory ? $employee->employmentDetails->jobCategory->name : 'N/A',
-            'location' => $employee->location ? $employee->location->name : $employee->business->company_name,
-            'basic_salary' => number_format((float) (optional($employee->paymentDetails)->basic_salary ?? 0), 2) . ' ' . (optional($employee->paymentDetails)->currency ?? 'N/A'),
-            'actions' => '<div class="btn-group">' .
-                '<button class="btn btn-sm btn-outline-primary" onclick="viewEmployee(' . $employee->id . ')"><i class="fa fa-eye"></i> View</button>' .
-                '<button class="btn btn-sm btn-outline-warning" onclick="editEmployee(' . $employee->id . ')"><i class="fa fa-edit"></i> Edit</button>' .
-                '<button class="btn btn-sm btn-outline-danger" onclick="deleteEmployee(' . $employee->id . ')"><i class="fa fa-trash"></i> Delete</button>' .
-                '</div>'
+            'name'           => $employee->user?->name ?? 'N/A',
+            'employee_code'  => $employee->employee_code ?? 'N/A',
+            'department'     => $employee->department?->name ?? 'N/A',
+            'job_category'   => optional($employee->employmentDetails?->jobCategory)->name ?? 'N/A',
+            'location'       => $employee->location?->name ?? ($employee->business?->company_name ?? 'Main'),
+            'monthly_salary' => $monthly,   // for Monthly Salary column
+            'hourly_rate'    => $hourly,    // for Hourly Rate column
+            'actions'        => '<div class="btn-group">'
+                             . '<button class="btn btn-sm btn-outline-primary" onclick="viewEmployee(' . $employee->id . ')"><i class="fa fa-eye"></i> View</button>'
+                             . '<button class="btn btn-sm btn-outline-warning" onclick="editEmployee(' . $employee->id . ')"><i class="fa fa-edit"></i> Edit</button>'
+                             . '<button class="btn btn-sm btn-outline-danger" onclick="deleteEmployee(' . $employee->id . ')"><i class="fa fa-trash"></i> Delete</button>'
+                             . '</div>'
         ];
-    });
+    })->toArray();
 
     return response()->json([
         'draw'            => intval($request->input('draw')),
@@ -126,8 +276,8 @@ class EmployeeController extends Controller
         'recordsFiltered' => $recordsFiltered,
         'data'            => $data,
     ]);
+}
 
-    }
         //added this for dedicated leave entitlements
    public function fetchForEntitlements(Request $request)
 {
@@ -214,7 +364,10 @@ class EmployeeController extends Controller
             'department_id' => 'nullable|exists:departments,id',
             'job_category_id' => 'nullable|exists:job_categories,id',
             'location_id' => 'nullable|exists:locations,id',
-            'basic_salary' => 'required|numeric|min:0',
+            // 'basic_salary' => 'required|numeric|min:0',
+            'payment_type' => 'required|in:salary,hourly',
+'basic_salary' => 'required_if:payment_type,salary|nullable|numeric|min:0',
+'hourly_rate' => 'required_if:payment_type,hourly|nullable|numeric|min:0',
             'currency' => 'required|string|size:3',
             'payment_mode' => 'required|string|in:bank,cash,cheque,mpesa',
             'account_name' => 'required|string|max:255',
@@ -254,6 +407,10 @@ class EmployeeController extends Controller
             'job_description' => 'nullable|string|max:1000',
             'documents.*' => 'nullable|file|mimes:pdf,doc,docx,jpg,png|max:2048',
             'document_types.*' => 'nullable|string|max:255',
+            'has_disability_exemption'  => 'nullable|boolean',
+'pwd_certificate_no'        => 'required_if:has_disability_exemption,1|nullable|string|max:255',
+'pwd_ncpwd_membership_no'   => 'required_if:has_disability_exemption,1|nullable|string|max:255',
+'pwd_exemption_limit'       => 'nullable|numeric|min:0|max:150000',
         ]);
 
         $business = Business::findBySlug(session('active_business_slug'));
@@ -326,17 +483,48 @@ class EmployeeController extends Controller
             'second_probation_end_date' => $request->second_probation_end_date,
             ]);
 
-            $employee->paymentDetails()->create([
-                'basic_salary' => $validated['basic_salary'],
-                'currency' => $validated['currency'],
-                'payment_mode' => $validated['payment_mode'],
-                'account_name' => $validated['account_name'],
-                'account_number' => $validated['account_number'],
-                'bank_name' => $validated['bank_name'],
-                'bank_code' => $validated['bank_code'] ?? null,
-                'bank_branch' => $validated['bank_branch'] ?? null,
-                'bank_branch_code' => $validated['bank_branch_code'] ?? null,
-            ]);
+            // $employee->paymentDetails()->create([
+            //     'basic_salary' => $validated['basic_salary'],
+            //     'currency' => $validated['currency'],
+            //     'payment_mode' => $validated['payment_mode'],
+            //     'account_name' => $validated['account_name'],
+            //     'account_number' => $validated['account_number'],
+            //     'bank_name' => $validated['bank_name'],
+            //     'bank_code' => $validated['bank_code'] ?? null,
+            //     'bank_branch' => $validated['bank_branch'] ?? null,
+            //     'bank_branch_code' => $validated['bank_branch_code'] ?? null,
+            // ]);
+            $paymentDetailsData = [
+    'payment_type' => $validated['payment_type'],
+    'currency' => $validated['currency'],
+    'payment_mode' => $validated['payment_mode'],
+    'account_name' => $validated['account_name'],
+    'account_number' => $validated['account_number'],
+    'bank_name' => $validated['bank_name'],
+    'bank_code' => $validated['bank_code'] ?? null,
+    'bank_branch' => $validated['bank_branch'] ?? null,
+    'bank_branch_code' => $validated['bank_branch_code'] ?? null,
+];
+
+if ($validated['payment_type'] === 'hourly') {
+    $paymentDetailsData['hourly_rate'] = $validated['hourly_rate'];
+    $paymentDetailsData['basic_salary'] = 0;
+} else {
+    $paymentDetailsData['basic_salary'] = $validated['basic_salary'];
+    $paymentDetailsData['hourly_rate'] = 0;
+}
+
+$employee->paymentDetails()->create($paymentDetailsData);
+$employee->payrollDetail()->updateOrCreate(
+    ['employee_id' => $employee->id],
+    [
+        'business_id'              => $business->id,
+        'has_disability_exemption' => $validated['has_disability_exemption'] ?? false,
+        'pwd_certificate_no'       => $validated['pwd_certificate_no'] ?? null,
+        'pwd_ncpwd_membership_no'  => $validated['pwd_ncpwd_membership_no'] ?? null,
+        'pwd_exemption_limit'      => $validated['pwd_exemption_limit'] ?? 150000.00,
+    ]
+);
 
             if ($request->hasFile('profile_picture')) {
                 $employee->addMedia($request->file('profile_picture'))->toMediaCollection('avatars');
@@ -415,7 +603,10 @@ class EmployeeController extends Controller
             'department_id' => 'nullable|exists:departments,id',
             'job_category_id' => 'nullable|exists:job_categories,id',
             'location_id' => 'nullable|exists:locations,id',
-            'basic_salary' => 'required|numeric|min:0',
+            'payment_type' => 'required|in:salary,hourly',
+'basic_salary' => 'required_if:payment_type,salary|nullable|numeric|min:0',
+'hourly_rate' => 'required_if:payment_type,hourly|nullable|numeric|min:0',
+            // 'basic_salary' => 'required|numeric|min:0',
             'currency' => 'required|string|size:3',
             'payment_mode' => 'required|string|in:bank,cash,cheque,mpesa',
             'account_name' => 'required|string|max:255',
@@ -455,6 +646,10 @@ class EmployeeController extends Controller
             'documents.*' => 'nullable|file|mimes:pdf,doc,docx,jpg,png|max:2048',
             'document_types.*' => 'nullable|string|max:255',
             'second_probation_end_date' => 'nullable|date|after:probation_end_date',
+            'has_disability_exemption'  => 'nullable|boolean',
+'pwd_certificate_no'        => 'required_if:has_disability_exemption,1|nullable|string|max:255',
+'pwd_ncpwd_membership_no'   => 'required_if:has_disability_exemption,1|nullable|string|max:255',
+'pwd_exemption_limit'       => 'nullable|numeric|min:0|max:150000',
 
         ]);
 
@@ -517,20 +712,41 @@ class EmployeeController extends Controller
                 ]
             );
 
-            $paymentDetails = $employee->paymentDetails()->updateOrCreate(
-                ['employee_id' => $employee->id],
-                [
-                    'basic_salary' => $validated['basic_salary'],
-                    'currency' => $validated['currency'],
-                    'payment_mode' => $validated['payment_mode'],
-                    'account_name' => $validated['account_name'],
-                    'account_number' => $validated['account_number'],
-                    'bank_name' => $validated['bank_name'],
-                    'bank_code' => $validated['bank_code'] ?? null,
-                    'bank_branch' => $validated['bank_branch'] ?? null,
-                    'bank_branch_code' => $validated['bank_branch_code'] ?? null,
-                ]
-            );
+           $paymentDetailsData = [
+    'payment_type' => $validated['payment_type'],
+    'currency' => $validated['currency'],
+    'payment_mode' => $validated['payment_mode'],
+    'account_name' => $validated['account_name'],
+    'account_number' => $validated['account_number'],
+    'bank_name' => $validated['bank_name'],
+    'bank_code' => $validated['bank_code'] ?? null,
+    'bank_branch' => $validated['bank_branch'] ?? null,
+    'bank_branch_code' => $validated['bank_branch_code'] ?? null,
+];
+
+if ($validated['payment_type'] === 'hourly') {
+    $paymentDetailsData['hourly_rate'] = $validated['hourly_rate'];
+    $paymentDetailsData['basic_salary'] = 0;
+} else {
+    $paymentDetailsData['basic_salary'] = $validated['basic_salary'];
+    $paymentDetailsData['hourly_rate'] = 0;
+}
+
+$paymentDetails = $employee->paymentDetails()->updateOrCreate(
+    ['employee_id' => $employee->id],
+    $paymentDetailsData
+);
+// $business = Business::findBySlug(session('active_business_slug'));
+$employee->payrollDetail()->updateOrCreate(
+    ['employee_id' => $employee->id],
+    [
+        // 'business_id'              => $business->id,
+        'has_disability_exemption' => $validated['has_disability_exemption'] ?? false,
+        'pwd_certificate_no'       => $validated['pwd_certificate_no'] ?? null,
+        'pwd_ncpwd_membership_no'  => $validated['pwd_ncpwd_membership_no'] ?? null,
+        'pwd_exemption_limit'      => $validated['pwd_exemption_limit'] ?? 150000.00,
+    ]
+);
 
             if ($request->hasFile('profile_picture')) {
                 $employee->clearMediaCollection('avatars');

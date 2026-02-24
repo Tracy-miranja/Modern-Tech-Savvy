@@ -180,5 +180,27 @@ window.afterEmployeeFormLoaded = function() {
     setTimeout(initEmployeePaymentToggle, 150);
 };
 </script>
+<script>
+function togglePwdFields(checkbox) {
+    const pwdFields = document.getElementById('pwd_fields');
+    const certNo    = document.getElementById('pwd_certificate_no');
+    const ncpwdNo   = document.getElementById('pwd_ncpwd_membership_no');
+
+    if (checkbox.checked) {
+        pwdFields.style.display = 'block';
+        // Make certificate fields required when PWD is checked
+        certNo.setAttribute('required', 'required');
+        ncpwdNo.setAttribute('required', 'required');
+    } else {
+        pwdFields.style.display = 'none';
+        certNo.removeAttribute('required');
+        ncpwdNo.removeAttribute('required');
+        // Clear values when unchecked
+        certNo.value = '';
+        ncpwdNo.value = '';
+        document.getElementById('pwd_exemption_limit').value = 150000;
+    }
+}
+</script>
     @endpush
 </x-app-layout>

@@ -593,6 +593,8 @@ class PayrollController extends Controller
                     'attendance_present' => $data['attendance_present'],
                     'attendance_absent' => $data['attendance_absent'],
                     'days_in_month' => $data['days_in_month'],
+                    'pwd_exemption_applied' => $data['pwd_exemption_applied'] ?? false,
+                    'pwd_exemption_amount'  => $data['pwd_exemption_amount'] ?? 0,
                 ];
 
                 if ($employeePayroll) {
@@ -950,6 +952,7 @@ class PayrollController extends Controller
 
             // ========== CRITICAL FIX: MUST fetch $paymentDetail FIRST ==========
             $paymentDetail = EmployeePaymentDetail::where('employee_id', $employeeId)->first();
+            $payrollDetail = EmployeePayrollDetail::where('employee_id', $employeeId)->first();
 
             // Check if payment details exist - skip employee if missing
             if (!$paymentDetail) {
@@ -1159,6 +1162,24 @@ class PayrollController extends Controller
 
                 // Taxable income for Kenya
                 $taxableIncome = max(0, $grossPay - $nssfTotal - $shif - $housingLevy - $helb);
+                // ========== PWD TAX EXEMPTION ==========
+                $pwdExemptionApplied = false;
+                $pwdExemptionAmount  = 0;
+
+                if ($payrollDetail && $payrollDetail->has_disability_exemption) {
+                    $pwdMonthlyLimit    = floatval($payrollDetail->pwd_exemption_limit ?? 150000);
+                    $pwdExemptionAmount = min($taxableIncome, $pwdMonthlyLimit);
+                    $taxableIncome      = max(0, $taxableIncome - $pwdExemptionAmount);
+                    $pwdExemptionApplied = true;
+
+                    Log::info('PWD tax exemption applied', [
+                        'employee_id'      => $employeeId,
+                        'cert_no'          => $payrollDetail->pwd_certificate_no,
+                        'exemption_amount' => $pwdExemptionAmount,
+                        'taxable_after'    => $taxableIncome,
+                    ]);
+                }
+
 
                 // Kenya has reliefs - keep all your existing relief calculation logic
                 $reliefs = $this->getEmployeeItems($employee, 'reliefs', $settings, Relief::class, EmployeeRelief::class, $grossPay, $taxableIncome);
@@ -1314,6 +1335,8 @@ class PayrollController extends Controller
                 'attendance_absent' => $absentDays,
                 'days_in_month' => $daysInMonth,
                 'country' => $country,
+                'pwd_exemption_applied' => $pwdExemptionApplied,
+                'pwd_exemption_amount'  => $pwdExemptionAmount,
             ];
         }
         return $payrollData;
@@ -1454,11 +1477,11 @@ class PayrollController extends Controller
                     $tax = 2400 + (($taxablePay - 24000) * 0.25);
                 } elseif ($taxablePay <= 500000) {
                     $tax = 4483.25 + (($taxablePay - 32333) * 0.30);
-                } elseif ($taxablePay <= 800000) {
-                    $tax = 149149.85 + (($taxablePay - 500000) * 0.325);
-                } else {
-                    $tax = 246649.85 + (($taxablePay - 800000) * 0.35);
-                }
+                 } elseif ($taxablePay <= 800000) {
+        $tax = 144783.35 + (($taxablePay - 500000) * 0.325); // ← fix here too
+    } else {
+        $tax = 242283.35 + (($taxablePay - 800000) * 0.35);  // ← and here
+    }
                 return round($tax, 2);
             case 'helb':
                 return 0;
@@ -1629,21 +1652,21 @@ class PayrollController extends Controller
     }
 
     protected function calculateKenyaPAYE($taxableIncome)
-    {
-        $tax = 0;
-        if ($taxableIncome <= 24000) {
-            $tax = $taxableIncome * 0.10; // 10% on first 24,000
-        } elseif ($taxableIncome <= 32333) {
-            $tax = 2400 + (($taxableIncome - 24000) * 0.25); // 25% on next 8,333
-        } elseif ($taxableIncome <= 500000) {
-            $tax = 4483.25 + (($taxableIncome - 32333) * 0.30); // 30% on next 467,667
-        } elseif ($taxableIncome <= 800000) {
-            $tax = 149149.85 + (($taxableIncome - 500000) * 0.325); // 32.5% on next 300,000
-        } else {
-            $tax = 246649.85 + (($taxableIncome - 800000) * 0.35); // 35% above 800,000
-        }
-        return round($tax, 2);
+{
+    $tax = 0;
+    if ($taxableIncome <= 24000) {
+        $tax = $taxableIncome * 0.10;
+    } elseif ($taxableIncome <= 32333) {
+        $tax = 2400 + (($taxableIncome - 24000) * 0.25);
+    } elseif ($taxableIncome <= 500000) {
+        $tax = 4483.25 + (($taxableIncome - 32333) * 0.30);
+    } elseif ($taxableIncome <= 800000) {
+        $tax = 144783.35 + (($taxableIncome - 500000) * 0.325); // ← FIXED
+    } else {
+        $tax = 242283.35 + (($taxableIncome - 800000) * 0.35);  // ← FIXED
     }
+    return round($tax, 2);
+}
 
     protected function getStatutoryDeductions($country, $businessId, $grossPay, $basicPay, $employeeId, $payrollId)
     {
@@ -2682,178 +2705,182 @@ class PayrollController extends Controller
         $fileName = "payroll-{$id}.{$format}";
         $currency = $payroll->currency ?? 'KES';
 
-     switch ($format) {
-    case 'pdf':
-        try {
-            $pdf = Pdf::loadView('payroll.reports.company_payslip', [
-                'business'   => $business,
-                'payroll'    => $payroll,
-                'entity'     => $entity,
-                'entityType' => $entityType,
-                'data'       => $data,
-                'totals'     => $totals,
-                'currency'   => $currency,
-            ])
-            ->setOptions([
-                'isHtml5ParserEnabled' => true,
-                'isCssFloat'           => true,
-            ])
-            ->setPaper('a4', 'landscape');
+        switch ($format) {
+            case 'pdf':
+                try {
+                    $pdf = Pdf::loadView('payroll.reports.company_payslip', [
+                        'business'   => $business,
+                        'payroll'    => $payroll,
+                        'entity'     => $entity,
+                        'entityType' => $entityType,
+                        'data'       => $data,
+                        'totals'     => $totals,
+                        'currency'   => $currency,
+                    ])
+                        ->setOptions([
+                            'isHtml5ParserEnabled' => true,
+                            'isCssFloat'           => true,
+                        ])
+                        ->setPaper('a4', 'landscape');
 
-            return $pdf->download($fileName);
-        } catch (\Exception $e) {
-            Log::error("PDF generation failed for payroll {$id}: " . $e->getMessage() . "\nStack trace: " . $e->getTraceAsString());
-            return response()->json(['error' => 'Failed to generate PDF: ' . $e->getMessage()], 500);
-        }
+                    return $pdf->download($fileName);
+                } catch (\Exception $e) {
+                    Log::error("PDF generation failed for payroll {$id}: " . $e->getMessage() . "\nStack trace: " . $e->getTraceAsString());
+                    return response()->json(['error' => 'Failed to generate PDF: ' . $e->getMessage()], 500);
+                }
 
-           case 'csv':
-    $headers = array_keys($data[0] ?? []);
-    $csvData = implode(',', array_map(
-        fn($key) => '"' . ucwords(str_replace('_', ' ', $key))
-            . (in_array($key, ['bank_name','account_number','employee_name','employee_code','tax_no'])
-                ? '' : " ({$currency})")
-            . '"',
-        $headers
-    )) . "\n";
+            case 'csv':
+                $headers = array_keys($data[0] ?? []);
+                $csvData = implode(',', array_map(
+                    fn($key) => '"' . ucwords(str_replace('_', ' ', $key))
+                        . (in_array($key, ['bank_name', 'account_number', 'employee_name', 'employee_code', 'tax_no'])
+                            ? '' : " ({$currency})")
+                        . '"',
+                    $headers
+                )) . "\n";
 
-    foreach ($data as $row) {
-        $csvData .= implode(',', array_map(function ($value, $key) {
-            return ($key !== 'bank_name' && $key !== 'account_number'
-                    && $key !== 'employee_name' && $key !== 'employee_code'
-                    && $key !== 'tax_no' && is_numeric($value))
-                ? number_format($value, 2)
-                : '"' . str_replace('"', '""', $value) . '"';
-        }, $row, array_keys($row))) . "\n";
-    }
+                foreach ($data as $row) {
+                    $csvData .= implode(',', array_map(function ($value, $key) {
+                        return ($key !== 'bank_name' && $key !== 'account_number'
+                            && $key !== 'employee_name' && $key !== 'employee_code'
+                            && $key !== 'tax_no' && is_numeric($value))
+                            ? number_format($value, 2)
+                            : '"' . str_replace('"', '""', $value) . '"';
+                    }, $row, array_keys($row))) . "\n";
+                }
 
-    // ── TOTALS ROW (Fix: was missing) ──────────────────────────────────
-    $totalsRow = array_map(function ($key) use ($totals, $currency) {
-        return match($key) {
-            'employee_name'  => '"TOTALS"',
-            'employee_code'  => '""',
-            'tax_no'         => '""',
-            'bank_name'      => '""',
-            'account_number' => '""',
-            'basic_salary'        => number_format($totals['totalBasicSalary'], 2),
-            'gross_pay'           => number_format($totals['totalGrossPay'], 2),
-            'overtime'            => number_format($totals['totalOvertime'], 2),
-            'shif'                => number_format($totals['totalShif'], 2),
-            'nssf'                => number_format($totals['totalNssf'], 2),
-            'paye'                => number_format($totals['totalPaye'], 2),
-            'paye_before_reliefs' => number_format($totals['totalPayeBeforeReliefs'], 2),
-            'housing_levy'        => number_format($totals['totalHousingLevy'], 2),
-            'helb'                => number_format($totals['totalHelb'], 2),
-            'taxable_income'      => number_format($totals['totalTaxableIncome'], 2),
-            'personal_relief'     => number_format($totals['totalPersonalRelief'], 2),
-            'insurance_relief'    => number_format($totals['totalInsuranceRelief'], 2),
-            'pay_after_tax'       => number_format($totals['totalPayAfterTax'], 2),
-            'loan_repayment'      => number_format($totals['totalLoans'], 2),
-            'advance_recovery'    => number_format($totals['totalAdvances'], 2),
-            'custom_deductions'   => number_format($totals['totalCustomDeductions'], 2),
-            'deductions_after_tax'=> number_format($totals['totalDeductionsAfterTax'], 2),
-            'net_pay'             => number_format($totals['totalNetPay'], 2),
-            'attendance_present'  => $totals['totalAttendancePresent'],
-            'attendance_absent'   => $totals['totalAttendanceAbsent'],
-            'days_in_month'       => $totals['totalDaysInMonth'],
-            default               => '""',
-        };
-    }, array_keys($data[0] ?? []));
-    $csvData .= implode(',', $totalsRow) . "\n";
-    // ── END TOTALS ROW ─────────────────────────────────────────────────
+                // ── TOTALS ROW (Fix: was missing) ──────────────────────────────────
+                $totalsRow = array_map(function ($key) use ($totals, $currency) {
+                    return match ($key) {
+                        'employee_name'  => '"TOTALS"',
+                        'employee_code'  => '""',
+                        'tax_no'         => '""',
+                        'bank_name'      => '""',
+                        'account_number' => '""',
+                        'basic_salary'        => number_format($totals['totalBasicSalary'], 2),
+                        'gross_pay'           => number_format($totals['totalGrossPay'], 2),
+                        'overtime'            => number_format($totals['totalOvertime'], 2),
+                        'shif'                => number_format($totals['totalShif'], 2),
+                        'nssf'                => number_format($totals['totalNssf'], 2),
+                        'paye'                => number_format($totals['totalPaye'], 2),
+                        'paye_before_reliefs' => number_format($totals['totalPayeBeforeReliefs'], 2),
+                        'housing_levy'        => number_format($totals['totalHousingLevy'], 2),
+                        'helb'                => number_format($totals['totalHelb'], 2),
+                        'taxable_income'      => number_format($totals['totalTaxableIncome'], 2),
+                        'personal_relief'     => number_format($totals['totalPersonalRelief'], 2),
+                        'insurance_relief'    => number_format($totals['totalInsuranceRelief'], 2),
+                        'pay_after_tax'       => number_format($totals['totalPayAfterTax'], 2),
+                        'loan_repayment'      => number_format($totals['totalLoans'], 2),
+                        'advance_recovery'    => number_format($totals['totalAdvances'], 2),
+                        'custom_deductions'   => number_format($totals['totalCustomDeductions'], 2),
+                        'deductions_after_tax' => number_format($totals['totalDeductionsAfterTax'], 2),
+                        'net_pay'             => number_format($totals['totalNetPay'], 2),
+                        'attendance_present'  => $totals['totalAttendancePresent'],
+                        'attendance_absent'   => $totals['totalAttendanceAbsent'],
+                        'days_in_month'       => $totals['totalDaysInMonth'],
+                        default               => '""',
+                    };
+                }, array_keys($data[0] ?? []));
+                $csvData .= implode(',', $totalsRow) . "\n";
+                // ── END TOTALS ROW ─────────────────────────────────────────────────
 
-    return Response::make($csvData, 200, [
-        'Content-Type' => 'text/csv',
-        'Content-Disposition' => "attachment; filename=\"{$fileName}\"",
-    ]);
+                return Response::make($csvData, 200, [
+                    'Content-Type' => 'text/csv',
+                    'Content-Disposition' => "attachment; filename=\"{$fileName}\"",
+                ]);
 
-      case 'xlsx':
-    try {
-        $totalsRef = $totals; // capture for closure
+            case 'xlsx':
+                try {
+                    $totalsRef = $totals; // capture for closure
 
-        return Excel::download(new class($data, $currency, $totalsRef) implements
-            \Maatwebsite\Excel\Concerns\FromArray,
-            \Maatwebsite\Excel\Concerns\WithHeadings,
-            \Maatwebsite\Excel\Concerns\WithStyles,
-            \Maatwebsite\Excel\Concerns\ShouldAutoSize {
+                    return Excel::download(new class($data, $currency, $totalsRef) implements
+                        \Maatwebsite\Excel\Concerns\FromArray,
+                        \Maatwebsite\Excel\Concerns\WithHeadings,
+                        \Maatwebsite\Excel\Concerns\WithStyles,
+                        \Maatwebsite\Excel\Concerns\ShouldAutoSize {
 
-            private array $data;
-            private string $currency;
-            private array $totals;
+                        private array $data;
+                        private string $currency;
+                        private array $totals;
 
-            public function __construct(array $data, string $currency, array $totals)
-            {
-                $this->data     = $data;
-                $this->currency = $currency;
-                $this->totals   = $totals;
-            }
+                        public function __construct(array $data, string $currency, array $totals)
+                        {
+                            $this->data     = $data;
+                            $this->currency = $currency;
+                            $this->totals   = $totals;
+                        }
 
-            public function array(): array
-            {
-                $rows = $this->data;
+                        public function array(): array
+                        {
+                            $rows = $this->data;
 
-                // ── TOTALS ROW (Fix: was missing) ───────────────────────
-                $keys = array_keys($this->data[0] ?? []);
-                $totalsRow = array_map(fn($key) => match($key) {
-                    'employee_name'       => 'TOTALS',
-                    'employee_code',
-                    'tax_no',
-                    'bank_name',
-                    'account_number'      => '',
-                    'basic_salary'        => $this->totals['totalBasicSalary'],
-                    'gross_pay'           => $this->totals['totalGrossPay'],
-                    'overtime'            => $this->totals['totalOvertime'],
-                    'shif'                => $this->totals['totalShif'],
-                    'nssf'                => $this->totals['totalNssf'],
-                    'paye'                => $this->totals['totalPaye'],
-                    'paye_before_reliefs' => $this->totals['totalPayeBeforeReliefs'],
-                    'housing_levy'        => $this->totals['totalHousingLevy'],
-                    'helb'                => $this->totals['totalHelb'],
-                    'taxable_income'      => $this->totals['totalTaxableIncome'],
-                    'personal_relief'     => $this->totals['totalPersonalRelief'],
-                    'insurance_relief'    => $this->totals['totalInsuranceRelief'],
-                    'pay_after_tax'       => $this->totals['totalPayAfterTax'],
-                    'loan_repayment'      => $this->totals['totalLoans'],
-                    'advance_recovery'    => $this->totals['totalAdvances'],
-                    'custom_deductions'   => $this->totals['totalCustomDeductions'],
-                    'deductions_after_tax'=> $this->totals['totalDeductionsAfterTax'],
-                    'net_pay'             => $this->totals['totalNetPay'],
-                    'attendance_present'  => $this->totals['totalAttendancePresent'],
-                    'attendance_absent'   => $this->totals['totalAttendanceAbsent'],
-                    'days_in_month'       => $this->totals['totalDaysInMonth'],
-                    default               => '',
-                }, $keys);
+                            // ── TOTALS ROW (Fix: was missing) ───────────────────────
+                            $keys = array_keys($this->data[0] ?? []);
+                            $totalsRow = array_map(fn($key) => match ($key) {
+                                'employee_name'       => 'TOTALS',
+                                'employee_code',
+                                'tax_no',
+                                'bank_name',
+                                'account_number'      => '',
+                                'basic_salary'        => $this->totals['totalBasicSalary'],
+                                'gross_pay'           => $this->totals['totalGrossPay'],
+                                'overtime'            => $this->totals['totalOvertime'],
+                                'shif'                => $this->totals['totalShif'],
+                                'nssf'                => $this->totals['totalNssf'],
+                                'paye'                => $this->totals['totalPaye'],
+                                'paye_before_reliefs' => $this->totals['totalPayeBeforeReliefs'],
+                                'housing_levy'        => $this->totals['totalHousingLevy'],
+                                'helb'                => $this->totals['totalHelb'],
+                                'taxable_income'      => $this->totals['totalTaxableIncome'],
+                                'personal_relief'     => $this->totals['totalPersonalRelief'],
+                                'insurance_relief'    => $this->totals['totalInsuranceRelief'],
+                                'pay_after_tax'       => $this->totals['totalPayAfterTax'],
+                                'loan_repayment'      => $this->totals['totalLoans'],
+                                'advance_recovery'    => $this->totals['totalAdvances'],
+                                'custom_deductions'   => $this->totals['totalCustomDeductions'],
+                                'deductions_after_tax' => $this->totals['totalDeductionsAfterTax'],
+                                'net_pay'             => $this->totals['totalNetPay'],
+                                'attendance_present'  => $this->totals['totalAttendancePresent'],
+                                'attendance_absent'   => $this->totals['totalAttendanceAbsent'],
+                                'days_in_month'       => $this->totals['totalDaysInMonth'],
+                                default               => '',
+                            }, $keys);
 
-                $rows[] = array_combine($keys, $totalsRow);
-                // ── END TOTALS ROW ──────────────────────────────────────
+                            $rows[] = array_combine($keys, $totalsRow);
+                            // ── END TOTALS ROW ──────────────────────────────────────
 
-                return $rows;
-            }
+                            return $rows;
+                        }
 
-            public function headings(): array
-            {
-                return array_map(
-                    fn($key) => ucwords(str_replace('_', ' ', $key))
-                        . (in_array($key, ['bank_name','account_number','employee_name','employee_code','tax_no'])
-                            ? '' : " ({$this->currency})"),
-                    array_keys($this->data[0] ?? [])
-                );
-            }
+                        public function headings(): array
+                        {
+                            return array_map(
+                                fn($key) => ucwords(str_replace('_', ' ', $key))
+                                    . (in_array($key, ['bank_name', 'account_number', 'employee_name', 'employee_code', 'tax_no'])
+                                        ? '' : " ({$this->currency})"),
+                                array_keys($this->data[0] ?? [])
+                            );
+                        }
 
-            public function styles(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $sheet): array
-            {
-                $lastRow = count($this->data) + 2; // +1 heading +1 totals
-                return [
-                    1           => ['font' => ['bold' => true]],           // heading row
-                    $lastRow    => ['font' => ['bold' => true],             // totals row bold
-                                    'fill' => ['fillType' => 'solid',
-                                               'color' => ['rgb' => 'E8E8E8']]],
-                ];
-            }
-        }, $fileName);
-    } catch (\Maatwebsite\Excel\Exceptions\LaravelExcelException $e) {
-        Log::error("Excel generation failed for payroll {$id}: " . $e->getMessage());
-        return response()->json(['error' => 'Failed to generate Excel file.'], 500);
-    }
+                        public function styles(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $sheet): array
+                        {
+                            $lastRow = count($this->data) + 2; // +1 heading +1 totals
+                            return [
+                                1           => ['font' => ['bold' => true]],           // heading row
+                                $lastRow    => [
+                                    'font' => ['bold' => true],             // totals row bold
+                                    'fill' => [
+                                        'fillType' => 'solid',
+                                        'color' => ['rgb' => 'E8E8E8']
+                                    ]
+                                ],
+                            ];
+                        }
+                    }, $fileName);
+                } catch (\Maatwebsite\Excel\Exceptions\LaravelExcelException $e) {
+                    Log::error("Excel generation failed for payroll {$id}: " . $e->getMessage());
+                    return response()->json(['error' => 'Failed to generate Excel file.'], 500);
+                }
 
             default:
                 Log::warning("Invalid format requested for payroll {$id}: {$format}");
@@ -4613,8 +4640,8 @@ class PayrollController extends Controller
         return RequestResponse::ok('Payrolls filtered successfully.', ['html' => $html]);
     }
 
-// master payroll
- public function downloadMasterRoll(Request $request)
+    // master payroll
+    public function downloadMasterRoll(Request $request)
     {
         $businessSlug = $request->route('business') ?? session('active_business_slug');
         $business = Business::findBySlug($businessSlug);
@@ -4646,65 +4673,68 @@ class PayrollController extends Controller
 
         // ── PDF ──────────────────────────────────────────────────────────────
         if ($format === 'pdf') {
-          $employeePayrolls = EmployeePayroll::where('payroll_id', $payroll->id)
-    ->with(['employee.user', 'employee.location',
-            'employee.employmentDetails.department',
-            'employee.employmentDetails.jobCategory',
-            'payroll'])
-    ->get();
+            $employeePayrolls = EmployeePayroll::where('payroll_id', $payroll->id)
+                ->with([
+                    'employee.user',
+                    'employee.location',
+                    'employee.employmentDetails.department',
+                    'employee.employmentDetails.jobCategory',
+                    'payroll'
+                ])
+                ->get();
 
             // Collect dynamic columns — loop over ALL employee payrolls
-$allowanceSlugs = [];
-$deductionSlugs = [];
-$statutoryNames = ['shif', 'nssf', 'paye', 'housing levy', 'absenteeism', 'absenteeism charge'];
+            $allowanceSlugs = [];
+            $deductionSlugs = [];
+            $statutoryNames = ['shif', 'nssf', 'paye', 'housing levy', 'absenteeism', 'absenteeism charge'];
 
-foreach ($employeePayrolls as $ep) {
-    foreach ((json_decode($ep->allowances, true) ?? []) as $item) {
-        if (!is_array($item) || empty($item['item_name'])) continue;
-        $iname = trim($item['item_name']);
-        if (strtolower($iname) === 'overtime allowance') continue;
-        $key = strtolower($iname);
-        if (!isset($allowanceSlugs[$key])) $allowanceSlugs[$key] = $iname;
-    }
-    foreach ((json_decode($ep->deductions, true) ?? []) as $item) {
-        if (!is_array($item) || empty($item['item_name'])) continue;
-        $iname = trim($item['item_name']);
-        if (in_array(strtolower($iname), $statutoryNames)) continue;
-        $key = strtolower($iname);
-        if (!isset($deductionSlugs[$key])) $deductionSlugs[$key] = $iname;
-    }
-}
+            foreach ($employeePayrolls as $ep) {
+                foreach ((json_decode($ep->allowances, true) ?? []) as $item) {
+                    if (!is_array($item) || empty($item['item_name'])) continue;
+                    $iname = trim($item['item_name']);
+                    if (strtolower($iname) === 'overtime allowance') continue;
+                    $key = strtolower($iname);
+                    if (!isset($allowanceSlugs[$key])) $allowanceSlugs[$key] = $iname;
+                }
+                foreach ((json_decode($ep->deductions, true) ?? []) as $item) {
+                    if (!is_array($item) || empty($item['item_name'])) continue;
+                    $iname = trim($item['item_name']);
+                    if (in_array(strtolower($iname), $statutoryNames)) continue;
+                    $key = strtolower($iname);
+                    if (!isset($deductionSlugs[$key])) $deductionSlugs[$key] = $iname;
+                }
+            }
 
-// Fallback from payroll_settings
-$employeeIds = $employeePayrolls->pluck('employee_id')->filter()->unique()->values();
-if ($employeeIds->isNotEmpty()) {
-    $settings = \Illuminate\Support\Facades\DB::table('payroll_settings')
-        ->where('year',  $payroll->payrun_year)
-        ->where('month', $payroll->payrun_month)
-        ->whereIn('employee_id', $employeeIds)
-        ->get(['allowances', 'deductions']);
+            // Fallback from payroll_settings
+            $employeeIds = $employeePayrolls->pluck('employee_id')->filter()->unique()->values();
+            if ($employeeIds->isNotEmpty()) {
+                $settings = \Illuminate\Support\Facades\DB::table('payroll_settings')
+                    ->where('year',  $payroll->payrun_year)
+                    ->where('month', $payroll->payrun_month)
+                    ->whereIn('employee_id', $employeeIds)
+                    ->get(['allowances', 'deductions']);
 
-    foreach ($settings as $ps) {
-        foreach ((json_decode($ps->allowances ?? '[]', true) ?? []) as $item) {
-            if (!is_array($item) || empty($item['item_name'])) continue;
-            $iname = trim($item['item_name']);
-            if (strtolower($iname) === 'overtime allowance') continue;
-            $key = strtolower($iname);
-            if (!isset($allowanceSlugs[$key])) $allowanceSlugs[$key] = $iname;
-        }
-        foreach ((json_decode($ps->deductions ?? '[]', true) ?? []) as $item) {
-            if (!is_array($item) || empty($item['item_name'])) continue;
-            $iname = trim($item['item_name']);
-            if (in_array(strtolower($iname), $statutoryNames)) continue;
-            $key = strtolower($iname);
-            if (!isset($deductionSlugs[$key])) $deductionSlugs[$key] = $iname;
-        }
-    }
-}
+                foreach ($settings as $ps) {
+                    foreach ((json_decode($ps->allowances ?? '[]', true) ?? []) as $item) {
+                        if (!is_array($item) || empty($item['item_name'])) continue;
+                        $iname = trim($item['item_name']);
+                        if (strtolower($iname) === 'overtime allowance') continue;
+                        $key = strtolower($iname);
+                        if (!isset($allowanceSlugs[$key])) $allowanceSlugs[$key] = $iname;
+                    }
+                    foreach ((json_decode($ps->deductions ?? '[]', true) ?? []) as $item) {
+                        if (!is_array($item) || empty($item['item_name'])) continue;
+                        $iname = trim($item['item_name']);
+                        if (in_array(strtolower($iname), $statutoryNames)) continue;
+                        $key = strtolower($iname);
+                        if (!isset($deductionSlugs[$key])) $deductionSlugs[$key] = $iname;
+                    }
+                }
+            }
             $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('payroll.reports.master_roll_pdf', [
                 'business'        => $business,
                 'payroll'         => $payroll,
-                'employeePayrolls'=> $employeePayrolls,
+                'employeePayrolls' => $employeePayrolls,
                 'allowanceSlugs'  => $allowanceSlugs,
                 'deductionSlugs'  => $deductionSlugs,
                 'currency'        => $payroll->currency ?? 'KES',
@@ -4735,10 +4765,12 @@ if ($employeeIds->isNotEmpty()) {
 
         $payroll = Payroll::where('business_id', $business->id)
             ->where('id', $request->payroll_id)
-            ->with(['employeePayrolls.employee.user',
-                    'employeePayrolls.employee.location',
-                    'employeePayrolls.employee.employmentDetails.department',
-                    'employeePayrolls.employee.employmentDetails.jobCategory'])
+            ->with([
+                'employeePayrolls.employee.user',
+                'employeePayrolls.employee.location',
+                'employeePayrolls.employee.employmentDetails.department',
+                'employeePayrolls.employee.employmentDetails.jobCategory'
+            ])
             ->firstOrFail();
 
         $formatType = $request->format_type; // new_remittance | pre_2018 | old_format | grouped | schedule
@@ -4758,7 +4790,7 @@ if ($employeeIds->isNotEmpty()) {
                 }
                 return Excel::download(new \App\Exports\Nssfnewremittanceexport($payroll), $fileName);
 
-            // ── Pre-2018 Format ────────────────────────────────────────────
+                // ── Pre-2018 Format ────────────────────────────────────────────
             case 'pre_2018':
                 $fileName = "{$baseName}_Pre2018.{$fileFormat}";
                 if ($fileFormat === 'pdf') {
@@ -4766,7 +4798,7 @@ if ($employeeIds->isNotEmpty()) {
                 }
                 return Excel::download(new \App\Exports\Nssfpre2018export($payroll), $fileName);
 
-            // ── Old NSSF Format ────────────────────────────────────────────
+                // ── Old NSSF Format ────────────────────────────────────────────
             case 'old_format':
                 $fileName = "{$baseName}_Old_Format.{$fileFormat}";
                 if ($fileFormat === 'pdf') {
@@ -4774,7 +4806,7 @@ if ($employeeIds->isNotEmpty()) {
                 }
                 return Excel::download(new \App\Exports\Nssfoldformatexport($payroll), $fileName);
 
-            // ── Grouped by Department / Location / Job Category ────────────
+                // ── Grouped by Department / Location / Job Category ────────────
             case 'grouped':
                 $groupLabel = ucfirst(str_replace('_', ' ', $groupBy));
                 $fileName   = "{$baseName}_Grouped_by_{$groupLabel}.{$fileFormat}";
@@ -4795,7 +4827,7 @@ if ($employeeIds->isNotEmpty()) {
                     $fileName
                 );
 
-            // ── Schedule PDF ───────────────────────────────────────────────
+                // ── Schedule PDF ───────────────────────────────────────────────
             case 'schedule':
                 $fileName = "{$baseName}_Schedule.pdf";
                 $data     = $this->buildNssfScheduleData($payroll);
@@ -5073,8 +5105,20 @@ if ($employeeIds->isNotEmpty()) {
             $params['month1'] = intval($request->get('month1', 1));
             $params['year2']  = intval($request->get('year2', date('Y')));
             $params['month2'] = intval($request->get('month2', 2));
-            $mn = [1=>'Jan',2=>'Feb',3=>'Mar',4=>'Apr',5=>'May',6=>'Jun',
-                   7=>'Jul',8=>'Aug',9=>'Sep',10=>'Oct',11=>'Nov',12=>'Dec'];
+            $mn = [
+                1 => 'Jan',
+                2 => 'Feb',
+                3 => 'Mar',
+                4 => 'Apr',
+                5 => 'May',
+                6 => 'Jun',
+                7 => 'Jul',
+                8 => 'Aug',
+                9 => 'Sep',
+                10 => 'Oct',
+                11 => 'Nov',
+                12 => 'Dec'
+            ];
             $label = "{$mn[$params['month1']]}{$params['year1']}_vs_{$mn[$params['month2']]}{$params['year2']}";
         }
 
@@ -5130,14 +5174,31 @@ if ($employeeIds->isNotEmpty()) {
 
     private function buildVarianceData(Business $business, array $params): array
     {
-        $monthNames = [1=>'January',2=>'February',3=>'March',4=>'April',
-                       5=>'May',6=>'June',7=>'July',8=>'August',
-                       9=>'September',10=>'October',11=>'November',12=>'December'];
+        $monthNames = [
+            1 => 'January',
+            2 => 'February',
+            3 => 'March',
+            4 => 'April',
+            5 => 'May',
+            6 => 'June',
+            7 => 'July',
+            8 => 'August',
+            9 => 'September',
+            10 => 'October',
+            11 => 'November',
+            12 => 'December'
+        ];
 
-        $fields = ['gross'=>'Gross Pay','net'=>'Net Pay','paye'=>'PAYE',
-                   'nssf'=>'NSSF','shif'=>'SHIF','hl'=>'Housing Levy'];
+        $fields = [
+            'gross' => 'Gross Pay',
+            'net' => 'Net Pay',
+            'paye' => 'PAYE',
+            'nssf' => 'NSSF',
+            'shif' => 'SHIF',
+            'hl' => 'Housing Levy'
+        ];
 
-        $fetch = function(int $year, ?int $month = null) use ($business): array {
+        $fetch = function (int $year, ?int $month = null) use ($business): array {
             $q = \App\Models\Payroll::where('business_id', $business->id)
                 ->where('payrun_year', $year)
                 ->with('employeePayrolls');
@@ -5160,7 +5221,7 @@ if ($employeeIds->isNotEmpty()) {
             return $agg;
         };
 
-        $vPct = fn($base, $cmp) => $base != 0 ? round((($cmp-$base)/abs($base))*100,2) : 0;
+        $vPct = fn($base, $cmp) => $base != 0 ? round((($cmp - $base) / abs($base)) * 100, 2) : 0;
 
         if ($params['mode'] === 'year') {
             $d1  = $fetch($params['year1']);
@@ -5169,32 +5230,48 @@ if ($employeeIds->isNotEmpty()) {
 
             $summary = [];
             foreach ($fields as $key => $label) {
-                $v1 = $sum($d1, $key); $v2 = $sum($d2, $key);
-                $summary[] = ['metric'=>$label,'period1'=>$v1,'period2'=>$v2,
-                               'variance'=>$v2-$v1,'variance_pct'=>$vPct($v1,$v2)];
+                $v1 = $sum($d1, $key);
+                $v2 = $sum($d2, $key);
+                $summary[] = [
+                    'metric' => $label,
+                    'period1' => $v1,
+                    'period2' => $v2,
+                    'variance' => $v2 - $v1,
+                    'variance_pct' => $vPct($v1, $v2)
+                ];
             }
 
             $monthly = [];
             foreach ($monthNames as $m => $name) {
-                $g1 = $d1[$m]['gross'] ?? 0; $g2 = $d2[$m]['gross'] ?? 0;
-                $monthly[] = ['month'=>$name,'period1'=>$g1,'period2'=>$g2,
-                               'variance'=>$g2-$g1,'var_pct'=>$vPct($g1,$g2),
-                               'count1'=>$d1[$m]['count']??0,'count2'=>$d2[$m]['count']??0];
+                $g1 = $d1[$m]['gross'] ?? 0;
+                $g2 = $d2[$m]['gross'] ?? 0;
+                $monthly[] = [
+                    'month' => $name,
+                    'period1' => $g1,
+                    'period2' => $g2,
+                    'variance' => $g2 - $g1,
+                    'var_pct' => $vPct($g1, $g2),
+                    'count1' => $d1[$m]['count'] ?? 0,
+                    'count2' => $d2[$m]['count'] ?? 0
+                ];
             }
 
             return compact('summary', 'monthly');
-
         } else {
-            $r1 = $fetch($params['year1'], $params['month1'])[$params['month1']] ?? array_fill_keys(['gross','net','paye','nssf','shif','hl','count'],0);
-            $r2 = $fetch($params['year2'], $params['month2'])[$params['month2']] ?? array_fill_keys(['gross','net','paye','nssf','shif','hl','count'],0);
+            $r1 = $fetch($params['year1'], $params['month1'])[$params['month1']] ?? array_fill_keys(['gross', 'net', 'paye', 'nssf', 'shif', 'hl', 'count'], 0);
+            $r2 = $fetch($params['year2'], $params['month2'])[$params['month2']] ?? array_fill_keys(['gross', 'net', 'paye', 'nssf', 'shif', 'hl', 'count'], 0);
 
             $summary = [];
             foreach ($fields as $key => $label) {
-                $summary[] = ['metric'=>$label,'period1'=>$r1[$key],'period2'=>$r2[$key],
-                               'variance'=>$r2[$key]-$r1[$key],'variance_pct'=>$vPct($r1[$key],$r2[$key])];
+                $summary[] = [
+                    'metric' => $label,
+                    'period1' => $r1[$key],
+                    'period2' => $r2[$key],
+                    'variance' => $r2[$key] - $r1[$key],
+                    'variance_pct' => $vPct($r1[$key], $r2[$key])
+                ];
             }
             return ['summary' => $summary, 'monthly' => []];
         }
     }
-
 }

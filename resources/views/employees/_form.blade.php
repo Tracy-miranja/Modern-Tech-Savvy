@@ -357,6 +357,55 @@
                     <label class="form-check-label" for="is_exempt_from_payroll">Exempt from Payroll</label>
                 </div>
             </div>
+            <!-- PWD Tax Exemption -->
+<div class="mb-3">
+    <h6 class="text-muted fw-semibold mb-2">
+        <i class="fa fa-wheelchair me-1"></i> Persons with Disabilities (PWD) Tax Exemption
+    </h6>
+    <div class="alert alert-info py-2 small mb-2">
+        <i class="fa fa-info-circle"></i>
+        Under the Persons with Disabilities Act 2003 &amp; 2010 Order, qualifying PWDs are exempt
+        from PAYE on the first <strong>KES 150,000/month</strong>.
+        Employee must hold a valid NCPWD membership certificate.
+    </div>
+    <div class="form-check mb-2">
+        <input type="checkbox" name="has_disability_exemption" id="has_disability_exemption"
+            class="form-check-input"
+            value="1"
+            {{ isset($employee) && optional($employee->payrollDetail)->has_disability_exemption ? 'checked' : '' }}
+            onchange="togglePwdFields(this)">
+        <label class="form-check-label fw-semibold" for="has_disability_exemption">
+            This employee qualifies for PWD Tax Exemption
+        </label>
+    </div>
+
+    <div id="pwd_fields" style="display: {{ isset($employee) && optional($employee->payrollDetail)->has_disability_exemption ? 'block' : 'none' }};">
+        <div class="row g-2">
+            <div class="col-md-4">
+                <input type="text" name="pwd_certificate_no" id="pwd_certificate_no"
+                    class="form-control border-primary"
+                    value="{{ isset($employee) ? (optional($employee->payrollDetail)->pwd_certificate_no ?? '') : '' }}"
+                    placeholder="Disability Assessment Certificate No.">
+                <small class="text-muted">From a government gazetted hospital</small>
+            </div>
+            <div class="col-md-4">
+                <input type="text" name="pwd_ncpwd_membership_no" id="pwd_ncpwd_membership_no"
+                    class="form-control border-primary"
+                    value="{{ isset($employee) ? (optional($employee->payrollDetail)->pwd_ncpwd_membership_no ?? '') : '' }}"
+                    placeholder="NCPWD Membership Certificate No.">
+                <small class="text-muted">National Council for Persons with Disabilities</small>
+            </div>
+            <div class="col-md-4">
+                <input type="number" name="pwd_exemption_limit" id="pwd_exemption_limit"
+                    class="form-control border-primary"
+                    value="{{ isset($employee) ? (optional($employee->payrollDetail)->pwd_exemption_limit ?? 150000) : 150000 }}"
+                    placeholder="Monthly Exemption Limit (KES)"
+                    step="0.01" min="0" max="150000">
+                <small class="text-muted">Max KES 150,000/month per KRA</small>
+            </div>
+        </div>
+    </div>
+</div>
         </div>
 
 <!-- Payment Tab -->
@@ -726,4 +775,5 @@
         }
     }
 </script>
+
 

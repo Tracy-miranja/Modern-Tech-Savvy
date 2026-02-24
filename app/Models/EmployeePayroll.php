@@ -38,6 +38,8 @@ class EmployeePayroll extends Model
         'attendance_present',
         'attendance_absent',
         'days_in_month',
+        'pwd_exemption_applied',
+        'pwd_exemption_amount',
     ];
 
     protected $casts = [
@@ -63,6 +65,8 @@ class EmployeePayroll extends Model
         'advance_recovery' => 'float',
         'deductions_after_tax' => 'float',
         'net_pay' => 'float',
+        'pwd_exemption_applied' => 'boolean',
+        'pwd_exemption_amount'  => 'float',
     ];
 
     public function payroll()

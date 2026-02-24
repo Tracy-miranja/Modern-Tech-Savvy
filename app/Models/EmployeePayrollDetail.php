@@ -16,8 +16,16 @@ class EmployeePayrollDetail extends Model
         'has_hosp',
         'hosp_deposit',
         'has_helb',
-        'has_disability_exemption'
+        'has_disability_exemption',
+        'pwd_certificate_no',
+        'pwd_ncpwd_membership_no',
+        'pwd_exemption_limit',
     ];
+
+    protected $casts = [
+    'has_disability_exemption' => 'boolean',
+    'pwd_exemption_limit'      => 'decimal:2',
+];
 
     public function employee()
     {
