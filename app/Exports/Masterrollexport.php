@@ -15,68 +15,45 @@ use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 
-/**
- * MasterRollExport
- *
- * FIX 1: Header layout — company name & period are placed in a right-side block
- *         (columns E onward) matching the target Excel image. Columns A–D on rows 1–2
- *         are left blank so the EMPLOYEE INFO group colour fills them cleanly.
- *
- * FIX 2: Allowance / Deduction columns — ALL item_names present in the payroll JSON
- *         are included as columns regardless of is_active or amount. A column shows 0
- *         if a particular employee has no value for it, but the column always exists.
- *
- * FIX 3: Row numbering — removed the empty spacer row (old row 3) so:
- *         Row 1 = company title block
- *         Row 2 = period/currency info
- *         Row 3 = group header band  (previously row 4)
- *         Row 4 = column sub-headers (previously row 5)
- *         Row 5+ = data rows         (previously row 6+)
- *
- * FIX 4: $totalCols initialised early so styles() always has the correct value
- *         even if called before array() by the framework.
- */
 class MasterRollExport implements WithMultipleSheets
 {
     public function __construct(
         protected Payroll $payroll,
         protected object  $business,
-        protected string  $type    = 'detailed',
-        protected ?string $groupBy = null
+        protected string  $type              = 'detailed',
+        protected ?string $groupBy           = null,
+        protected array   $filteredEmployeeIds = []   // ← NEW: empty = no filter (all employees)
     ) {}
 
     public function sheets(): array
     {
         $currency = $this->payroll->currency ?? 'KES';
 
-        $allEps = EmployeePayroll::where('payroll_id', $this->payroll->id)
+        // ── Build the base query, scoped to filtered employees when provided ─
+        $query = EmployeePayroll::where('payroll_id', $this->payroll->id)
             ->with([
                 'employee.user',
                 'employee.location',
                 'employee.employmentDetails.department',
                 'employee.employmentDetails.jobCategory',
-            ])
-            ->get();
+            ]);
 
-        // Statutory item_names to exclude from custom deductions column
-        $statutoryLower = [
+        // Only restrict to the filtered subset when IDs were passed in
+        if (!empty($this->filteredEmployeeIds)) {
+            $query->whereIn('employee_id', $this->filteredEmployeeIds);
+        }
+
+        $allEps = $query->get();
+
+        $statutoryLower    = [
             'shif', 'nssf', 'paye', 'housing levy', 'helb',
             'absenteeism', 'absenteeism charge',
         ];
+        $skipAllowanceLower = ['overtime allowance'];
 
-        // Allowance item_names that are handled separately (not dynamic columns)
-        $skipAllowanceLower = [
-            'overtime allowance',
-        ];
-
-        // Collect every unique allowance/deduction item_name.
-        // We read from BOTH EmployeePayroll AND PayrollSettings for this payroll's
-        // month/year so that all configured items appear as columns even if
-        // EmployeePayroll stores allowances in a different structure.
         $allowanceNames = [];
         $deductionNames = [];
 
-        // Helper closure — processes one JSON string's items into the name maps
         $collectItems = function (?string $allowanceJson, ?string $deductionJson)
             use (&$allowanceNames, &$deductionNames, $statutoryLower, $skipAllowanceLower): void
         {
@@ -98,13 +75,11 @@ class MasterRollExport implements WithMultipleSheets
             }
         };
 
-        // Pass 1 — from EmployeePayroll records
         foreach ($allEps as $ep) {
             $collectItems($ep->allowances, $ep->deductions);
         }
 
-        // Pass 2 — from payroll_settings table for this payroll's month/year.
-        // Uses DB facade directly to avoid any model name ambiguity.
+        // Also collect from payroll_settings for the same (filtered) employees
         $employeeIds = $allEps->pluck('employee_id')->filter()->unique()->values();
         if ($employeeIds->isNotEmpty()) {
             \Illuminate\Support\Facades\DB::table('payroll_settings')
@@ -142,13 +117,21 @@ class MasterRollExport implements WithMultipleSheets
 // ============================================================================
 class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSize
 {
-    // ── FIX 3: 4-row header (no blank spacer row) ──────────────────────────
-    private int $dataStartRow = 5;   // data begins on row 5
+    private int $dataStartRow = 5;
     private int $totalsRow    = 5;
     private int $totalCols    = 0;
 
-    // Fixed statutory columns always in this order
-    private array $statutory = ['SHIF', 'NSSF', 'Housing Levy', 'Taxable Income', 'PAYE'];
+    // ── STATUTORY now includes Personal Relief + Insurance Relief ──────────
+    // Order: SHIF | NSSF | Housing Levy | Taxable Income | Personal Relief | Ins. Relief | PAYE
+    private array $statutory = [
+        'SHIF',
+        'NSSF',
+        'Housing Levy',
+        'Taxable Income',
+        'Personal Relief',
+        'Ins. Relief',
+        'PAYE',
+    ];
 
     private array $C = [
         'dark_navy' => '1A1A2E',
@@ -174,7 +157,6 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
         private array   $deductionNames,
         private string  $sheetTitle
     ) {
-        // ── FIX 4: pre-calculate totalCols so styles() always has the value ──
         $this->totalCols = count($this->buildColumnHeader());
     }
 
@@ -183,19 +165,6 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
     // ------------------------------------------------------------------
     public function array(): array
     {
-        // Title rows 1 & 2 are written directly to cells inside styles() using
-        // $sheet->setCellValue(). This avoids putting non-uniform rows into the
-        // FromArray data stream, which was causing Laravel Excel to miscalculate
-        // the column count and silently drop the dynamic allowance columns.
-        //
-        // Row layout:
-        //   Row 1  → blank placeholder (title injected in styles)
-        //   Row 2  → blank placeholder (period injected in styles)
-        //   Row 3  → group header band
-        //   Row 4  → column sub-headers
-        //   Row 5+ → data rows
-        //   Last   → totals row
-
         $colCount = $this->totalCols;
         $blankRow = array_fill(0, $colCount, '');
 
@@ -236,15 +205,29 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
     // ------------------------------------------------------------------
     private function buildGroupRow(): array
     {
-        $h = ['', '', '', '', ''];                                        // 5 employee-info cols (# | Name | Code | PIN | Basic Salary)
+        // 5 employee-info cols
+        $h = ['', '', '', '', ''];
+
+        // Allowances
         foreach ($this->allowanceNames as $n) { $h[] = 'ALLOWANCES'; }
+
         $h[] = 'OVERTIME';
         $h[] = 'GROSS PAY';
-        foreach ($this->statutory as $s)      { $h[] = 'STATUTORY DEDUCTIONS'; }
+
+        // STATUTORY — 7 cols
+        foreach ($this->statutory as $s) { $h[] = 'STATUTORY DEDUCTIONS'; }
+
+        // Custom deductions
         foreach ($this->deductionNames as $n) { $h[] = 'CUSTOM DEDUCTIONS'; }
-        for ($i = 0; $i < 5; $i++)            { $h[] = 'OTHER DEDUCTIONS & RELIEFS'; }
+
+        // OTHER DEDUCTIONS — 3 cols (Absenteeism, Loan, Advance)
+        for ($i = 0; $i < 3; $i++) { $h[] = 'OTHER DEDUCTIONS'; }
+
         $h[] = 'NET PAY';
-        for ($i = 0; $i < 5; $i++)            { $h[] = 'ATTENDANCE & BANK'; }
+
+        // Attendance & Bank — 5 cols
+        for ($i = 0; $i < 5; $i++) { $h[] = 'ATTENDANCE & BANK'; }
+
         return $h;
     }
 
@@ -252,6 +235,7 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
     private function buildColumnHeader(): array
     {
         $c = $this->currency;
+
         $h = ['#', 'Employee Name', 'Employee Code', 'Tax PIN (KRA)', "Basic Salary\n({$c})"];
 
         foreach ($this->allowanceNames as $key => $name) {
@@ -261,17 +245,25 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
         $h[] = "Overtime\n({$c})";
         $h[] = "Gross Pay\n({$c})";
 
-        foreach ($this->statutory as $s) { $h[] = "{$s}\n({$c})"; }
+        // Statutory columns — 7 total
+        $h[] = "SHIF\n({$c})";
+        $h[] = "NSSF\n({$c})";
+        $h[] = "Housing Levy\n({$c})";
+        $h[] = "Taxable Income\n({$c})";
+        $h[] = "Personal Relief\n({$c})";
+        $h[] = "Ins. Relief\n({$c})";
+        $h[] = "PAYE\n({$c})";
 
+        // Custom deductions
         foreach ($this->deductionNames as $key => $name) {
             $h[] = "{$name}\n({$c})";
         }
 
+        // Other deductions — 3 cols only
         $h[] = "Absenteeism\n({$c})";
         $h[] = "Loan Repayment\n({$c})";
         $h[] = "Advance Recovery\n({$c})";
-        $h[] = "Personal Relief\n({$c})";
-        $h[] = "Insurance Relief\n({$c})";
+
         $h[] = "NET PAY\n({$c})";
         $h[] = 'Days Present';
         $h[] = 'Days Absent';
@@ -301,7 +293,6 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
                     $overtimeFromAll += $amt;
                     continue;
                 }
-                // Only overwrite if not already set from ep->allowances (ep takes priority)
                 $key = strtolower($iname);
                 if (!isset($allowanceByKey[$key])) {
                     $allowanceByKey[$key] = $amt;
@@ -309,11 +300,8 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
             }
         };
 
-        // Primary source: EmployeePayroll->allowances
         $parseAllowances(json_decode($ep->allowances, true) ?? []);
 
-        // Fallback: payroll_settings for this employee/month/year
-        // (fills in any items missing from ep->allowances)
         $ps = \Illuminate\Support\Facades\DB::table('payroll_settings')
             ->where('employee_id', $ep->employee_id)
             ->where('year',        $this->payroll->payrun_year)
@@ -354,8 +342,6 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
         $overtimeJson = json_decode($ep->overtime, true) ?? [];
         $overtimeAmt  = (float)($overtimeJson['amount'] ?? $overtimeFromAll);
 
-        // ── Basic salary ──────────────────────────────────────────────────
-        // Prefer ep->basic_salary; fall back to ep->basic_pay or employee->basic_salary
         $basicSalary = (float)(
             $ep->basic_salary
             ?? $ep->basic_pay
@@ -364,31 +350,7 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
             ?? 0
         );
 
-        $row = [
-            $rowNum,
-            $ep->employee?->user?->name ?? 'N/A',
-            $ep->employee?->employee_code ?? 'N/A',
-            $ep->employee?->tax_no ?? 'N/A',
-            $basicSalary,
-        ];
-
-        foreach ($this->allowanceNames as $key => $name) {
-            $row[] = $allowanceByKey[$key] ?? 0.0;
-        }
-
-        $row[] = $overtimeAmt;
-        $row[] = (float)($ep->gross_pay ?? 0);
-
-        $row[] = (float)($ep->shif         ?? 0);
-        $row[] = (float)($ep->nssf         ?? 0);
-        $row[] = (float)($ep->housing_levy ?? 0);
-        $row[] = (float)($ep->taxable_income ?? 0);   // Taxable Income — statutory col before PAYE
-        $row[] = (float)($ep->paye         ?? 0);
-
-        foreach ($this->deductionNames as $key => $name) {
-            $row[] = $deductionByKey[$key] ?? 0.0;
-        }
-
+        // ── Resolve personal/insurance relief ────────────────────────────
         $reliefs = json_decode($ep->reliefs, true) ?? [];
         $personalRelief  = 0.0;
         $insuranceRelief = 0.0;
@@ -399,13 +361,46 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
             if (str_contains($rname, 'personal'))  $personalRelief  += $ramt;
             if (str_contains($rname, 'insurance')) $insuranceRelief += $ramt;
         }
+        $personalRelief  = (float)($ep->personal_relief  ?? $personalRelief);
+        $insuranceRelief = (float)($ep->insurance_relief ?? $insuranceRelief);
 
+        // ── Build row ─────────────────────────────────────────────────────
+        $row = [
+            $rowNum,
+            $ep->employee?->user?->name ?? 'N/A',
+            $ep->employee?->employee_code ?? 'N/A',
+            $ep->employee?->tax_no ?? 'N/A',
+            $basicSalary,
+        ];
+
+        // Allowances
+        foreach ($this->allowanceNames as $key => $name) {
+            $row[] = $allowanceByKey[$key] ?? 0.0;
+        }
+
+        $row[] = $overtimeAmt;
+        $row[] = (float)($ep->gross_pay ?? 0);
+
+        // ── STATUTORY — 7 cols ────────────────────────────────────────────
+        $row[] = (float)($ep->shif           ?? 0);
+        $row[] = (float)($ep->nssf           ?? 0);
+        $row[] = (float)($ep->housing_levy   ?? 0);
+        $row[] = (float)($ep->taxable_income ?? 0);
+        $row[] = $personalRelief;
+        $row[] = $insuranceRelief;
+        $row[] = (float)($ep->paye           ?? 0);
+
+        // Custom deductions
+        foreach ($this->deductionNames as $key => $name) {
+            $row[] = $deductionByKey[$key] ?? 0.0;
+        }
+
+        // ── OTHER DEDUCTIONS — 3 cols ─────────────────────────────────────
         $row[] = $absenteeismAmt;
         $row[] = (float)($ep->loan_repayment   ?? 0);
         $row[] = (float)($ep->advance_recovery ?? 0);
-        $row[] = (float)($ep->personal_relief  ?? $personalRelief);
-        $row[] = (float)($ep->insurance_relief ?? $insuranceRelief);
-        $row[] = (float)($ep->net_pay          ?? 0);
+
+        $row[] = (float)($ep->net_pay ?? 0);
         $row[] = (int)  ($ep->attendance_present ?? 0);
         $row[] = (int)  ($ep->attendance_absent  ?? 0);
         $row[] = (int)  ($ep->days_in_month      ?? 0);
@@ -428,16 +423,13 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
         $NAVY    = $this->C['dark_navy'];
         $WHITE   = $this->C['white'];
 
-        // Freeze pane: keep first 4 cols + header rows visible while scrolling
         $sheet->freezePane('F5');
 
-        // ── Header rows 1 & 2: write values directly to cells ─────────────
-        // Columns A-D rows 1-2: grey background, empty
+        // ── Header rows 1 & 2 ────────────────────────────────────────────
         $sheet->getStyle("A1:D2")->applyFromArray([
             'fill' => ['fillType' => Fill::FILL_SOLID, 'color' => ['rgb' => '343A40']],
         ]);
 
-        // Company name: merge E1 to last column, right-aligned
         $sheet->mergeCells("E1:{$lastCol}1");
         $sheet->getCell('E1')->setValue($company);
         $sheet->getStyle("E1")->applyFromArray([
@@ -447,7 +439,6 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
         ]);
         $sheet->getRowDimension(1)->setRowHeight(28);
 
-        // Period / currency: merge E2 to last column
         $sheet->mergeCells("E2:{$lastCol}2");
         $sheet->getCell('E2')->setValue("Master Payroll Roll  |  Period: {$period}  |  Currency: {$this->currency}");
         $sheet->getStyle("E2")->applyFromArray([
@@ -522,21 +513,47 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
     {
         $col = 1;
 
-        $this->mergeGroup($sheet, $col, $col + 4,  'EMPLOYEE INFO',              $this->C['grey']);     $col += 5;
+        // Employee Info — 5 cols
+        $this->mergeGroup($sheet, $col, $col + 4, 'EMPLOYEE INFO', $this->C['grey']);
+        $col += 5;
+
+        // Allowances
         $cnt = count($this->allowanceNames);
         if ($cnt > 0) {
-            $this->mergeGroup($sheet, $col, $col + $cnt - 1, 'ALLOWANCES',       $this->C['green']);    $col += $cnt;
+            $this->mergeGroup($sheet, $col, $col + $cnt - 1, 'ALLOWANCES', $this->C['green']);
+            $col += $cnt;
         }
-        $this->mergeGroup($sheet, $col, $col,      'OVERTIME',                   $this->C['teal']);     $col++;
-        $this->mergeGroup($sheet, $col, $col,      'GROSS PAY',                  $this->C['mid_blue']); $col++;
-        $this->mergeGroup($sheet, $col, $col + 4,  'STATUTORY DEDUCTIONS',       $this->C['red']);      $col += 5;
+
+        // Overtime
+        $this->mergeGroup($sheet, $col, $col, 'OVERTIME', $this->C['teal']);
+        $col++;
+
+        // Gross Pay
+        $this->mergeGroup($sheet, $col, $col, 'GROSS PAY', $this->C['mid_blue']);
+        $col++;
+
+        // STATUTORY DEDUCTIONS — 7 cols
+        $statCount = count($this->statutory);
+        $this->mergeGroup($sheet, $col, $col + $statCount - 1, 'STATUTORY DEDUCTIONS', $this->C['red']);
+        $col += $statCount;
+
+        // Custom deductions
         $cnt = count($this->deductionNames);
         if ($cnt > 0) {
-            $this->mergeGroup($sheet, $col, $col + $cnt - 1, 'CUSTOM DEDUCTIONS', $this->C['orange']); $col += $cnt;
+            $this->mergeGroup($sheet, $col, $col + $cnt - 1, 'CUSTOM DEDUCTIONS', $this->C['orange']);
+            $col += $cnt;
         }
-        $this->mergeGroup($sheet, $col, $col + 4,  'OTHER DEDUCTIONS & RELIEFS', $this->C['purple']); $col += 5;
-        $this->mergeGroup($sheet, $col, $col,      'NET PAY',                    $this->C['dark_navy']); $col++;
-        $this->mergeGroup($sheet, $col, $this->totalCols, 'ATTENDANCE & BANK',   $this->C['teal']);
+
+        // OTHER DEDUCTIONS — 3 cols (Absenteeism, Loan, Advance)
+        $this->mergeGroup($sheet, $col, $col + 2, 'OTHER DEDUCTIONS', $this->C['purple']);
+        $col += 3;
+
+        // Net Pay
+        $this->mergeGroup($sheet, $col, $col, 'NET PAY', $this->C['dark_navy']);
+        $col++;
+
+        // Attendance & Bank — remaining cols
+        $this->mergeGroup($sheet, $col, $this->totalCols, 'ATTENDANCE & BANK', $this->C['teal']);
     }
 
     private function mergeGroup(Worksheet $sheet, int $s, int $e, string $label, string $bg): void
@@ -557,15 +574,33 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
     private function applyColumnHeaderColors(Worksheet $sheet): void
     {
         $col = 1;
-        for ($i = 0; $i < 5; $i++)                          { $this->colorCol($sheet, $col++, $this->C['grey']); }
-        foreach ($this->allowanceNames as $k => $n)          { $this->colorCol($sheet, $col++, $this->C['green']); }
-        $this->colorCol($sheet, $col++, $this->C['teal']);     // Overtime
-        $this->colorCol($sheet, $col++, $this->C['mid_blue']); // Gross Pay
-        foreach ($this->statutory as $s)                     { $this->colorCol($sheet, $col++, $this->C['red']); }
-        foreach ($this->deductionNames as $k => $n)          { $this->colorCol($sheet, $col++, $this->C['orange']); }
-        for ($i = 0; $i < 5; $i++)                           { $this->colorCol($sheet, $col++, $this->C['purple']); }
-        $this->colorCol($sheet, $col++, $this->C['dark_navy']); // Net Pay
-        while ($col <= $this->totalCols)                     { $this->colorCol($sheet, $col++, $this->C['teal']); }
+
+        // Employee Info — 5 cols
+        for ($i = 0; $i < 5; $i++) { $this->colorCol($sheet, $col++, $this->C['grey']); }
+
+        // Allowances
+        foreach ($this->allowanceNames as $k => $n) { $this->colorCol($sheet, $col++, $this->C['green']); }
+
+        // Overtime
+        $this->colorCol($sheet, $col++, $this->C['teal']);
+
+        // Gross Pay
+        $this->colorCol($sheet, $col++, $this->C['mid_blue']);
+
+        // Statutory — 7 cols all red
+        foreach ($this->statutory as $s) { $this->colorCol($sheet, $col++, $this->C['red']); }
+
+        // Custom deductions
+        foreach ($this->deductionNames as $k => $n) { $this->colorCol($sheet, $col++, $this->C['orange']); }
+
+        // Other deductions — 3 cols only
+        for ($i = 0; $i < 3; $i++) { $this->colorCol($sheet, $col++, $this->C['purple']); }
+
+        // Net Pay
+        $this->colorCol($sheet, $col++, $this->C['dark_navy']);
+
+        // Attendance & Bank — remaining cols
+        while ($col <= $this->totalCols) { $this->colorCol($sheet, $col++, $this->C['teal']); }
     }
 
     private function colorCol(Worksheet $sheet, int $ci, string $rgb): void

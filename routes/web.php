@@ -31,6 +31,7 @@ use App\Http\Controllers\OrganogramController;
 use App\Http\Controllers\OvertimeController;
 use App\Http\Controllers\WorkScheduleController;
 use App\Http\Controllers\HolidayController;
+use App\Http\Controllers\BusinessCurrencyController;
 
 use App\Models\Business;
 
@@ -339,6 +340,19 @@ Route::get('/payroll/variance/data', [PayrollController::class, 'varianceData'])
             Route::get('/roles/create', [RoleController::class, 'create'])->name('roles.create');
             Route::get('/roles/{role}', [RoleController::class, 'show'])->name('roles.show');
             Route::get('/roles/{role}/edit', [RoleController::class, 'editView'])->name('roles.edit');
+
+                Route::prefix('settings/currencies')->name('currencies.')->group(function () {
+    Route::get('/',              [BusinessCurrencyController::class, 'index'])->name('index');
+    Route::get('/list',          [BusinessCurrencyController::class, 'list'])->name('list');
+    Route::get('/known',         [BusinessCurrencyController::class, 'knownCurrencies'])->name('known');
+    Route::post('/refresh-all',  [BusinessCurrencyController::class, 'refreshAllRates'])->name('refresh-all');
+    Route::post('/',             [BusinessCurrencyController::class, 'store'])->name('store');
+    Route::delete('/bulk',       [BusinessCurrencyController::class, 'bulkDestroy'])->name('bulk-destroy'); // ← BEFORE /{id}
+    Route::get('/{id}',          [BusinessCurrencyController::class, 'show'])->name('show');
+    Route::put('/{id}',          [BusinessCurrencyController::class, 'update'])->name('update');
+    Route::delete('/{id}',       [BusinessCurrencyController::class, 'destroy'])->name('destroy');
+    Route::post('/{id}/refresh', [BusinessCurrencyController::class, 'refreshRate'])->name('refresh');
+});
 
             // 🔹 CRM (PAGE ROUTES) — fixes Route [business.crm.contacts.index] not defined
             Route::prefix('crm')->name('crm.')->group(function () {

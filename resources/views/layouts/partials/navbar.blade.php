@@ -172,6 +172,13 @@
                                 Organogram
                             </a>
                         </li>
+                                            <li class="slide {{ request()->routeIs('business.currencies.index') ? 'active' : '' }}">
+    <a class="sidebar__menu-item {{ request()->routeIs('business.currencies.index') ? 'active' : '' }}"
+        href="{{ route('business.currencies.index', $currentBusiness->slug) }}">
+         Currency Management
+    </a>
+</li>
+
                             {{-- <li class="slide">
                             <a class="sidebar__menu-item"
                             href="" target="_blank" rel="noopener noreferrer">

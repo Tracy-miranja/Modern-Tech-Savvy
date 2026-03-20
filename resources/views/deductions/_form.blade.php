@@ -49,8 +49,9 @@
             @enderror
         </div>
         <div class="col-12" id="rate_field" style="display: {{ isset($deduction) && $deduction->computation_method == 'rate' ? 'block' : 'none' }};">
-            <label for="rate" class="form-label fw-medium text-dark">Rate (%) <span class="text-danger" id="rate_required" style="display: {{ isset($deduction) && $deduction->computation_method == 'rate' ? 'inline' : 'none' }};">*</span></label>
+            <label for="rate" class="form-label fw-medium text-dark">Employee Rate (%) <span class="text-danger" id="rate_required" style="display: {{ isset($deduction) && $deduction->computation_method == 'rate' ? 'inline' : 'none' }};">*</span></label>
             <input type="number" name="rate" id="rate" class="form-control" value="{{ $deduction->rate ?? '' }}" step="0.01" min="0" max="100" {{ isset($deduction) && $deduction->computation_method == 'rate' ? 'required' : '' }}>
+            <div class="form-text text-muted">This is the employee's own contribution rate (e.g. 10%).</div>
             @error('rate')
             <div class="invalid-feedback">{{ $message }}</div>
             @enderror
@@ -77,18 +78,67 @@
                 <option value="" disabled {{ !isset($deduction) ? 'selected' : '' }}>Select Fraction</option>
                 <option value="employee_only" {{ isset($deduction) && $deduction->fraction_to_consider == 'employee_only' ? 'selected' : '' }}>Employee Only</option>
                 <option value="employee_and_employer" {{ isset($deduction) && $deduction->fraction_to_consider == 'employee_and_employer' ? 'selected' : '' }}>Employee & Employer</option>
+                <option value="employer_only" {{ isset($deduction) && $deduction->fraction_to_consider == 'employer_only' ? 'selected' : '' }}>Employer Only</option>
             </select>
             @error('fraction_to_consider')
             <div class="invalid-feedback">{{ $message }}</div>
             @enderror
         </div>
+
+        {{-- ── EMPLOYER RATE FIELD ─────────────────────────────────────────────── --}}
+        {{-- Shown only when fraction_to_consider is employee_and_employer or employer_only --}}
+        {{-- and computation_method is rate.                                                --}}
+        {{-- If left blank, system will use the same rate as the employee (legacy behaviour) --}}
+        <div class="col-12" id="employer_rate_field" style="display: {{ (isset($deduction) && in_array($deduction->fraction_to_consider, ['employee_and_employer','employer_only']) && $deduction->computation_method === 'rate') ? 'block' : 'none' }};">
+            <label for="employer_rate" class="form-label fw-medium text-dark">
+                Employer Contribution Rate (%)
+                <span class="badge bg-info text-dark ms-1" style="font-size:0.7rem;">Optional</span>
+            </label>
+            <input type="number"
+                   name="employer_rate"
+                   id="employer_rate"
+                   class="form-control"
+                   value="{{ $deduction->employer_rate ?? '' }}"
+                   step="0.01" min="0" max="100"
+                   placeholder="Leave blank to match employee rate">
+            <div class="form-text text-muted">
+                Enter a different rate if the employer contributes at a different percentage than the employee.
+                Example: Employee = 10%, Employer = 6%. Leave blank to use the same rate as the employee.
+            </div>
+            @error('employer_rate')
+            <div class="invalid-feedback">{{ $message }}</div>
+            @enderror
+        </div>
+
         <div class="col-12">
-            <label for="limit" class="form-label fw-medium text-dark">Limit (Optional)</label>
+            <label for="limit" class="form-label fw-medium text-dark">Employee Contribution Limit (Optional)</label>
             <input type="number" name="limit" id="limit" class="form-control" value="{{ $deduction->limit ?? '' }}" step="0.01" min="0">
+            <div class="form-text text-muted">Maximum employee deduction per month (e.g. KES 30,000 for pension).</div>
             @error('limit')
             <div class="invalid-feedback">{{ $message }}</div>
             @enderror
         </div>
+
+        {{-- ── EMPLOYER LIMIT FIELD ────────────────────────────────────────────── --}}
+        <div class="col-12" id="employer_limit_field" style="display: {{ (isset($deduction) && in_array($deduction->fraction_to_consider, ['employee_and_employer','employer_only'])) ? 'block' : 'none' }};">
+            <label for="employer_limit" class="form-label fw-medium text-dark">
+                Employer Contribution Limit (Optional)
+            </label>
+            <input type="number"
+                   name="employer_limit"
+                   id="employer_limit"
+                   class="form-control"
+                   value="{{ $deduction->employer_limit ?? '' }}"
+                   step="0.01" min="0"
+                   placeholder="Leave blank to use employee limit">
+            <div class="form-text text-muted">
+                Maximum employer contribution per month. Leave blank to use the same limit as the employee.
+            </div>
+            @error('employer_limit')
+            <div class="invalid-feedback">{{ $message }}</div>
+            @enderror
+        </div>
+
         <div class="col-12">
             <label for="round_off" class="form-label fw-medium text-dark">Round Off <span class="text-danger">*</span></label>
             <select name="round_off" id="round_off" class="form-select" required>
@@ -123,6 +173,61 @@
 <script>
 (function() {
     'use strict';
+
+    // ── Helper: toggle employer-specific fields based on fraction + method ──
+    function updateEmployerFields() {
+        var method   = $('#computation_method').val();
+        var fraction = $('#fraction_to_consider').val();
+        var hasEmployer = (fraction === 'employee_and_employer' || fraction === 'employer_only');
+
+        // Employer rate: only visible when method=rate AND employer contributes
+        $('#employer_rate_field').toggle(method === 'rate' && hasEmployer);
+
+        // Employer limit: visible whenever employer contributes (any method)
+        $('#employer_limit_field').toggle(hasEmployer);
+    }
+
+    // ── Computation method change ──────────────────────────────────────────
+    $('#computation_method').on('change', function() {
+        const method = $(this).val();
+        const $amountField  = $('#amount_field');
+        const $rateField    = $('#rate_field');
+        const $formulaField = $('#formula_field');
+        const $amountInput  = $('#amount');
+        const $rateInput    = $('#rate');
+        const $formulaInput = $('#formula');
+
+        $amountField.toggle(method === 'fixed');
+        $rateField.toggle(method === 'rate');
+        $formulaField.toggle(method === 'formula');
+
+        $amountInput.prop('required', method === 'fixed');
+        $rateInput.prop('required', method === 'rate');
+        $formulaInput.prop('required', method === 'formula');
+        $('#amount_required').toggle(method === 'fixed');
+        $('#rate_required').toggle(method === 'rate');
+        $('#formula_required').toggle(method === 'formula');
+
+        if (method === 'fixed') {
+            $rateInput.val(''); $formulaInput.val('');
+            $rateInput.removeClass('is-invalid'); $formulaInput.removeClass('is-invalid');
+        } else if (method === 'rate') {
+            $amountInput.val(''); $formulaInput.val('');
+            $amountInput.removeClass('is-invalid'); $formulaInput.removeClass('is-invalid');
+        } else if (method === 'formula') {
+            $amountInput.val(''); $rateInput.val('');
+            $amountInput.removeClass('is-invalid'); $rateInput.removeClass('is-invalid');
+        }
+
+        updateEmployerFields();
+    });
+
+    // ── Fraction to consider change ────────────────────────────────────────
+    $('#fraction_to_consider').on('change', function() {
+        updateEmployerFields();
+    });
+
+    // ── Bootstrap validation ───────────────────────────────────────────────
     var forms = document.querySelectorAll('.needs-validation');
     Array.prototype.slice.call(forms).forEach(function(form) {
         form.addEventListener('submit', function(event) {
@@ -131,20 +236,18 @@
             if (form.checkValidity()) {
                 const method = $('#computation_method').val();
                 const amount = $('#amount').val();
-                const rate = $('#rate').val();
+                const rate   = $('#rate').val();
                 const formula = $('#formula').val();
 
                 if (method === 'fixed' && (!amount || parseFloat(amount) <= 0)) {
                     $('#amount').addClass('is-invalid');
-                    $('#amount').siblings('.invalid-feedback').text(
-                        'Amount is required and must be greater than 0.');
+                    $('#amount').siblings('.invalid-feedback').text('Amount is required and must be greater than 0.');
                     form.classList.add('was-validated');
                     return;
                 }
                 if (method === 'rate' && (!rate || parseFloat(rate) <= 0)) {
                     $('#rate').addClass('is-invalid');
-                    $('#rate').siblings('.invalid-feedback').text(
-                        'Rate is required and must be greater than 0.');
+                    $('#rate').siblings('.invalid-feedback').text('Rate is required and must be greater than 0.');
                     form.classList.add('was-validated');
                     return;
                 }
@@ -161,46 +264,8 @@
         }, false);
     });
 
-    $('#computation_method').on('change', function() {
-        const method = $(this).val();
-        const $amountField = $('#amount_field');
-        const $rateField = $('#rate_field');
-        const $formulaField = $('#formula_field');
-        const $amountInput = $('#amount');
-        const $rateInput = $('#rate');
-        const $formulaInput = $('#formula');
-        const $amountRequired = $('#amount_required');
-        const $rateRequired = $('#rate_required');
-        const $formulaRequired = $('#formula_required');
-
-        $amountField.toggle(method === 'fixed');
-        $rateField.toggle(method === 'rate');
-        $formulaField.toggle(method === 'formula');
-
-        $amountInput.prop('required', method === 'fixed');
-        $rateInput.prop('required', method === 'rate');
-        $formulaInput.prop('required', method === 'formula');
-        $amountRequired.toggle(method === 'fixed');
-        $rateRequired.toggle(method === 'rate');
-        $formulaRequired.toggle(method === 'formula');
-
-        if (method === 'fixed') {
-            $rateInput.val('');
-            $formulaInput.val('');
-            $rateInput.removeClass('is-invalid');
-            $formulaInput.removeClass('is-invalid');
-        } else if (method === 'rate') {
-            $amountInput.val('');
-            $formulaInput.val('');
-            $amountInput.removeClass('is-invalid');
-            $formulaInput.removeClass('is-invalid');
-        } else if (method === 'formula') {
-            $amountInput.val('');
-            $rateInput.val('');
-            $amountInput.removeClass('is-invalid');
-            $rateInput.removeClass('is-invalid');
-        }
-    });
+    // ── Init on page load ──────────────────────────────────────────────────
+    updateEmployerFields();
 })();
 </script>
 @endpush

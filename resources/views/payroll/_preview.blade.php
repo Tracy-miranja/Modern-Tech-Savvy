@@ -29,7 +29,8 @@
             @forelse($payrollData as $data)
             <tr>
                 <td>{{ $data['employee']->user?->name ?? 'N/A' }}</td>
-                <td>{{ number_format($data['basic_salary'] ?? 0, 2) }} {{ $data['currency'] ?? 'KES' }}</td>
+                {{-- {{ $data['currency'] ?? 'KES' }} --}}
+                <td>{{ number_format($data['basic_salary'] ?? 0, 2) }} </td>
                 <td>{{ collect($data['allowances'])->map(fn($a) => "{$a['name']} (" . number_format($a['amount'] ?? 0, 2) . ")")->implode(', ') ?: 'None' }}
                 </td>
                 <td>{{ number_format($data['overtime'] ?? 0, 2) }}</td>
@@ -40,7 +41,7 @@
                 <td>{{ number_format($data['helb'] ?? 0, 2) }}</td>
                 <td>{{ number_format($data['taxable_income'] ?? 0, 2) }}</td>
                 <td>{{ number_format($data['paye_before_reliefs'] ?? 0, 2) }}</td>
-                <td>{{ collect($data['reliefs'])->map(fn($r) => "{$r['name']} (" . number_format($r['amount'] ?? 0, 2) . ")")->implode(', ') ?: 'None' }}
+                <td>{{ collect($data['reliefs'])->map(fn($r) => "{$r['name']} (" . number_format($r['display_amount'] ?? $r['amount'] ?? 0, 2) . ")")->implode(', ') ?: 'None' }}
                 </td>
                 <td>{{ number_format($data['paye'] ?? 0, 2) }}</td>
                 <td>{{ collect($data['deductions'])->map(fn($d) => "{$d['name']} (" . number_format($d['amount'] ?? 0, 2) . ")")->implode(', ') ?: 'None' }}

@@ -71,6 +71,8 @@ public function store(Request $request)
             'actual_amount' => $validatedData['actual_amount'] ?? false,
             'fraction_to_consider' => $validatedData['fraction_to_consider'],
             'limit' => $validatedData['limit'] ?? 0, // Default to 0 if limit is not nullable
+            'employer_rate'  => $this->resolveEmployerRate($validatedData),
+                'employer_limit' => $this->resolveEmployerLimit($validatedData),
             'round_off' => $validatedData['round_off'],
             'decimal_places' => $validatedData['decimal_places'],
             'is_statutory' => false,
@@ -148,6 +150,9 @@ public function update(Request $request, $id)
             'actual_amount' => $validatedData['actual_amount'] ?? false,
             'fraction_to_consider' => $validatedData['fraction_to_consider'],
             'limit' => $validatedData['limit'] ?? 0, // Default to 0 if limit is not nullable
+             // ── Employer-specific fields ────────────────────────────────────
+                'employer_rate'  => $this->resolveEmployerRate($validatedData),
+                'employer_limit' => $this->resolveEmployerLimit($validatedData),
             'round_off' => $validatedData['round_off'],
             'decimal_places' => $validatedData['decimal_places'],
         ]);
@@ -178,7 +183,62 @@ public function update(Request $request, $id)
         });
     }
 
-   private function validateDeduction(Request $request, $isUpdate = false)
+    // ── Private helpers ────────────────────────────────────────────────────
+
+    /**
+     * Resolve employer_rate to store:
+     *   - NULL  when not applicable (employee_only, or method != rate)
+     *   - NULL  when field was blank (means "mirror employee rate")
+     *   - float when explicitly provided and differs from employee rate
+     */
+    private function resolveEmployerRate(array $data): ?float
+    {
+        $fraction = $data['fraction_to_consider'] ?? 'employee_only';
+        $method   = $data['computation_method']   ?? '';
+
+        if ($method !== 'rate') {
+            return null; // only relevant for rate-based deductions
+        }
+
+        if (!in_array($fraction, ['employee_and_employer', 'employer_only'])) {
+            return null; // no employer side at all
+        }
+
+        $raw = $data['employer_rate'] ?? null;
+
+        // Blank or zero → NULL (will fall back to employee rate at runtime)
+        if ($raw === null || $raw === '' || floatval($raw) <= 0) {
+            return null;
+        }
+
+        return floatval($raw);
+    }
+
+    /**
+     * Resolve employer_limit to store:
+     *   - NULL  when not applicable (employee_only)
+     *   - NULL  when field was blank (means "mirror employee limit")
+     *   - float when explicitly provided
+     */
+    private function resolveEmployerLimit(array $data): ?float
+    {
+        $fraction = $data['fraction_to_consider'] ?? 'employee_only';
+
+        if (!in_array($fraction, ['employee_and_employer', 'employer_only'])) {
+            return null;
+        }
+
+        $raw = $data['employer_limit'] ?? null;
+
+        if ($raw === null || $raw === '') {
+            return null; // mirror employee limit at runtime
+        }
+
+        return floatval($raw);
+    }
+
+
+private function validateDeduction(Request $request, $isUpdate = false)
 {
     $rules = [
         'name' => 'required|string|max:255',
@@ -189,8 +249,10 @@ public function update(Request $request, $id)
         'rate' => 'nullable|numeric|min:0|max:100|required_if:computation_method,rate',
         'formula' => 'nullable|string|max:255|required_if:computation_method,formula',
         'actual_amount' => 'nullable|boolean',
-        'fraction_to_consider' => 'required|in:employee_only,employee_and_employer',
+        'fraction_to_consider' => 'required|in:employee_only,employee_and_employer,employer_only',
         'limit' => 'nullable|numeric|min:0',
+        'employer_rate' => 'nullable|numeric|min:0|max:100',  // ADD THIS
+        'employer_limit' => 'nullable|numeric|min:0',          // ADD THIS
         'round_off' => 'required|in:round_off_up,round_off_down',
         'decimal_places' => 'required|integer|min:0|max:5',
     ];
