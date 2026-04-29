@@ -169,6 +169,7 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
             'reason' => 'nullable|string',
             'half_day' => 'nullable|boolean',
             'half_day_type' => 'nullable|string|in:morning,afternoon|required_if:half_day,1',
+            // Files
             'attachment' => 'nullable|file|mimes:pdf,jpg,png,doc,docx|max:2048',
             'attach_later' => 'nullable|boolean',
         ]);
@@ -275,7 +276,10 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
             // --- Entitlement check ---
             $remaining = LeaveEntitlement::where('employee_id', $employeeId)
                 ->where('leave_type_id', $leaveType->id)
+                ->where('business_id', $business->id)
+                ->orderByDesc('id')
                 ->first()?->getRemainingDays() ?? 0;
+
 
             if ($remaining < $totalDays) {
                 return RequestResponse::badRequest("You have {$remaining} remaining day(s) for this leave type, but you requested {$totalDays}.");
@@ -356,7 +360,12 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
             $leaveRequest->save();
 
             // Handle entitlement deduction
-            $this->deductLeaveEntitlementSafely($leaveRequest);
+            LeaveEntitlement::recomputeUsageFor(
+                (int) $leaveRequest->employee_id,
+                (int) $leaveRequest->leave_type_id,
+                (int) $leaveRequest->business_id
+            );
+
 
             // Send auto-approval notifications
             $this->sendFinalApprovalNotificationsWithDelay($leaveRequest);
@@ -561,8 +570,7 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
     protected function sendApplicationNotifications(LeaveRequest $leaveRequest)
     {
         try {
-            $business = $leaveRequest->business;
-            $employee = $leaveRequest->employee;
+            $employee  = $leaveRequest->employee;
             $leaveType = $leaveRequest->leaveType;
 
             // Always notify employee of submission (immediate)
@@ -570,26 +578,20 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
 
             $approvalLevels = (int)($leaveType->approval_levels ?? 1);
 
-            // If approval is required, notify approvers
-            // The leave will remain in pending status until manually approved
             if ($leaveType->requires_approval && $approvalLevels > 0) {
-                // Collect all recipients and send with delays
-                $recipients = collect();
-                $recipients = $recipients->merge($this->findHODApprovers($business)->pluck('email'));
-                $recipients = $recipients->merge($this->findBusinessHR($business)->pluck('email'));
+                $recipients = $this->approverRecipientsForLeave($leaveRequest);
 
-                // Send emails with 5-second delays
-                foreach ($recipients->unique() as $index => $email) {
+                foreach ($recipients as $index => $email) {
                     $delay = now()->addSeconds(($index + 1) * 5);
                     Mail::to($email)->later($delay, new LeaveRequestSubmitted($leaveRequest));
                 }
             }
-            // Leaves that require approval will stay pending until someone approves them
 
         } catch (\Exception $e) {
             Log::error("Error sending application notifications for {$leaveRequest->reference_number}: " . $e->getMessage());
         }
     }
+
 
     /**
      * Send next level notifications with delays
@@ -597,25 +599,25 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
     protected function sendNextLevelNotificationsWithDelay(LeaveRequest $leaveRequest)
     {
         try {
-            $business = $leaveRequest->business;
+            $recipients = $this->approverRecipientsForLeave($leaveRequest);
 
-            // Collect all recipients
-            $recipients = collect();
-            $recipients = $recipients->merge($this->findBusinessHR($business)->pluck('email'));
-            $recipients = $recipients->merge($this->findHODApprovers($business)->pluck('email'));
-
-            // Send with 5-second delays between each email
-            foreach ($recipients->unique() as $index => $email) {
+            foreach ($recipients as $index => $email) {
                 $delay = now()->addSeconds(($index + 1) * 5);
                 Mail::to($email)->later($delay, new LeaveRequestSubmitted($leaveRequest));
             }
 
             // Notify employee of progress (immediate)
-            $leaveRequest->employee->user->notify(new LeaveStatusNotification($leaveRequest));
+            try {
+                $leaveRequest->employee->user->notify(new LeaveStatusNotification($leaveRequest));
+            } catch (\Throwable $e) {
+                Log::warning("Employee progress notification failed: ".$e->getMessage());
+            }
+
         } catch (\Exception $e) {
             Log::error("Error sending next level notifications for {$leaveRequest->reference_number}: " . $e->getMessage());
         }
     }
+
 
     /**
      * Send final approval notifications with delays to prevent rate limiting
@@ -632,7 +634,7 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
             $recipients = collect();
             $recipients = $recipients->merge($this->findBusinessAdmins($business)->pluck('email'));
             $recipients = $recipients->merge($this->findBusinessHeads($business)->pluck('email'));
-            $recipients = $recipients->merge($this->findHODApprovers($business)->pluck('email'));
+            $recipients = $recipients->merge($this->approverRecipientsForLeave($leaveRequest));
             $recipients = $recipients->merge($this->findBusinessHR($business)->pluck('email'));
 
             // Send emails with 10-second delays to avoid rate limiting
@@ -662,8 +664,13 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
             $leaveRequest->current_approval_level = max((int)$leaveRequest->current_approval_level, 1);
             $leaveRequest->save();
 
-            // Handle entitlement deduction with better error handling
-            $this->deductLeaveEntitlementSafely($leaveRequest);
+            // Deterministic entitlement update (source-of-truth = approved leaves)
+            LeaveEntitlement::recomputeUsageFor(
+                (int) $leaveRequest->employee_id,
+                (int) $leaveRequest->leave_type_id,
+                (int) $leaveRequest->business_id
+            );
+
         } catch (\Exception $e) {
             Log::error("Error finalizing approval for leave {$leaveRequest->id}: " . $e->getMessage());
             throw $e;
@@ -676,33 +683,19 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
     protected function deductLeaveEntitlementSafely(LeaveRequest $leaveRequest): void
     {
         try {
-            $entitlement = LeaveEntitlement::where('employee_id', $leaveRequest->employee_id)
-                ->where('leave_type_id', $leaveRequest->leave_type_id)
-                ->first();
-
-            if (!$entitlement) {
-                Log::warning("No entitlement found for employee {$leaveRequest->employee_id} leave_type {$leaveRequest->leave_type_id} when finalizing.");
-                return;
-            }
-
-            if (method_exists($entitlement, 'deductDays')) {
-                $entitlement->deductDays((float)$leaveRequest->total_days);
-            } elseif (!is_null($entitlement->getAttribute('used_days'))) {
-                $entitlement->used_days = (float)($entitlement->used_days ?? 0) + (float)$leaveRequest->total_days;
-                $entitlement->save();
-            } else {
-                // Use the getRemainingDays method which recalculates and saves
-                $entitlement->getRemainingDays();
-                Log::info("Entitlement updated using getRemainingDays for entitlement #{$entitlement->id}.");
-            }
+            LeaveEntitlement::recomputeUsageFor(
+                (int) $leaveRequest->employee_id,
+                (int) $leaveRequest->leave_type_id,
+                (int) $leaveRequest->business_id
+            );
         } catch (\Exception $e) {
-            Log::error("Error deducting leave entitlement for leave {$leaveRequest->id}: " . $e->getMessage());
-            // Don't throw here - entitlement issues shouldn't block approval
+            Log::error("Error recomputing entitlement for leave {$leaveRequest->id}: " . $e->getMessage());
+
         }
     }
 
     /**
-     * Replace the old finalizeApproval method with this call
+     * finalizeApproval method
      */
     protected function finalizeApproval(LeaveRequest $leaveRequest): void
     {
@@ -710,7 +703,7 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
     }
 
     /**
-     * Replace the old notification methods with delay versions
+     *  methods with delay versions
      */
     protected function sendNextLevelNotifications(LeaveRequest $leaveRequest)
     {
@@ -765,12 +758,11 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
         //  Notify approvers SAFELY
         if ($leaveRequest->status === 'pending' && $leaveRequest->needsMoreApprovals()) {
             try {
-                foreach ($this->findHODApprovers($leaveRequest->business) as $hod) {
-                    Mail::to($hod->email)->queue(new LeaveRequestSubmitted($leaveRequest));
-                }
+                $recipients = $this->approverRecipientsForLeave($leaveRequest);
 
-                foreach ($this->findBusinessHR($leaveRequest->business) as $hr) {
-                    Mail::to($hr->email)->queue(new LeaveRequestSubmitted($leaveRequest));
+                foreach ($recipients as $index => $email) {
+                    $delay = now()->addSeconds(($index + 1) * 5);
+                    Mail::to($email)->later($delay, new LeaveRequestSubmitted($leaveRequest));
                 }
             } catch (\Exception $e) {
                 Log::error(
@@ -814,75 +806,62 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
             'business-head',
         ]);
     }
-    /**
-     * Revoke (shorten) an approved leave request.
-     */
+
+
+
     public function revoke(Request $request)
     {
         $validated = $request->validate([
             'reference_number'     => 'required|exists:leave_requests,reference_number',
-            'return_to_work_date'  => 'nullable|required_if:action,shorten|date',
+            'return_to_work_date'  => 'required|date',
             'reason'               => 'nullable|string|max:500',
-            'action'               => 'required|in:full,shorten',
         ]);
 
         return $this->handleTransaction(function () use ($validated) {
-        $leave = LeaveRequest::where('reference_number', $validated['reference_number'])->firstOrFail();
+            $leave = LeaveRequest::where('reference_number', $validated['reference_number'])->firstOrFail();
 
-        if ($leave->status !== 'approved') {
-            return response()->json(['status' => 'error', 'message' => 'Only approved leaves can be revoked.'], 400);
-        }
+            if ($leave->status !== 'approved') {
+                return response()->json(['status' => 'error', 'message' => 'Only approved leaves can be revoked.'], 400);
+            }
 
-        if (!$leave->canUserRevoke(auth()->user())) {
-            return response()->json(['status' => 'error', 'message' => 'You do not have permission to revoke this leave.'], 403);
-        }
+            if (!$leave->canUserRevoke(auth()->user())) {
+                return response()->json(['status' => 'error', 'message' => 'You do not have permission to revoke this leave.'], 403);
+            }
 
-        try {
-            if ($validated['action'] === 'full') {
-                $refund = $leave->revokeFully(
-                    $validated['reason'] ?? null,
-                    auth()->user()
-                );
-
-                $message = "Leave fully revoked. Refunded {$refund} day(s).";
-
-            } else {
+            try {
                 $refund = $leave->revokeToReturnDate(
                     Carbon::parse($validated['return_to_work_date']),
                     $validated['reason'] ?? null,
                     auth()->user()
                 );
 
-                $message = "Leave shortened successfully. Refunded {$refund} day(s).";
-            }
+                // 🔁 Always recompute entitlement usage based on all approved leaves
+                LeaveEntitlement::recomputeUsageFor(
+                    (int) $leave->employee_id,
+                    (int) $leave->leave_type_id,
+                    (int) $leave->business_id
+                );
 
-            LeaveEntitlement::recomputeUsageFor(
-                (int) $leave->employee_id,
-                (int) $leave->leave_type_id,
-                (int) $leave->business_id
-            );
+                // Optional: notify the employee (your class already exists)
+                try {
+                    $leave->employee->user->notify(new LeaveStatusNotification($leave));
+                } catch (\Throwable $e) {
+                    Log::warning('Notification failed after revoke: '.$e->getMessage());
+                }
 
-            try {
-                $leave->employee->user->notify(new LeaveStatusNotification($leave));
+                return response()->json([
+                    'status'         => 'success',
+                    'message'        => "Leave shortened successfully. Refunded {$refund} day(s).",
+                    'new_end_date'   => optional($leave->end_date)->toDateString(),
+                    'refunded_days'  => $refund,
+                    'new_total_days' => $leave->total_days,
+                ]);
             } catch (\Throwable $e) {
-                Log::warning('Notification failed after revoke: ' . $e->getMessage());
+                Log::error("Revoke failed for {$leave->reference_number}: ".$e->getMessage());
+                return response()->json(['status' => 'error', 'message' => $e->getMessage() ?: 'Failed to revoke leave.'], 400);
             }
-
-            return response()->json([
-                'status' => 'success',
-                'message' => $message,
-            ]);
-
-        } catch (\Throwable $e) {
-            Log::error("Revoke failed for {$leave->reference_number}: " . $e->getMessage());
-            return response()->json([
-                'status' => 'error',
-                'message' => $e->getMessage(),
-            ], 400);
-        }
         });
     }
-
     public function destroy(Request $request)
     {
         $validated = $request->validate([
@@ -962,6 +941,68 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
             ->get();
     }
 
+    /** HODs for a specific department in this business */
+    protected function findHODApproversForDepartment(Business $business, int $departmentId)
+    {
+        return User::role('head-of-department')
+            ->whereHas('employee', function ($q) use ($business, $departmentId) {
+                $q->where('business_id', $business->id)
+                ->where('department_id', $departmentId);
+            })
+            ->get();
+    }
+
+    /** Chief-of-staff users assigned to this department (pivot-based) */
+    protected function findChiefOfStaffApproversForDepartment(Business $business, int $departmentId)
+    {
+        return User::role('chief-of-staff')
+            ->whereHas('employee', function ($q) use ($business, $departmentId) {
+                $q->where('business_id', $business->id)
+                // IMPORTANT: this assumes Employee has relation assignedDepartments()
+                // that points to departments via pivot table.
+                ->whereHas('assignedDepartments', function ($qq) use ($departmentId) {
+                    $qq->where('departments.id', $departmentId);
+                });
+            })
+            ->get();
+    }
+
+    /**
+     * Approvers for THIS leave request (scoped):
+     * - HODs for employee department only
+     * - Chief-of-staff assigned to employee department only
+     * - Business HR (business-wide)
+     */
+    protected function approverRecipientsForLeave(LeaveRequest $leaveRequest)
+    {
+        $business = $leaveRequest->business ?? Business::find($leaveRequest->business_id);
+        $employee = $leaveRequest->employee ?? Employee::find($leaveRequest->employee_id);
+
+        $deptId = (int)($employee?->department_id ?? 0);
+
+        $recipients = collect();
+
+        // HR always business-wide
+        $recipients = $recipients->merge($this->findBusinessHR($business)->pluck('email'));
+
+        // HOD only for that department
+        if ($deptId > 0) {
+            $recipients = $recipients->merge(
+                $this->findHODApproversForDepartment($business, $deptId)->pluck('email')
+            );
+
+            // Chief-of-staff only assigned to that department
+            $recipients = $recipients->merge(
+                $this->findChiefOfStaffApproversForDepartment($business, $deptId)->pluck('email')
+            );
+        }
+
+        return $recipients
+            ->filter()
+            ->map(fn ($e) => strtolower(trim($e)))
+            ->unique()
+            ->values();
+    }
 
     public function downloadPdf(Business $business, $reference)
     {
@@ -989,7 +1030,7 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
 
 
     // --------------------------
-    // Debug helper (unchanged)
+    // Debug helper method
     // --------------------------
     public function debugLeaveIssues($employeeId, $leaveTypeId, $startDate, $endDate)
     {
@@ -1117,235 +1158,219 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
         return null;
     }
 
-// LeaveRequestController.php (inside class LeaveRequestController)
+    public function export(Request $request, Business $business)
+    {
+        try {
+            $format  = $request->input('format', 'excel');
+            $status  = $request->input('status', 'all');
+            $data    = $request->input('data', []);
+            $filters = $request->input('filters', []);
 
-public function export(Request $request, Business $business)
-{
-    $format  = $request->input('format', 'excel');
-    $status  = $request->input('status', 'all');
-    $data    = $request->input('data', []);
-    $filters = $request->input('filters', []);
+            // Ensure arrays
+            if (!is_array($data)) $data = [];
+            if (!is_array($filters)) $filters = [];
 
-    // Normalize "days" to numeric for totals
-    $totalDays = collect($data)->sum(function ($row) {
-        $val = strip_tags((string) ($row['days'] ?? 0));
-        $val = preg_replace('/[^0-9.\-]/', '', $val);
-        return (float) $val;
-    });
+            // Normalize "days" to numeric for totals
+            $totalDays = collect($data)->sum(function ($row) {
+                $val = strip_tags((string) ($row['days'] ?? 0));
+                $val = preg_replace('/[^0-9.\-]/', '', $val);
+                return (float) $val;
+            });
 
-    if ($format === 'excel') {
-        return $this->exportToExcel($business, $data, $status, $filters, $totalDays);
+            if ($format === 'excel') {
+                return $this->exportToExcel($business, $data, $status, $filters, $totalDays);
+            }
+
+            if ($format === 'pdf') {
+                return $this->exportToPDF($business, $data, $status, $filters, $totalDays);
+            }
+
+            return response()->json(['message' => 'Invalid format'], 400);
+
+        } catch (\Throwable $e) {
+            \Log::error('Leave export failed', [
+                'message' => $e->getMessage(),
+                'trace'   => $e->getTraceAsString(),
+            ]);
+
+            // Return JSON so frontend doesn't download HTML
+            return response()->json([
+                'message' => 'Export failed: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
-    if ($format === 'pdf') {
-        return $this->exportToPDF($business, $data, $status, $filters, $totalDays);
-    }
+    protected function exportToExcel(
+        Business $business,
+        array $data,
+        string $status,
+        array $filters,
+        float $totalDays
+    ) {
+        $spreadsheet = new Spreadsheet();
+        $sheet       = $spreadsheet->getActiveSheet();
 
-    return response()->json(['error' => 'Invalid format'], 400);
-}
+        $spreadsheet->getProperties()
+            ->setCreator(config('app.name'))
+            ->setTitle('Leave Requests Export')
+            ->setSubject('Leave Requests')
+            ->setDescription('Exported leave requests data');
 
-/**
- * NOTE: still using table data from the client (DataTables).
- * If in future you want server-side export, we’ll change this to query DB with $filters.
- */
-protected function exportToExcel(
-    Business $business,
-    array $data,
-    string $status,
-    array $filters,
-    float $totalDays
-) {
-    $spreadsheet = new Spreadsheet();
-    $sheet       = $spreadsheet->getActiveSheet();
+        $sheet->mergeCells('A1:H1');
+        $sheet->setCellValue('A1', strtoupper($business->company_name ?? $business->name ?? 'LEAVE REQUESTS REPORT'));
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(16);
+        $sheet->getStyle('A1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-    // Set document properties
-    $spreadsheet->getProperties()
-        ->setCreator(config('app.name'))
-        ->setTitle('Leave Requests Export')
-        ->setSubject('Leave Requests')
-        ->setDescription('Exported leave requests data');
+        $sheet->mergeCells('A2:H2');
+        $sheet->setCellValue('A2', 'LEAVE REQUESTS REPORT — Status: ' . ucfirst($status));
+        $sheet->getStyle('A2')->getFont()->setSize(11);
+        $sheet->getStyle('A2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-    // Title
-    $sheet->mergeCells('A1:H1');
-    $sheet->setCellValue('A1', strtoupper($business->company_name ?? $business->name ?? 'LEAVE REQUESTS REPORT'));
-    $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(16);
-    $sheet->getStyle('A1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $row = 4;
+        $sheet->setCellValue('A' . $row, 'Business: ' . ($business->company_name ?? $business->name ?? 'N/A'));
+        $sheet->setCellValue('E' . $row, 'Generated: ' . now()->format('M d, Y H:i'));
+        $row++;
 
-    // Subtitle row
-    $sheet->mergeCells('A2:H2');
-    $sheet->setCellValue('A2', 'LEAVE REQUESTS REPORT — Status: ' . ucfirst($status));
-    $sheet->getStyle('A2')->getFont()->setSize(11);
-    $sheet->getStyle('A2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->setCellValue('A' . $row, 'Status: ' . ucfirst($status));
+        $sheet->setCellValue('E' . $row, 'Generated By: ' . (auth()->user()->name ?? 'System'));
 
-    // Metadata
-    $row = 4;
-    $sheet->setCellValue('A' . $row, 'Business: ' . ($business->company_name ?? $business->name ?? 'N/A'));
-    $sheet->setCellValue('E' . $row, 'Generated: ' . now()->format('M d, Y H:i'));
-    $row++;
+        if (!empty(array_filter($filters))) {
+            $row += 2;
+            $sheet->setCellValue('A' . $row, 'FILTERS APPLIED:');
+            $sheet->getStyle('A' . $row)->getFont()->setBold(true);
+            $row++;
 
-    $sheet->setCellValue('A' . $row, 'Status: ' . ucfirst($status));
-    $sheet->setCellValue('E' . $row, 'Generated By: ' . (auth()->user()->name ?? 'System'));
+            $map = [
+                'leave_type'      => 'Leave Type ID',
+                'employee'        => 'Employee ID',
+                'department'      => 'Department ID',
+                'job_category'    => 'Job Category ID',
+                'start_date'      => 'From Date',
+                'end_date'        => 'To Date',
+                'days_range'      => 'Days Range',
+                'approval_status' => 'Approval Status',
+                'documentation'   => 'Documentation',
+                'tentative'       => 'Tentative',
+            ];
 
-    // Filters
-    if (!empty(array_filter($filters))) {
+            foreach ($map as $key => $label) {
+                if (!empty($filters[$key])) {
+                    $sheet->setCellValue('A' . $row, $label . ': ' . (string)$filters[$key]);
+                    $row++;
+                }
+            }
+        }
+
         $row += 2;
-        $sheet->setCellValue('A' . $row, 'FILTERS APPLIED:');
-        $sheet->getStyle('A' . $row)->getFont()->setBold(true);
-        $row++;
+        $headerRow = $row;
 
-        if (!empty($filters['leave_type'])) {
-            $sheet->setCellValue('A' . $row, 'Leave Type ID: ' . $filters['leave_type']);
-            $row++;
+        $headers = ['Ref. No.', 'Employee', 'Leave Type', 'Start Date', 'Days', 'End Date', 'Status', 'Notes'];
+        $col = 'A';
+        foreach ($headers as $h) {
+            $sheet->setCellValue($col.$row, $h);
+            $col++;
         }
-        if (!empty($filters['employee'])) {
-            $sheet->setCellValue('A' . $row, 'Employee ID: ' . $filters['employee']);
-            $row++;
-        }
-        if (!empty($filters['department'])) {
-            $sheet->setCellValue('A' . $row, 'Department ID: ' . $filters['department']);
-            $row++;
-        }
-        if (!empty($filters['job_category'])) {
-            $sheet->setCellValue('A' . $row, 'Job Category ID: ' . $filters['job_category']);
-            $row++;
-        }
-        if (!empty($filters['start_date'])) {
-            $sheet->setCellValue('A' . $row, 'From Date: ' . $filters['start_date']);
-            $row++;
-        }
-        if (!empty($filters['end_date'])) {
-            $sheet->setCellValue('A' . $row, 'To Date: ' . $filters['end_date']);
-            $row++;
-        }
-        if (!empty($filters['days_range'])) {
-            $sheet->setCellValue('A' . $row, 'Days Range: ' . $filters['days_range']);
-            $row++;
-        }
-        if (!empty($filters['approval_status'])) {
-            $sheet->setCellValue('A' . $row, 'Approval Status: ' . $filters['approval_status']);
-            $row++;
-        }
-        if (!empty($filters['documentation'])) {
-            $sheet->setCellValue('A' . $row, 'Documentation: ' . $filters['documentation']);
-            $row++;
-        }
-        if (!empty($filters['tentative'])) {
-            $sheet->setCellValue('A' . $row, 'Tentative: ' . $filters['tentative']);
-            $row++;
-        }
-    }
 
-    // Headers
-    $row       += 2;
-    $headerRow  = $row;
-    $headers    = ['Ref. No.', 'Employee', 'Leave Type', 'Start Date', 'Days', 'End Date', 'Status', 'Notes'];
-
-    $col = 'A';
-    foreach ($headers as $header) {
-        $sheet->setCellValue($col . $row, $header);
-        $col++;
-    }
-
-    // Style headers
-    $sheet->getStyle('A' . $headerRow . ':H' . $headerRow)->applyFromArray([
-        'font' => [
-            'bold'  => true,
-            'color' => ['rgb' => 'FFFFFF'],
-        ],
-        'fill' => [
-            'fillType'   => Fill::FILL_SOLID,
-            'startColor' => ['rgb' => '4472C4'],
-        ],
-        'alignment' => [
-            'horizontal' => Alignment::HORIZONTAL_CENTER,
-            'vertical'   => Alignment::VERTICAL_CENTER,
-        ],
-        'borders' => [
-            'allBorders' => [
-                'borderStyle' => Border::BORDER_THIN,
+        $sheet->getStyle('A'.$headerRow.':H'.$headerRow)->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '4472C4']],
+            'alignment' => [
+                'horizontal' => Alignment::HORIZONTAL_CENTER,
+                'vertical'   => Alignment::VERTICAL_CENTER,
             ],
-        ],
-    ]);
-
-    // Data rows
-    $row++;
-    foreach ($data as $item) {
-        $sheet->setCellValue('A' . $row, strip_tags($item['ref']        ?? ''));
-        $sheet->setCellValue('B' . $row, strip_tags($item['employee']   ?? ''));
-        $sheet->setCellValue('C' . $row, strip_tags($item['leave_type'] ?? ''));
-        $sheet->setCellValue('D' . $row, strip_tags($item['start_date'] ?? ''));
-
-        $daysVal = strip_tags($item['days'] ?? '');
-        $daysVal = preg_replace('/[^0-9.\-]/', '', $daysVal);
-        $sheet->setCellValue('E' . $row, (float) $daysVal);
-
-        $sheet->setCellValue('F' . $row, strip_tags($item['end_date']   ?? ''));
-        $sheet->setCellValue('G' . $row, strip_tags($item['status']     ?? ''));
-        $sheet->setCellValue('H' . $row, '');
+            'borders' => [
+                'allBorders' => ['borderStyle' => Border::BORDER_THIN],
+            ],
+        ]);
 
         $row++;
-    }
+        foreach ($data as $item) {
+            $sheet->setCellValue('A'.$row, strip_tags((string)($item['ref'] ?? '')));
+            $sheet->setCellValue('B'.$row, strip_tags((string)($item['employee'] ?? '')));
+            $sheet->setCellValue('C'.$row, strip_tags((string)($item['leave_type'] ?? '')));
+            $sheet->setCellValue('D'.$row, strip_tags((string)($item['start_date'] ?? '')));
 
-    // Apply borders to data
-    $lastRow = $row - 1;
-    $sheet->getStyle('A' . $headerRow . ':H' . $lastRow)->applyFromArray([
-        'borders' => [
-            'allBorders' => [
-                'borderStyle' => Border::BORDER_THIN,
-                'color'       => ['rgb' => '000000'],
+            $daysVal = strip_tags((string)($item['days'] ?? '0'));
+            $daysVal = preg_replace('/[^0-9.\-]/', '', $daysVal);
+            $sheet->setCellValue('E'.$row, (float)$daysVal);
+
+            $sheet->setCellValue('F'.$row, strip_tags((string)($item['end_date'] ?? '')));
+            $sheet->setCellValue('G'.$row, strip_tags((string)($item['status'] ?? '')));
+            $sheet->setCellValue('H'.$row, '');
+
+            $row++;
+        }
+
+        $lastRow = $row - 1;
+
+        $sheet->getStyle('A'.$headerRow.':H'.$lastRow)->applyFromArray([
+            'borders' => [
+                'allBorders' => [
+                    'borderStyle' => Border::BORDER_THIN,
+                    'color'       => ['rgb' => '000000'],
+                ],
             ],
-        ],
-    ]);
+        ]);
 
-    // Auto-size columns
-    foreach (range('A', 'H') as $colLetter) {
-        $sheet->getColumnDimension($colLetter)->setAutoSize(true);
+        foreach (range('A', 'H') as $c) {
+            $sheet->getColumnDimension($c)->setAutoSize(true);
+        }
+
+        $row += 2;
+        $sheet->setCellValue('A'.$row, 'Total Records:');
+        $sheet->setCellValue('B'.$row, count($data));
+        $sheet->setCellValue('D'.$row, 'Total Days Requested:');
+        $sheet->setCellValue('E'.$row, $totalDays);
+        $sheet->getStyle('A'.$row.':E'.$row)->getFont()->setBold(true);
+
+        $writer   = new Xlsx($spreadsheet);
+        $fileName = 'leave_requests_'.$status.'_'.time().'.xlsx';
+
+        return response()->streamDownload(function () use ($writer) {
+            // CRITICAL: if any output exists, xlsx becomes corrupt
+            while (ob_get_level() > 0) { ob_end_clean(); }
+            $writer->save('php://output');
+        }, $fileName, [
+            'Content-Type'        => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => 'attachment; filename="'.$fileName.'"',
+            'Cache-Control'       => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma'              => 'no-cache',
+        ]);
     }
 
-    // Summary row
-    $row += 2;
-    $sheet->setCellValue('A' . $row, 'Total Records:');
-    $sheet->setCellValue('B' . $row, count($data));
-    $sheet->setCellValue('D' . $row, 'Total Days Requested:');
-    $sheet->setCellValue('E' . $row, $totalDays);
-    $sheet->getStyle('A' . $row . ':E' . $row)->getFont()->setBold(true);
+    protected function exportToPDF(
+        Business $business,
+        array $data,
+        string $status,
+        array $filters,
+        float $totalDays
+    ) {
+        $generatedAt  = now()->format('M d, Y H:i:s');
+        $totalRecords = count($data);
 
-    // Stream Excel – avoids temp-file/header weirdness
-    $writer   = new Xlsx($spreadsheet);
-    $fileName = 'leave_requests_' . $status . '_' . time() . '.xlsx';
+        $pdf = Pdf::loadView('exports.leave-requests-pdf', [
+            'businessName' => $business->company_name ?? $business->name ?? config('app.name'),
+            'data'         => $data,
+            'status'       => $status,
+            'filters'      => $filters,
+            'generatedAt'  => $generatedAt,
+            'totalRecords' => $totalRecords,
+            'totalDays'    => $totalDays,
+        ])->setPaper('A4', 'landscape');
 
-    return response()->streamDownload(function () use ($writer) {
-        $writer->save('php://output');
-    }, $fileName, [
-        'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    ]);
-}
+        $fileName = 'leave_requests_'.$status.'_'.time().'.pdf';
 
-protected function exportToPDF(
-    Business $business,
-    array $data,
-    string $status,
-    array $filters,
-    float $totalDays
-) {
-    $generatedAt  = now()->format('M d, Y H:i:s');
-    $totalRecords = count($data);
+        // Get raw bytes
+        $output = $pdf->output();
 
-    $pdf = Pdf::loadView('exports.leave-requests-pdf', [
-        'businessName' => $business->company_name ?? $business->name ?? config('app.name'),
-        'data'         => $data,
-        'status'       => $status,
-        'filters'      => $filters,
-        'generatedAt'  => $generatedAt,
-        'totalRecords' => $totalRecords,
-        'totalDays'    => $totalDays,
-    ]);
+        // CRITICAL: prevent corruption
+        while (ob_get_level() > 0) { ob_end_clean(); }
 
-    $pdf->setPaper('A4', 'landscape');
-
-    $fileName = 'leave_requests_' . $status . '_' . time() . '.pdf';
-
-    return $pdf->download($fileName);
-}
-
+        return response($output, 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.$fileName.'"',
+            'Cache-Control'       => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma'              => 'no-cache',
+        ]);
+    }
 }

@@ -85,7 +85,11 @@
                     <div id="workSchedulesContainer">
                         {{ loader() }}
                     </div>
-
+                    <div id="scheduleTimelineContainer" class="mt-4">
+                        {{-- JS injects timeline --}}<button class="btn btn-outline-secondary" onclick="loadScheduleTimelineFromFilteredEmployee()">
+                            <i class="bi bi-clock-history me-1"></i> View Schedule Timeline
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

@@ -263,7 +263,7 @@ class PayrollController extends Controller
     }
 
     public function fetchEmployeesForSettings(Request $request)
-    {
+     {
         $business = Business::findBySlug(session('active_business_slug'));
         if (!$business) return RequestResponse::badRequest('Business not found.');
 
@@ -276,7 +276,9 @@ class PayrollController extends Controller
             'employeeAllowances.allowance',
             'employeeDeductions.deduction',
             'reliefs' => fn($q) => $q->whereNotNull('relief_id'),
-            'overtimes' => fn($q) => $q->whereYear('date', $year)->whereMonth('date', $month),
+           'overtimes' => fn($q) => $q->whereYear('date', $year)
+                            ->whereMonth('date', $month)
+                            ->where('status', 'approved'),
             'loans.repayments',
             'advances',
         ]);
@@ -314,31 +316,43 @@ class PayrollController extends Controller
                     return [$itemId => $pivotData];
                 })->all();
 
-                return $hasSettings && $settingsData ? array_merge($sourceData, array_map(function ($item) {
-                    return array_merge($item, [
-                        'amount' => floatval($item['amount'] ?? 0),
-                        'rate' => floatval($item['rate'] ?? 0),
-                    ]);
-                }, $settingsData)) : $sourceData;
+                // FIXED
+                if ($hasSettings && $settingsData) {
+                    $settingsById = [];
+                    foreach ($settingsData as $item) {
+                        $key = (int)($item['item_id'] ?? 0);
+                        if (!$key) continue;
+                        $settingsById[$key] = array_merge($item, [
+                            'amount' => floatval($item['amount'] ?? 0),
+                            'rate'   => floatval($item['rate'] ?? 0),
+                        ]);
+                    }
+                    return array_replace($sourceData, $settingsById);
+                }
+                return $sourceData;
             };
 
-            $mapOvertime = function ($settingsData, $employeeOvertimes) use ($employee, $hasSettings) {
-                $sourceData = $employeeOvertimes->mapWithKeys(function ($overtime) use ($employee) {
-                    return [$overtime->id => [
-                        'user_id' => $employee->user_id,
-                        'employee_code' => $employee->employee_code,
-                        'name' => $employee->user?->name ?? 'N/A',
-                        'item_name' => "Overtime on {$overtime->date?->format('Y-m-d')}",
-                        'item_id' => $overtime->id,
-                        'amount' => floatval($overtime->overtime_hours ?? 0),
-                        'is_active' => $overtime->to_be_paid ?? false,
-                    ]];
-                })->all();
+         $mapOvertime = function ($settingsData, $employeeOvertimes) use ($employee, $hasSettings) {
+    $sourceData = $employeeOvertimes->mapWithKeys(function ($overtime) use ($employee) {
+        return [$overtime->id => [
+            'user_id'       => $employee->user_id,
+            'employee_code' => $employee->employee_code,
+            'name'          => $employee->user?->name ?? 'N/A',
+            'item_name'     => "Overtime on {$overtime->date?->format('Y-m-d')} ({$overtime->overtime_hours} hrs)",
+            'item_id'       => $overtime->id,
+            'amount'        => floatval($overtime->overtime_hours ?? 0), // hours — used in calculation
+            'total_pay'     => floatval($overtime->total_pay ?? 0),      // hours × multiplier — for display
+            'rate'          => floatval($overtime->rate ?? 0),
+            'is_active'     => $overtime->status === 'approved',         // only approved are active by default
+        ]];
+    })->all();
 
-                return $hasSettings && $settingsData ? array_merge($sourceData, array_map(function ($item) {
-                    return array_merge($item, ['amount' => floatval($item['amount'] ?? 0)]);
-                }, $settingsData)) : $sourceData;
-            };
+    return $hasSettings && $settingsData
+        ? array_merge($sourceData, array_map(function ($item) {
+            return array_merge($item, ['amount' => floatval($item['amount'] ?? 0)]);
+        }, $settingsData))
+        : $sourceData;
+};
 
             $mapLoansAdvances = function ($settingsData, $employeeData, $type) use ($employee, $hasSettings) {
                 $sourceData = $employeeData->mapWithKeys(function ($item) use ($employee, $type) {
@@ -387,6 +401,10 @@ class PayrollController extends Controller
 
     public function saveSettings(Request $request)
     {
+        $input = $request->json()->all();
+        $year      = $input['year'] ?? $request->year;
+        $month     = $input['month'] ?? $request->month;
+        $employees = $input['employees'] ?? $request->employees;
         $business = Business::findBySlug(session('active_business_slug'));
         if (!$business) return RequestResponse::badRequest('Business not found.');
 
@@ -605,6 +623,9 @@ class PayrollController extends Controller
                     'basic_salary_orig'  => $data['basic_salary_orig'] ?? $data['basic_salary'],
                     'gross_pay_orig'     => $data['gross_pay_orig'] ?? $data['gross_pay'],
                     'net_pay_orig'       => $data['net_pay_orig'] ?? $data['net_pay'],
+                    'is_consultant'  => $data['is_consultant'] ?? false,
+                    'wht_amount'     => $data['wht_amount'] ?? 0,
+                    'wht_rate'       => $data['wht_rate'] ?? 0,
                 ];
 
                 if ($employeePayroll) {
@@ -955,27 +976,177 @@ class PayrollController extends Controller
             $settings = $options['payroll_settings'][$employeeId] ?? null;
 
             $paymentDetail = EmployeePaymentDetail::where('employee_id', $employeeId)->first();
-            $payrollDetail = EmployeePayrollDetail::where('employee_id', $employeeId)->first();
-            $taxCurrency = match (strtoupper(trim($business->country ?? 'KENYA'))) {
-                'UGANDA', 'UG' => 'UGX',
-                default         => 'KES',
-            };
-            $employeeCurrency = strtoupper(trim($paymentDetail->currency ?? $taxCurrency));
-            $needsConversion  = ($employeeCurrency !== $taxCurrency);
-            $exchangeRate     = $needsConversion
-                ? app(CurrencyService::class)->getBusinessRate($business, $employeeCurrency, $taxCurrency)
-                : 1.0;
-            $toTax = fn(float $amount): float => $needsConversion ? round($amount * $exchangeRate, 2) : $amount;
 
             if (!$paymentDetail) {
                 Log::warning("No payment details found for employee {$employeeId}. Skipping.");
                 continue;
             }
 
-            $bankName = $paymentDetail->bank_name ?? 'N/A';
+            // ── Currency setup (needed by BOTH consultant and regular paths) ──
+            $payrollDetail    = EmployeePayrollDetail::where('employee_id', $employeeId)->first();
+            $taxCurrency      = match (strtoupper(trim($business->country ?? 'KENYA'))) {
+                'UGANDA', 'UG' => 'UGX',
+                default        => 'KES',
+            };
+            $employeeCurrency = strtoupper(trim($paymentDetail->currency ?? $taxCurrency));
+            $needsConversion  = ($employeeCurrency !== $taxCurrency);
+            $exchangeRate     = $needsConversion
+                ? app(CurrencyService::class)->getBusinessRate($business, $employeeCurrency, $taxCurrency)
+                : 1.0;
+            $toTax = fn(float $amount): float => $needsConversion
+                ? round($amount * $exchangeRate, 2)
+                : $amount;
+
+            $bankName      = $paymentDetail->bank_name      ?? 'N/A';
             $accountNumber = $paymentDetail->account_number ?? 'N/A';
-            $bankCode = $paymentDetail->bank_code ?? 'Not Set';
-            $bankBranch = $paymentDetail->bank_branch ?? 'Not Set';
+
+            // ── IS THIS A CONSULTANT? ────────────────────────────────────────
+            $isConsultant = (bool) ($paymentDetail->is_consultant ?? false);
+
+            if ($isConsultant) {
+                $grossPay  = $toTax(floatval($paymentDetail->basic_salary ?? 0));
+                $whtService = app(\App\Services\WhtCalculationService::class);
+                $whtResult  = $whtService->calculate($grossPay, $paymentDetail);
+
+                \App\Models\WithholdingPayment::updateOrCreate(
+                    [
+                        'business_id'  => $business->id,
+                        'employee_id'  => $employeeId,
+                        'payment_date' => \Carbon\Carbon::create($year, $month)->endOfMonth()->toDateString(),
+                    ],
+                    [
+                        'payment_type'       => $paymentDetail->wht_payment_type ?? 'professional_fees',
+                        'residency'          => $paymentDetail->wht_residency    ?? 'resident',
+                        'gross_amount'       => $whtResult['gross_amount'],
+                        'wht_rate'           => $whtResult['wht_rate'],
+                        'wht_amount'         => $whtResult['wht_amount'],
+                        'net_amount'         => $whtResult['net_to_consultant'],
+                        'shif_company_cost'  => $whtResult['shif_deduction'],  // remitted by company
+                        'nssf_company_cost'  => $whtResult['nssf_deduction'],  // remitted by company
+                        'total_company_cost' => $whtResult['total_company_cost'],
+                        'currency'           => $paymentDetail->currency ?? 'KES',
+                    ]
+                );
+
+                $payrollData[$employeeId] = [
+                    'employee_id'         => $employeeId,
+                    'employee'            => $employee,
+                    'basic_salary'        => $grossPay,
+                    'gross_pay'           => $grossPay,
+                    'taxable_gross'       => $grossPay,
+                    'taxable_income'      => $grossPay,
+                    'overtime'            => 0,
+                    'allowances'          => [],
+                    'reliefs'             => [],
+                    'is_consultant'       => true,
+                    'wht_amount'          => $whtResult['wht_amount'],
+                    'wht_rate'            => $whtResult['wht_rate'],
+                    'wht_payment_type'    => $paymentDetail->wht_payment_type,
+                    'is_final_tax'        => $whtResult['is_final_tax'],
+
+                    // WHT replaces PAYE
+                    'paye'                => 0,
+                    'paye_before_reliefs' => 0,
+                    'personal_relief'     => 0,
+                    'insurance_relief'    => 0,
+
+                    // SHIF and NSSF deducted FROM consultant (not zero)
+                    'shif'                => $whtResult['shif_deduction'],
+                    'nssf'                => $whtResult['nssf_deduction'],
+                    'nssf_employee'       => $whtResult['nssf_deduction'],
+                    'nssf_employer'       => 0,
+
+                    'housing_levy'        => 0,  // not applicable for consultants
+                    'helb'                => 0,  // not applicable for consultants
+                    'loan_repayment'      => 0,
+                    'advance_recovery'    => 0,
+
+                    // Deductions array for payslip display
+                    'deductions'          => array_filter([
+                        ['name' => 'Withholding Tax', 'amount' => $whtResult['wht_amount']],
+                        $whtResult['shif_deduction'] > 0
+                            ? ['name' => 'SHIF', 'amount' => $whtResult['shif_deduction']]
+                            : null,
+                        $whtResult['nssf_deduction'] > 0
+                            ? ['name' => 'NSSF', 'amount' => $whtResult['nssf_deduction']]
+                            : null,
+                    ]),
+
+                    // Net = gross − WHT − SHIF − NSSF
+                    'net_pay'             => floor($whtResult['net_to_consultant']),
+
+                    // Company cost tracking (for reports)
+                    'shif_company_cost'   => $whtResult['shif_deduction'],
+                    'nssf_company_cost'   => $whtResult['nssf_deduction'],
+                    'total_company_cost'  => $whtResult['total_company_cost'],
+
+                    'bank_name'           => $bankName,
+                    'account_number'      => $accountNumber,
+                    'attendance_present'  => $daysInMonth,
+                    'attendance_absent'   => 0,
+                    'days_in_month'       => $daysInMonth,
+                    'currency'            => $paymentDetail->currency ?? 'KES',
+                    'payment_mode'        => $paymentDetail->payment_mode ?? 'N/A',
+                    'employee_currency'   => $employeeCurrency,
+                    'tax_currency'        => $taxCurrency,
+                    'exchange_rate'       => $exchangeRate,
+                    'needs_conversion'    => $needsConversion,
+                    'basic_salary_orig'   => $needsConversion
+                        ? round(floatval($paymentDetail->basic_salary ?? 0), 2)
+                        : $grossPay,
+                    'gross_pay_orig'      => $needsConversion
+                        ? round($grossPay / $exchangeRate, 2)
+                        : $grossPay,
+                    'net_pay_orig'        => $needsConversion
+                        ? round($whtResult['net_to_consultant'] / $exchangeRate, 2)
+                        : floor($whtResult['net_to_consultant']),
+                    'employee_pension'       => 0,
+                    'employer_pension'       => 0,
+                    'employer_pension_exempt'  => 0,
+                    'employer_pension_taxable' => 0,
+                    'mortgage_pre_tax'       => 0,
+                    'country'                => strtoupper(trim($business->country)),
+                    'pwd_exemption_applied'  => false,
+                    'pwd_exemption_amount'   => 0,
+                ];
+
+                continue;
+            }
+
+            // ── END CONSULTANT BRANCH ────────────────────────────────────────
+
+            // Remove the old duplicate lines below (they existed before the consultant check)
+            // $payrollDetail = ...   ← already defined above
+            // $taxCurrency = ...     ← already defined above
+            // $employeeCurrency = .. ← already defined above
+            // $needsConversion = ... ← already defined above
+            // $exchangeRate = ...    ← already defined above
+            // $toTax = ...           ← already defined above
+            // if (!$paymentDetail)   ← already handled above
+            // $bankName = ...        ← already defined above
+            // $accountNumber = ...   ← already defined above
+
+            // $payrollDetail = EmployeePayrollDetail::where('employee_id', $employeeId)->first();
+            // $taxCurrency = match (strtoupper(trim($business->country ?? 'KENYA'))) {
+            //     'UGANDA', 'UG' => 'UGX',
+            //     default         => 'KES',
+            // };
+            // $employeeCurrency = strtoupper(trim($paymentDetail->currency ?? $taxCurrency));
+            // $needsConversion  = ($employeeCurrency !== $taxCurrency);
+            // $exchangeRate     = $needsConversion
+            //     ? app(CurrencyService::class)->getBusinessRate($business, $employeeCurrency, $taxCurrency)
+            //     : 1.0;
+            // $toTax = fn(float $amount): float => $needsConversion ? round($amount * $exchangeRate, 2) : $amount;
+
+            // if (!$paymentDetail) {
+            //     Log::warning("No payment details found for employee {$employeeId}. Skipping.");
+            //     continue;
+            // }
+
+            // $bankName = $paymentDetail->bank_name ?? 'N/A';
+            // $accountNumber = $paymentDetail->account_number ?? 'N/A';
+            // $bankCode = $paymentDetail->bank_code ?? 'Not Set';
+            // $bankBranch = $paymentDetail->bank_branch ?? 'Not Set';
 
             if ($paymentDetail->payment_type === 'hourly') {
 
@@ -1001,7 +1172,18 @@ class PayrollController extends Controller
                     }
 
                     $proratedBasicSalary = $hourlyPayData['regular_pay'];
-                    $overtimePay = $hourlyPayData['overtime_pay'];
+                    $actualHourlyRate = floatval($paymentDetail->hourly_rate ?? 0);
+                   $overtimePay = $toTax(
+    $this->calculateOvertime(
+        $employeeId,
+        $year,
+        $month,
+        $settings,
+        $options,
+        $proratedBasicSalary,
+        $actualHourlyRate      // pass hourly_rate directly
+    )
+);
                     $proratedBasicSalary = $toTax($proratedBasicSalary);
                     $overtimePay         = $toTax($overtimePay);
 
@@ -1015,15 +1197,15 @@ class PayrollController extends Controller
 
                     $allowances = [];
 
-                    $allowances['hourly_breakdown'] = [
-                        'name' => 'Hourly Pay Breakdown',
-                        'hours_worked' => $hourlyPayData['hours_worked'],
-                        'overtime_hours' => $hourlyPayData['overtime_hours'],
-                        'hourly_rate' => $hourlyPayData['hourly_rate'],
-                        'overtime_rate' => $hourlyPayData['overtime_rate'],
-                        'regular_pay' => $hourlyPayData['regular_pay'],
-                        'overtime_pay' => $hourlyPayData['overtime_pay'],
-                    ];
+                  $allowances['hourly_breakdown'] = [
+    'name'           => 'Hourly Pay Breakdown',
+    'hours_worked'   => $hourlyPayData['hours_worked'],
+    'hourly_rate'    => $hourlyPayData['hourly_rate'],
+    'overtime_hours' => $hourlyPayData['overtime_hours'] ?? 0,
+    'overtime_rate'  => $hourlyPayData['overtime_rate'] ?? 1.5,
+    'regular_pay'    => $hourlyPayData['regular_pay'],
+    'overtime_pay'   => $overtimePay,  // now the real money value
+];
 
                     $attendanceSummary = $calculator->getAttendanceSummary(
                         $employee,
@@ -1227,56 +1409,96 @@ class PayrollController extends Controller
                 //
                 // Employer pension IS a taxable benefit in kind per KRA —
                 // it must be added to grossPay for tax purposes.
-             $employeePension = 0;
-$employerPension = 0;
 
-foreach ($deductions as $slug => $deductionData) {
-    $deductionModel = Deduction::where('business_id', $business->id)
-        ->where('slug', $slug)->first();
-    if (!$deductionModel) continue;
-    if (!str_contains(strtolower($deductionModel->name), 'pension')) continue;
 
-    $employeeRate  = floatval($deductionModel->rate ?? 0);
-    $employeeLimit = $deductionModel->limit !== null
-        ? floatval($deductionModel->limit)
-        : PHP_FLOAT_MAX;
+                // $employeePension = 0;
+                // $employerPension = 0;
 
-    if ($employeeRate > 0) {
-        $rawEmployeeAmount = round($proratedBasicSalary * ($employeeRate / 100), 2);
-    } else {
-        $rawEmployeeAmount = floatval($deductionData['amount']);
-    }
+                // foreach ($deductions as $slug => $deductionData) {
+                //     $deductionModel = Deduction::where('business_id', $business->id)
+                //         ->where('slug', $slug)->first();
+                //     if (!$deductionModel) continue;
+                //     if (!str_contains(strtolower($deductionModel->name), 'pension')) continue;
 
-    $employeeShare = min($rawEmployeeAmount, $employeeLimit);
-    $deductions[$slug]['amount'] = $rawEmployeeAmount;
-    $employeePension += $employeeShare;
+                //     $employeeRate  = floatval($deductionModel->rate ?? 0);
+                //     $employeeLimit = $deductionModel->limit !== null
+                //         ? floatval($deductionModel->limit)
+                //         : PHP_FLOAT_MAX;
 
-    if ($deductionModel->hasEmployerContribution()) {
-        $employerRate = $deductionModel->resolvedEmployerRate();
+                //     if ($employeeRate > 0) {
+                //         $rawEmployeeAmount = round($proratedBasicSalary * ($employeeRate / 100), 2);
+                //     } else {
+                //         $rawEmployeeAmount = floatval($deductionData['amount']);
+                //     }
 
-        $rawEmployerAmount = $employerRate > 0
-            ? round($proratedBasicSalary * ($employerRate / 100), 2)
-            : $rawEmployeeAmount; // fixed-amount fallback
+                //     $employeeShare = min($rawEmployeeAmount, $employeeLimit);
+                //     $deductions[$slug]['amount'] = $rawEmployeeAmount;
+                //     $employeePension += $employeeShare;
 
-        $employerPension += $rawEmployerAmount;
-    }
+                //     if ($deductionModel->hasEmployerContribution()) {
+                //         $employerRate = $deductionModel->resolvedEmployerRate();
 
-    Log::debug('Pension deduction detected', [
-        'slug'                   => $slug,
-        'name'                   => $deductionModel->name,
-        'employee_rate'          => $employeeRate,
-        'employee_limit'         => $employeeLimit === PHP_FLOAT_MAX ? 'none' : $employeeLimit,
-        'raw_employee_cash'      => $rawEmployeeAmount,
-        'employee_share_capped'  => $employeeShare,
-        'fraction_to_consider'   => $deductionModel->fraction_to_consider,
-        'employer_rate_db'       => $deductionModel->employer_rate,
-        'employer_rate_resolved' => $deductionModel->hasEmployerContribution()
-            ? $deductionModel->resolvedEmployerRate() : 'n/a',
-        'raw_employer_amount'    => $deductionModel->hasEmployerContribution()
-            ? $rawEmployerAmount : 0,
-        'employer_pension_total' => $employerPension,
-    ]);
-}
+                //         $rawEmployerAmount = $employerRate > 0
+                //             ? round($proratedBasicSalary * ($employerRate / 100), 2)
+                //             : $rawEmployeeAmount; // fixed-amount fallback
+
+                //         $employerPension += $rawEmployerAmount;
+                //     }
+
+                //     Log::debug('Pension deduction detected', [
+                //         'slug'                   => $slug,
+                //         'name'                   => $deductionModel->name,
+                //         'employee_rate'          => $employeeRate,
+                //         'employee_limit'         => $employeeLimit === PHP_FLOAT_MAX ? 'none' : $employeeLimit,
+                //         'raw_employee_cash'      => $rawEmployeeAmount,
+                //         'employee_share_capped'  => $employeeShare,
+                //         'fraction_to_consider'   => $deductionModel->fraction_to_consider,
+                //         'employer_rate_db'       => $deductionModel->employer_rate,
+                //         'employer_rate_resolved' => $deductionModel->hasEmployerContribution()
+                //             ? $deductionModel->resolvedEmployerRate() : 'n/a',
+                //         'raw_employer_amount'    => $deductionModel->hasEmployerContribution()
+                //             ? $rawEmployerAmount : 0,
+                //         'employer_pension_total' => $employerPension,
+                //     ]);
+                // }
+                // ── STEP 3: Extract pension — Use saved value from settings (NO re-calculation from model) ───────────────────
+                $employeePension = 0;
+                $employerPension = 0;
+
+                foreach ($deductions as $slug => $deductionData) {
+                    if (!str_contains(strtolower($deductionData['name'] ?? ''), 'pension')) {
+                        continue;
+                    }
+
+                    // Use the amount that was already computed in getEmployeeItems()
+                    $pensionAmount = floatval($deductionData['amount'] ?? 0);
+
+                    // If we have a saved rate, trust it and recalculate cleanly
+                    $savedRate = floatval($deductionData['rate'] ?? 0);
+                    if ($savedRate > 0) {
+                        $pensionAmount = round($proratedBasicSalary * ($savedRate / 100), 2);
+                    }
+
+                    $employeePension += $pensionAmount;
+
+                    // Simple employer contribution (if configured on the deduction model)
+                    $deductionModel = Deduction::where('slug', $slug)
+                        ->where('business_id', $business->id)
+                        ->first();
+
+                    if ($deductionModel && $deductionModel->hasEmployerContribution()) {
+                        $employerRate = $deductionModel->resolvedEmployerRate() ?? $savedRate;
+                        $employerPension += round($proratedBasicSalary * ($employerRate / 100), 2);
+                    }
+
+                    Log::debug('Pension final calculation', [
+                        'slug' => $slug,
+                        'saved_rate' => $savedRate,
+                        'used_amount' => $pensionAmount,
+                        'employee_pension' => $employeePension,
+                        'employer_pension' => $employerPension,
+                    ]);
+                }
 
                 // ── STEP 4: Add ONLY the taxable excess of employer pension to gross pay ──
                 // KRA rule:
@@ -1734,38 +1956,48 @@ foreach ($deductions as $slug => $deductionData) {
         }
     }
 
-    protected function calculateOvertime($employeeId, $year, $month, $settings, $options, $basicSalary)
-    {
-        $hourlyRate = $basicSalary / 173;
-        $totalOvertimePay = 0;
+  protected function calculateOvertime($employeeId, $year, $month, $settings, $options, $basicSalary, $hourlyRate = null)
+{
+    // If hourlyRate is explicitly passed (hourly employees), use it directly.
+    // Otherwise derive it from basicSalary / 173 (salary employees).
+    $hourlyRate = $hourlyRate ?? ($basicSalary > 0 ? ($basicSalary / 173) : 0);
 
-        if (!is_null($settings) && !empty($settings['overtime'])) {
-            foreach ($settings['overtime'] as $item) {
-                if ($item['is_active']) {
-                    $overtime = Overtime::find($item['item_id']);
-                    if ($overtime) {
-                        $hours = floatval($item['amount']);
-                        $rate = $overtime->rate ?? 1.5;
-                        $totalOvertimePay += $hours * $hourlyRate * $rate;
-                    }
-                }
-            }
-        } elseif ($options['pay_overtime']['apply'] !== 'none') {
-            $overtimes = Overtime::where('employee_id', $employeeId)
-                ->whereYear('date', $year)
-                ->whereMonth('date', $month)
-                ->get();
-            foreach ($overtimes as $overtime) {
-                if ($overtime->to_be_paid || isset($options['pay_overtime']['specific'][$overtime->id])) {
-                    $hours = $overtime->overtime_hours;
-                    $rate = $overtime->rate ?? 1.5;
-                    $totalOvertimePay += $hours * $hourlyRate * $rate;
-                }
-            }
+    $totalOvertimePay = 0;
+
+    if (!is_null($settings) && !empty($settings['overtime'])) {
+        foreach ($settings['overtime'] as $item) {
+            if (!$item['is_active']) continue;
+
+            $overtime = Overtime::find($item['item_id']);
+            if (!$overtime) continue;
+
+            $totalOvertimePay += floatval($overtime->total_pay ?? 0) * $hourlyRate;
         }
 
         return $totalOvertimePay;
     }
+
+    if ($options['pay_overtime']['apply'] === 'none') {
+        return 0;
+    }
+
+    $overtimes = Overtime::where('employee_id', $employeeId)
+        ->whereYear('date', $year)
+        ->whereMonth('date', $month)
+        ->where('status', 'approved')
+        ->get();
+
+    foreach ($overtimes as $overtime) {
+        $shouldPay = $overtime->to_be_paid
+            || isset($options['pay_overtime']['specific'][$overtime->id]);
+
+        if (!$shouldPay) continue;
+
+        $totalOvertimePay += floatval($overtime->total_pay ?? 0) * $hourlyRate;
+    }
+
+    return $totalOvertimePay;
+}
 
     protected function calculateAdvanceRecovery($employeeId, $year, $month, $settings, $options)
     {
@@ -2766,146 +2998,146 @@ foreach ($deductions as $slug => $deductionData) {
         }
     }
 
-public function viewPayslip(Request $request, $employeeId)
-{
-    $business = Business::findBySlug(session('active_business_slug'));
-    if (!$business) {
-        return RequestResponse::badRequest('Business not found.');
-    }
-
-    $id        = $request->employee_id;
-    $payrollId = $request->query('payroll_id');
-    if (!$payrollId) {
-        return RequestResponse::badRequest('Payroll ID is required to view the payslip.');
-    }
-
-    $employeePayroll = EmployeePayroll::with([
-        'employee.user',
-        'employee.paymentDetails',
-        'payroll.business',
-        'payroll.location',
-    ])
-        ->where('employee_id', $id)
-        ->where('payroll_id', $payrollId)
-        ->firstOrFail();
-
-    $entity     = $business;
-    $entityType = 'business';
-    if ($employeePayroll->payroll->location_id) {
-        $location = Location::where('id', $employeePayroll->payroll->location_id)
-            ->where('business_id', $business->id)
-            ->first();
-        if ($location) {
-            $entity     = $location;
-            $entityType = 'location';
+    public function viewPayslip(Request $request, $employeeId)
+    {
+        $business = Business::findBySlug(session('active_business_slug'));
+        if (!$business) {
+            return RequestResponse::badRequest('Business not found.');
         }
-    }
 
-    // ── Step 1: Business primary currency ────────────────────────────────────
-    $primaryRow = \App\Models\BusinessCurrency::where('business_id', $business->id)
-        ->where('is_primary', true)
-        ->first();
+        $id        = $request->employee_id;
+        $payrollId = $request->query('payroll_id');
+        if (!$payrollId) {
+            return RequestResponse::badRequest('Payroll ID is required to view the payslip.');
+        }
 
-    $primaryCurrency = strtoupper(trim(
-        $primaryRow?->currency_code
-        ?? $business->currency
-        ?? 'KES'
-    ));
+        $employeePayroll = EmployeePayroll::with([
+            'employee.user',
+            'employee.paymentDetails',
+            'payroll.business',
+            'payroll.location',
+        ])
+            ->where('employee_id', $id)
+            ->where('payroll_id', $payrollId)
+            ->firstOrFail();
 
-    // ── Step 2: Employee's configured pay currency ────────────────────────────
-    // ONLY from employee_payment_details.currency — this is the admin-configured
-    // currency in which the employee is paid. It's the source of truth.
-    // If null or empty or same as primary → no FX column.
-
-    $employeePayCurrency = strtoupper(trim(
-        $employeePayroll->employee?->paymentDetails?->currency ?? ''
-    ));
-
-    // ── Step 3: Decide whether to show the FX column ─────────────────────────
-    $showConversion = $employeePayCurrency !== ''
-                   && $employeePayCurrency !== $primaryCurrency
-                   && \App\Models\BusinessCurrency::where('business_id', $business->id)
-                       ->where('currency_code', $employeePayCurrency)
-                       ->exists(); // only show if the currency is actually configured
-
-    // ── Step 4: Get the exchange rate if needed ───────────────────────────────
-    // Rate meaning: 1 unit of employeePayCurrency = X units of primaryCurrency
-    // e.g. 1 USD = 100 KES → rate = 100
-    // Blade converts: foreignAmount = primaryAmount / rate
-    // e.g. 578,150 KES / 100 = 5,781.50 USD
-
-    $exchangeRates  = 1.0;
-    $targetCurrency = $primaryCurrency;
-
-    if ($showConversion) {
-        // Priority 1: valid rate stored on the payroll row
-        $payrollRate = floatval($employeePayroll->exchange_rate ?? 0);
-
-        if ($payrollRate > 0 && abs($payrollRate - 1.0) > 0.0001) {
-            $exchangeRates = $payrollRate;
-        } else {
-            // Priority 2: read from business_currencies table
-            $currencyRow = \App\Models\BusinessCurrency::where('business_id', $business->id)
-                ->where('currency_code', $employeePayCurrency)
+        $entity     = $business;
+        $entityType = 'business';
+        if ($employeePayroll->payroll->location_id) {
+            $location = Location::where('id', $employeePayroll->payroll->location_id)
+                ->where('business_id', $business->id)
                 ->first();
-
-            if ($currencyRow) {
-                // effective_rate accessor:
-                //   manual mode → manual_rate  (e.g. 100 for USD)
-                //   auto mode   → auto_rate    (fetched from live API)
-                $tableRate = floatval($currencyRow->effective_rate ?? 0);
-
-                if ($tableRate > 0 && abs($tableRate - 1.0) > 0.0001) {
-                    $exchangeRates = $tableRate;
-                } else {
-                    // Priority 3: live API lookup
-                    $exchangeRates = app(CurrencyService::class)
-                        ->getBusinessRate($business, $employeePayCurrency, $primaryCurrency);
-                }
-            } else {
-                $exchangeRates = app(CurrencyService::class)
-                    ->getBusinessRate($business, $employeePayCurrency, $primaryCurrency);
+            if ($location) {
+                $entity     = $location;
+                $entityType = 'location';
             }
         }
 
-        $targetCurrency = $employeePayCurrency;
+        // ── Step 1: Business primary currency ────────────────────────────────────
+        $primaryRow = \App\Models\BusinessCurrency::where('business_id', $business->id)
+            ->where('is_primary', true)
+            ->first();
 
-        // Final safety: if rate still looks wrong (= 1.0 or 0), don't show column
-        if ($exchangeRates <= 0 || abs($exchangeRates - 1.0) < 0.0001) {
-            $showConversion = false;
-            $exchangeRates  = 1.0;
-            $targetCurrency = $primaryCurrency;
+        $primaryCurrency = strtoupper(trim(
+            $primaryRow?->currency_code
+                ?? $business->currency
+                ?? 'KES'
+        ));
+
+        // ── Step 2: Employee's configured pay currency ────────────────────────────
+        // ONLY from employee_payment_details.currency — this is the admin-configured
+        // currency in which the employee is paid. It's the source of truth.
+        // If null or empty or same as primary → no FX column.
+
+        $employeePayCurrency = strtoupper(trim(
+            $employeePayroll->employee?->paymentDetails?->currency ?? ''
+        ));
+
+        // ── Step 3: Decide whether to show the FX column ─────────────────────────
+        $showConversion = $employeePayCurrency !== ''
+            && $employeePayCurrency !== $primaryCurrency
+            && \App\Models\BusinessCurrency::where('business_id', $business->id)
+            ->where('currency_code', $employeePayCurrency)
+            ->exists(); // only show if the currency is actually configured
+
+        // ── Step 4: Get the exchange rate if needed ───────────────────────────────
+        // Rate meaning: 1 unit of employeePayCurrency = X units of primaryCurrency
+        // e.g. 1 USD = 100 KES → rate = 100
+        // Blade converts: foreignAmount = primaryAmount / rate
+        // e.g. 578,150 KES / 100 = 5,781.50 USD
+
+        $exchangeRates  = 1.0;
+        $targetCurrency = $primaryCurrency;
+
+        if ($showConversion) {
+            // Priority 1: valid rate stored on the payroll row
+            $payrollRate = floatval($employeePayroll->exchange_rate ?? 0);
+
+            if ($payrollRate > 0 && abs($payrollRate - 1.0) > 0.0001) {
+                $exchangeRates = $payrollRate;
+            } else {
+                // Priority 2: read from business_currencies table
+                $currencyRow = \App\Models\BusinessCurrency::where('business_id', $business->id)
+                    ->where('currency_code', $employeePayCurrency)
+                    ->first();
+
+                if ($currencyRow) {
+                    // effective_rate accessor:
+                    //   manual mode → manual_rate  (e.g. 100 for USD)
+                    //   auto mode   → auto_rate    (fetched from live API)
+                    $tableRate = floatval($currencyRow->effective_rate ?? 0);
+
+                    if ($tableRate > 0 && abs($tableRate - 1.0) > 0.0001) {
+                        $exchangeRates = $tableRate;
+                    } else {
+                        // Priority 3: live API lookup
+                        $exchangeRates = app(CurrencyService::class)
+                            ->getBusinessRate($business, $employeePayCurrency, $primaryCurrency);
+                    }
+                } else {
+                    $exchangeRates = app(CurrencyService::class)
+                        ->getBusinessRate($business, $employeePayCurrency, $primaryCurrency);
+                }
+            }
+
+            $targetCurrency = $employeePayCurrency;
+
+            // Final safety: if rate still looks wrong (= 1.0 or 0), don't show column
+            if ($exchangeRates <= 0 || abs($exchangeRates - 1.0) < 0.0001) {
+                $showConversion = false;
+                $exchangeRates  = 1.0;
+                $targetCurrency = $primaryCurrency;
+            }
         }
+
+        Log::debug('viewPayslip FX decision', [
+            'employee_id'          => $id,
+            'primary_currency'     => $primaryCurrency,
+            'employee_pay_currency' => $employeePayCurrency,
+            'show_conversion'      => $showConversion,
+            'exchange_rate'        => $exchangeRates,
+            'target_currency'      => $targetCurrency,
+        ]);
+
+        // Passed to blade:
+        //   $exchangeRates  = e.g. 100  (1 USD = 100 KES)
+        //   $targetCurrency = e.g. 'USD'
+        //
+        // Blade rule:
+        //   if $showConversion (derived in blade from $exchangeRates & $targetCurrency):
+        //     foreignAmount = kesAmount / $exchangeRates
+        //   header: "USD (R: 100)"
+        //   note:   "Exchange rate: 1 USD = 100 KES"
+
+        return view('payroll.reports.payslip', compact(
+            'employeePayroll',
+            'business',
+            'entity',
+            'entityType',
+            'exchangeRates',
+            'targetCurrency'
+        ));
     }
-
-    Log::debug('viewPayslip FX decision', [
-        'employee_id'          => $id,
-        'primary_currency'     => $primaryCurrency,
-        'employee_pay_currency'=> $employeePayCurrency,
-        'show_conversion'      => $showConversion,
-        'exchange_rate'        => $exchangeRates,
-        'target_currency'      => $targetCurrency,
-    ]);
-
-    // Passed to blade:
-    //   $exchangeRates  = e.g. 100  (1 USD = 100 KES)
-    //   $targetCurrency = e.g. 'USD'
-    //
-    // Blade rule:
-    //   if $showConversion (derived in blade from $exchangeRates & $targetCurrency):
-    //     foreignAmount = kesAmount / $exchangeRates
-    //   header: "USD (R: 100)"
-    //   note:   "Exchange rate: 1 USD = 100 KES"
-
-    return view('payroll.reports.payslip', compact(
-        'employeePayroll',
-        'business',
-        'entity',
-        'entityType',
-        'exchangeRates',
-        'targetCurrency'
-    ));
-}
 
     // private function getExchangeRates($baseCurrency, $targetCurrency)
     // {

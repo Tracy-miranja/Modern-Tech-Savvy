@@ -66,291 +66,289 @@ class EmployeeController extends Controller
     }
 
     /**
- * Show edit form for employee payment details
- */
-public function editPaymentDetails(Request $request, $businessSlug, $employeeId)
-{
-    try {
-        $business = Business::findBySlug($businessSlug);
-        if (!$business) {
-            return response()->json([
-                'message' => 'Business not found.',
-                'data' => null
-            ], 404);
-        }
-
-        $employee = Employee::with(['user', 'paymentDetails'])
-            ->where('business_id', $business->id)
-            ->findOrFail($employeeId);
-
-        $form = view('employees._payment_details_form', compact('employee', 'business'))->render();
-
-        return response()->json([
-            'message' => 'Payment details form loaded successfully.',
-            'data' => $form
-        ], 200);
-    } catch (\Exception $e) {
-        Log::error('Error loading payment details form: ' . $e->getMessage());
-        return response()->json([
-            'message' => 'Failed to load payment details form: ' . $e->getMessage(),
-            'data' => null
-        ], 500);
-    }
-}
-
-/**
- * Store or update employee payment details (including hourly rate)
- */
-public function storePaymentDetails(Request $request, $businessSlug, $employeeId)
-{
-    $validated = $request->validate([
-        'payment_type' => 'required|in:salary,hourly',
-        'basic_salary' => 'required_if:payment_type,salary|nullable|numeric|min:0',
-        'hourly_rate' => 'required_if:payment_type,hourly|nullable|numeric|min:0',
-        'currency' => 'required|string|size:3|in:KES,USD,UGX',
-        'payment_mode' => 'required|string|in:bank,cash,cheque,mpesa',
-        'account_name' => 'required|string|max:255',
-        'account_number' => 'required|string|max:50',
-        'bank_name' => 'required|string|max:255',
-        'bank_code' => 'nullable|string|max:50',
-        'bank_branch' => 'nullable|string|max:255',
-        'bank_branch_code' => 'nullable|string|max:50',
-    ]);
-
-    try {
-        DB::beginTransaction();
-
-        $business = Business::findBySlug($businessSlug);
-        if (!$business) {
-            return RequestResponse::badRequest('Business not found.');
-        }
-
-        $employee = Employee::where('business_id', $business->id)->findOrFail($employeeId);
-
-        // Prepare payment data
-        $paymentData = [
-            'payment_type' => $validated['payment_type'],
-            'currency' => $validated['currency'],
-            'payment_mode' => $validated['payment_mode'],
-            'account_name' => $validated['account_name'],
-            'account_number' => $validated['account_number'],
-            'bank_name' => $validated['bank_name'],
-            'bank_code' => $validated['bank_code'] ?? null,
-            'bank_branch' => $validated['bank_branch'] ?? null,
-            'bank_branch_code' => $validated['bank_branch_code'] ?? null,
-        ];
-
-        // Set salary or hourly rate based on payment type
-        if ($validated['payment_type'] === 'hourly') {
-            $paymentData['hourly_rate'] = $validated['hourly_rate'];
-            $paymentData['basic_salary'] = 0; // Set salary to 0 for hourly employees
-
-            Log::info('Storing hourly payment details', [
-                'employee_id' => $employeeId,
-                'hourly_rate' => $validated['hourly_rate']
-            ]);
-        } else {
-            $paymentData['basic_salary'] = $validated['basic_salary'];
-            $paymentData['hourly_rate'] = 0; // Set hourly rate to 0 for salaried employees
-
-            Log::info('Storing salary payment details', [
-                'employee_id' => $employeeId,
-                'basic_salary' => $validated['basic_salary']
-            ]);
-        }
-
-        // Check for duplicate account number (excluding current employee)
-        $duplicateAccount = EmployeePaymentDetail::where('account_number', $validated['account_number'])
-            ->where('employee_id', '!=', $employeeId)
-            ->first();
-
-        if ($duplicateAccount) {
-            return RequestResponse::badRequest('Account number already exists for another employee.');
-        }
-
-        // Update or create payment details
-        $employee->paymentDetails()->updateOrCreate(
-            ['employee_id' => $employee->id],
-            $paymentData
-        );
-
-        DB::commit();
-
-        $message = $validated['payment_type'] === 'hourly'
-            ? 'Hourly payment details updated successfully.'
-            : 'Salary payment details updated successfully.';
-
-        Log::info('Payment details updated successfully', [
-            'employee_id' => $employeeId,
-            'payment_type' => $validated['payment_type']
-        ]);
-
-        return RequestResponse::ok($message);
-
-    } catch (\Exception $e) {
-        DB::rollBack();
-        Log::error('Failed to update payment details', [
-            'employee_id' => $employeeId,
-            'error' => $e->getMessage(),
-            'trace' => $e->getTraceAsString()
-        ]);
-
-        return RequestResponse::badRequest('Failed to update payment details: ' . $e->getMessage());
-    }
-}
-
-public function fetch(Request $request)
-{
-    $business = Business::findBySlug(session('active_business_slug'));
-
-    $query = Employee::where('business_id', $business->id)
-        ->with([
-            'user',
-            'department',
-            'location',
-            'employmentDetails.jobCategory',
-            'paymentDetails'  // already correct
-        ]);
-
-    // Your filters...
-    if ($search = $request->input('search.value')) {
-        $query->where(function ($q) use ($search) {
-            $q->whereHas('user', fn($q) => $q->where('name', 'like', "%{$search}%"))
-              ->orWhere('employee_code', 'like', "%{$search}%");
-        });
-    }
-    if ($department = $request->input('department')) {
-        $query->where('department_id', $department);
-    }
-    if ($location = $request->input('location')) {
-        $query->where('location_id', $location);
-    }
-    if ($jobCategory = $request->input('job_category')) {
-        $query->whereHas('employmentDetails', function ($q) use ($jobCategory) {
-            $q->where('job_category_id', $jobCategory);
-        });
-    }
-
-    $start = $request->input('start', 0);
-    $length = $request->input('length', 10);
-
-    $recordsTotal    = Employee::where('business_id', $business->id)->count();
-    $recordsFiltered = $query->count();
-
-    $employees = $query->skip($start)->take($length)->get();
-
-    $data = $employees->map(function ($employee) {
-        $payment = $employee->paymentDetails;
-        $currency = $payment?->currency ?? 'KES';
-
-        $hourly  = '—';
-        $monthly = '—';
-
-        if ($payment) {
-            if ($payment->payment_type === 'hourly') {
-                $hourly = number_format((float) ($payment->hourly_rate ?? 0), 2) . ' ' . $currency . '/hr';
-            } else {
-                $monthly = number_format((float) ($payment->basic_salary ?? 0), 2) . ' ' . $currency;
+     * Show edit form for employee payment details
+     */
+    public function editPaymentDetails(Request $request, $businessSlug, $employeeId)
+    {
+        try {
+            $business = Business::findBySlug($businessSlug);
+            if (!$business) {
+                return response()->json([
+                    'message' => 'Business not found.',
+                    'data' => null
+                ], 404);
             }
+
+            $employee = Employee::with(['user', 'paymentDetails'])
+                ->where('business_id', $business->id)
+                ->findOrFail($employeeId);
+
+            $form = view('employees._payment_details_form', compact('employee', 'business'))->render();
+
+            return response()->json([
+                'message' => 'Payment details form loaded successfully.',
+                'data' => $form
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error('Error loading payment details form: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to load payment details form: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
         }
+    }
 
-        return [
-            'name'           => $employee->user?->name ?? 'N/A',
-            'employee_code'  => $employee->employee_code ?? 'N/A',
-            'department'     => $employee->department?->name ?? 'N/A',
-            'job_category'   => optional($employee->employmentDetails?->jobCategory)->name ?? 'N/A',
-            'location'       => $employee->location?->name ?? ($employee->business?->company_name ?? 'Main'),
-            'monthly_salary' => $monthly,   // for Monthly Salary column
-            'hourly_rate'    => $hourly,    // for Hourly Rate column
-            'actions'        => '<div class="btn-group">'
-                             . '<button class="btn btn-sm btn-outline-primary" onclick="viewEmployee(' . $employee->id . ')"><i class="fa fa-eye"></i> View</button>'
-                             . '<button class="btn btn-sm btn-outline-warning" onclick="editEmployee(' . $employee->id . ')"><i class="fa fa-edit"></i> Edit</button>'
-                             . '<button class="btn btn-sm btn-outline-danger" onclick="deleteEmployee(' . $employee->id . ')"><i class="fa fa-trash"></i> Delete</button>'
-                             . '</div>'
-        ];
-    })->toArray();
+    /**
+     * Store or update employee payment details (including hourly rate)
+     */
+    public function storePaymentDetails(Request $request, $businessSlug, $employeeId)
+    {
+        $validated = $request->validate([
+            'payment_type' => 'required|in:salary,hourly',
+            'basic_salary' => 'required_if:payment_type,salary|nullable|numeric|min:0',
+            'hourly_rate' => 'required_if:payment_type,hourly|nullable|numeric|min:0',
+            'currency' => 'required|string|size:3|in:KES,USD,UGX',
+            'payment_mode' => 'required|string|in:bank,cash,cheque,mpesa',
+            'account_name' => 'required|string|max:255',
+            'account_number' => 'required|string|max:50',
+            'bank_name' => 'required|string|max:255',
+            'bank_code' => 'nullable|string|max:50',
+            'bank_branch' => 'nullable|string|max:255',
+            'bank_branch_code' => 'nullable|string|max:50',
+        ]);
 
-    return response()->json([
-        'draw'            => intval($request->input('draw')),
-        'recordsTotal'    => $recordsTotal,
-        'recordsFiltered' => $recordsFiltered,
-        'data'            => $data,
-    ]);
-}
+        try {
+            DB::beginTransaction();
 
-        //added this for dedicated leave entitlements
-   public function fetchForEntitlements(Request $request)
-{
-    try {
+            $business = Business::findBySlug($businessSlug);
+            if (!$business) {
+                return RequestResponse::badRequest('Business not found.');
+            }
+
+            $employee = Employee::where('business_id', $business->id)->findOrFail($employeeId);
+
+            // Prepare payment data
+            $paymentData = [
+                'payment_type' => $validated['payment_type'],
+                'currency' => $validated['currency'],
+                'payment_mode' => $validated['payment_mode'],
+                'account_name' => $validated['account_name'],
+                'account_number' => $validated['account_number'],
+                'bank_name' => $validated['bank_name'],
+                'bank_code' => $validated['bank_code'] ?? null,
+                'bank_branch' => $validated['bank_branch'] ?? null,
+                'bank_branch_code' => $validated['bank_branch_code'] ?? null,
+            ];
+
+            // Set salary or hourly rate based on payment type
+            if ($validated['payment_type'] === 'hourly') {
+                $paymentData['hourly_rate'] = $validated['hourly_rate'];
+                $paymentData['basic_salary'] = 0; // Set salary to 0 for hourly employees
+
+                Log::info('Storing hourly payment details', [
+                    'employee_id' => $employeeId,
+                    'hourly_rate' => $validated['hourly_rate']
+                ]);
+            } else {
+                $paymentData['basic_salary'] = $validated['basic_salary'];
+                $paymentData['hourly_rate'] = 0; // Set hourly rate to 0 for salaried employees
+
+                Log::info('Storing salary payment details', [
+                    'employee_id' => $employeeId,
+                    'basic_salary' => $validated['basic_salary']
+                ]);
+            }
+
+            // Check for duplicate account number (excluding current employee)
+            $duplicateAccount = EmployeePaymentDetail::where('account_number', $validated['account_number'])
+                ->where('employee_id', '!=', $employeeId)
+                ->first();
+
+            if ($duplicateAccount) {
+                return RequestResponse::badRequest('Account number already exists for another employee.');
+            }
+
+            // Update or create payment details
+            $employee->paymentDetails()->updateOrCreate(
+                ['employee_id' => $employee->id],
+                $paymentData
+            );
+
+            DB::commit();
+
+            $message = $validated['payment_type'] === 'hourly'
+                ? 'Hourly payment details updated successfully.'
+                : 'Salary payment details updated successfully.';
+
+            Log::info('Payment details updated successfully', [
+                'employee_id' => $employeeId,
+                'payment_type' => $validated['payment_type']
+            ]);
+
+            return RequestResponse::ok($message);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to update payment details', [
+                'employee_id' => $employeeId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return RequestResponse::badRequest('Failed to update payment details: ' . $e->getMessage());
+        }
+    }
+
+    public function fetch(Request $request)
+    {
         $business = Business::findBySlug(session('active_business_slug'));
 
-        $query = $business->employees()->with([
-            'department',
-            'location',
-            'jobCategory',
-            'employmentTerm',
-            'user'
-        ]);
+        $query = Employee::where('business_id', $business->id)
+            ->with([
+                'user',
+                'department',
+                'location',
+                'employmentDetails.jobCategory',
+                'paymentDetails'  // already correct
+            ]);
 
-        // Filter: Locations
-        $locations = $request->input('locations');
-        if ($locations) {
-            $locations = is_string($locations) ? json_decode($locations, true) : $locations;
-            if (!empty($locations) && !in_array('all', $locations)) {
-                $query->whereHas('location', function ($q) use ($locations) {
-                    $q->whereIn('slug', $locations)->orWhereIn('id', $locations);
-                });
-            }
+        // Your filters...
+        if ($search = $request->input('search.value')) {
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('user', fn($q) => $q->where('name', 'like', "%{$search}%"))
+                    ->orWhere('employee_code', 'like', "%{$search}%");
+            });
+        }
+        if ($department = $request->input('department')) {
+            $query->where('department_id', $department);
+        }
+        if ($location = $request->input('location')) {
+            $query->where('location_id', $location);
+        }
+        if ($jobCategory = $request->input('job_category')) {
+            $query->whereHas('employmentDetails', function ($q) use ($jobCategory) {
+                $q->where('job_category_id', $jobCategory);
+            });
         }
 
-        // Filter: Departments
-        $departments = $request->input('departments');
-        if ($departments) {
-            $departments = is_string($departments) ? json_decode($departments, true) : $departments;
-            if (!empty($departments) && !in_array('all', $departments)) {
-                $query->whereHas('department', function ($q) use ($departments) {
-                    $q->whereIn('slug', $departments)->orWhereIn('id', $departments);
-                });
-            }
-        }
+        $start = $request->input('start', 0);
+        $length = $request->input('length', 10);
 
-        // Filter: Job Categories
-        $jobCategories = $request->input('job_categories');
-        if ($jobCategories) {
-            $jobCategories = is_string($jobCategories) ? json_decode($jobCategories, true) : $jobCategories;
-            if (!empty($jobCategories) && !in_array('all', $jobCategories)) {
-                $query->whereHas('jobCategory', function ($q) use ($jobCategories) {
-                    $q->whereIn('slug', $jobCategories)->orWhereIn('id', $jobCategories);
-                });
-            }
-        }
+        $recordsTotal    = Employee::where('business_id', $business->id)->count();
+        $recordsFiltered = $query->count();
 
-        // Filter: Employment Terms
-        $employmentTerms = $request->input('employment_terms');
-        if ($employmentTerms) {
-            $employmentTerms = is_string($employmentTerms) ? json_decode($employmentTerms, true) : $employmentTerms;
-            if (!empty($employmentTerms) && !in_array('all', $employmentTerms)) {
-                $query->whereHas('employmentTerm', function ($q) use ($employmentTerms) {
-                    $q->whereIn('slug', $employmentTerms)->orWhereIn('id', $employmentTerms);
-                });
-            }
-        }
+        $employees = $query->skip($start)->take($length)->get();
 
-        $employees = $query->get();
+        $data = $employees->map(function ($employee) {
+            $payment = $employee->paymentDetails;
+            $currency = $payment?->currency ?? 'KES';
+
+            $hourly  = '—';
+            $monthly = '—';
+
+            if ($payment) {
+                if ($payment->payment_type === 'hourly') {
+                    $hourly = number_format((float) ($payment->hourly_rate ?? 0), 2) . ' ' . $currency . '/hr';
+                } else {
+                    $monthly = number_format((float) ($payment->basic_salary ?? 0), 2) . ' ' . $currency;
+                }
+            }
+
+            return [
+                'name'           => $employee->user?->name ?? 'N/A',
+                'employee_code'  => $employee->employee_code ?? 'N/A',
+                'department'     => $employee->department?->name ?? 'N/A',
+                'job_category'   => optional($employee->employmentDetails?->jobCategory)->name ?? 'N/A',
+                'location'       => $employee->location?->name ?? ($employee->business?->company_name ?? 'Main'),
+                'monthly_salary' => $monthly,   // for Monthly Salary column
+                'hourly_rate'    => $hourly,    // for Hourly Rate column
+                'actions'        => '<div class="btn-group">'
+                    . '<button class="btn btn-sm btn-outline-primary" onclick="viewEmployee(' . $employee->id . ')"><i class="fa fa-eye"></i> View</button>'
+                    . '<button class="btn btn-sm btn-outline-warning" onclick="editEmployee(' . $employee->id . ')"><i class="fa fa-edit"></i> Edit</button>'
+                    . '<button class="btn btn-sm btn-outline-danger" onclick="deleteEmployee(' . $employee->id . ')"><i class="fa fa-trash"></i> Delete</button>'
+                    . '</div>'
+            ];
+        })->toArray();
 
         return response()->json([
-            'success' => true,
-            'employees' => $employees
+            'draw'            => intval($request->input('draw')),
+            'recordsTotal'    => $recordsTotal,
+            'recordsFiltered' => $recordsFiltered,
+            'data'            => $data,
         ]);
-
-    } catch (\Exception $e) {
-        \Log::error('Error fetching employees: ' . $e->getMessage());
-        return response()->json([
-            'success' => false,
-            'message' => 'Error fetching employees'
-        ], 500);
     }
-}
+
+    //added this for dedicated leave entitlements
+    public function fetchForEntitlements(Request $request)
+    {
+        try {
+            $business = Business::findBySlug(session('active_business_slug'));
+
+            $query = $business->employees()->with([
+                'department',
+                'location',
+                'jobCategory',
+                'employmentTerm',
+                'user'
+            ]);
+
+            // Filter: Locations
+            $locations = $request->input('locations');
+            if ($locations) {
+                $locations = is_string($locations) ? json_decode($locations, true) : $locations;
+                if (!empty($locations) && !in_array('all', $locations)) {
+                    $query->whereHas('location', function ($q) use ($locations) {
+                        $q->whereIn('slug', $locations)->orWhereIn('id', $locations);
+                    });
+                }
+            }
+
+            // Filter: Departments
+            $departments = $request->input('departments');
+            if ($departments) {
+                $departments = is_string($departments) ? json_decode($departments, true) : $departments;
+                if (!empty($departments) && !in_array('all', $departments)) {
+                    $query->whereHas('department', function ($q) use ($departments) {
+                        $q->whereIn('slug', $departments)->orWhereIn('id', $departments);
+                    });
+                }
+            }
+
+            // Filter: Job Categories
+            $jobCategories = $request->input('job_categories');
+            if ($jobCategories) {
+                $jobCategories = is_string($jobCategories) ? json_decode($jobCategories, true) : $jobCategories;
+                if (!empty($jobCategories) && !in_array('all', $jobCategories)) {
+                    $query->whereHas('jobCategory', function ($q) use ($jobCategories) {
+                        $q->whereIn('slug', $jobCategories)->orWhereIn('id', $jobCategories);
+                    });
+                }
+            }
+
+            // Filter: Employment Terms
+            $employmentTerms = $request->input('employment_terms');
+            if ($employmentTerms) {
+                $employmentTerms = is_string($employmentTerms) ? json_decode($employmentTerms, true) : $employmentTerms;
+                if (!empty($employmentTerms) && !in_array('all', $employmentTerms)) {
+                    $query->whereHas('employmentTerm', function ($q) use ($employmentTerms) {
+                        $q->whereIn('slug', $employmentTerms)->orWhereIn('id', $employmentTerms);
+                    });
+                }
+            }
+
+            $employees = $query->get();
+
+            return response()->json([
+                'success' => true,
+                'employees' => $employees
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error fetching employees: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error fetching employees'
+            ], 500);
+        }
+    }
 
 
     public function store(Request $request)
@@ -366,8 +364,8 @@ public function fetch(Request $request)
             'location_id' => 'nullable|exists:locations,id',
             // 'basic_salary' => 'required|numeric|min:0',
             'payment_type' => 'required|in:salary,hourly',
-'basic_salary' => 'required_if:payment_type,salary|nullable|numeric|min:0',
-'hourly_rate' => 'required_if:payment_type,hourly|nullable|numeric|min:0',
+            'basic_salary' => 'required_if:payment_type,salary|nullable|numeric|min:0',
+            'hourly_rate' => 'required_if:payment_type,hourly|nullable|numeric|min:0',
             'currency' => 'required|string|size:3',
             'payment_mode' => 'required|string|in:bank,cash,cheque,mpesa',
             'account_name' => 'required|string|max:255',
@@ -397,7 +395,7 @@ public function fetch(Request $request)
             'kra_employee_status' => 'nullable|in:Primary Employee,Secondary Employee',
             'profile_picture' => 'nullable|file|image|max:2048',
             'employment_date' => 'nullable|date|before_or_equal:today',
-            'employment_term' => 'required|in:permanent,contract,temporary,internship,consultant,locum',
+            'employment_term' => 'required|in:permanent,contract,temporary,fulltime,internship,consultant,locum',
             'probation_end_date' => 'nullable|date|after:employment_date',
             'contract_end_date' => 'nullable|date|after:employment_date',
             'retirement_date' => 'nullable|date|after:employment_date',
@@ -408,9 +406,9 @@ public function fetch(Request $request)
             'documents.*' => 'nullable|file|mimes:pdf,doc,docx,jpg,png|max:2048',
             'document_types.*' => 'nullable|string|max:255',
             'has_disability_exemption'  => 'nullable|boolean',
-'pwd_certificate_no'        => 'required_if:has_disability_exemption,1|nullable|string|max:255',
-'pwd_ncpwd_membership_no'   => 'required_if:has_disability_exemption,1|nullable|string|max:255',
-'pwd_exemption_limit'       => 'nullable|numeric|min:0|max:150000',
+            'pwd_certificate_no'        => 'required_if:has_disability_exemption,1|nullable|string|max:255',
+            'pwd_ncpwd_membership_no'   => 'required_if:has_disability_exemption,1|nullable|string|max:255',
+            'pwd_exemption_limit'       => 'nullable|numeric|min:0|max:150000',
         ]);
 
         $business = Business::findBySlug(session('active_business_slug'));
@@ -479,8 +477,8 @@ public function fetch(Request $request)
                 'retirement_date' => $validated['retirement_date'] ?? null,
                 'job_description' => $validated['job_description'] ?? null,
                 'license_reg_number' => $validated['license_reg_number'] ?? null,
-            'license_expiry_date' => $validated['license_expiry_date'] ?? null,
-            'second_probation_end_date' => $request->second_probation_end_date,
+                'license_expiry_date' => $validated['license_expiry_date'] ?? null,
+                'second_probation_end_date' => $request->second_probation_end_date,
             ]);
 
             // $employee->paymentDetails()->create([
@@ -494,37 +492,50 @@ public function fetch(Request $request)
             //     'bank_branch' => $validated['bank_branch'] ?? null,
             //     'bank_branch_code' => $validated['bank_branch_code'] ?? null,
             // ]);
+
             $paymentDetailsData = [
-    'payment_type' => $validated['payment_type'],
-    'currency' => $validated['currency'],
-    'payment_mode' => $validated['payment_mode'],
-    'account_name' => $validated['account_name'],
-    'account_number' => $validated['account_number'],
-    'bank_name' => $validated['bank_name'],
-    'bank_code' => $validated['bank_code'] ?? null,
-    'bank_branch' => $validated['bank_branch'] ?? null,
-    'bank_branch_code' => $validated['bank_branch_code'] ?? null,
-];
+                'payment_type' => $validated['payment_type'],
+                'currency' => $validated['currency'],
+                'payment_mode' => $validated['payment_mode'],
+                'account_name' => $validated['account_name'],
+                'account_number' => $validated['account_number'],
+                'bank_name' => $validated['bank_name'],
+                'bank_code' => $validated['bank_code'] ?? null,
+                'bank_branch' => $validated['bank_branch'] ?? null,
+                'bank_branch_code' => $validated['bank_branch_code'] ?? null,
+            ];
 
-if ($validated['payment_type'] === 'hourly') {
-    $paymentDetailsData['hourly_rate'] = $validated['hourly_rate'];
-    $paymentDetailsData['basic_salary'] = 0;
-} else {
-    $paymentDetailsData['basic_salary'] = $validated['basic_salary'];
-    $paymentDetailsData['hourly_rate'] = 0;
-}
-
-$employee->paymentDetails()->create($paymentDetailsData);
-$employee->payrollDetail()->updateOrCreate(
-    ['employee_id' => $employee->id],
-    [
-        'business_id'              => $business->id,
-        'has_disability_exemption' => $validated['has_disability_exemption'] ?? false,
-        'pwd_certificate_no'       => $validated['pwd_certificate_no'] ?? null,
-        'pwd_ncpwd_membership_no'  => $validated['pwd_ncpwd_membership_no'] ?? null,
-        'pwd_exemption_limit'      => $validated['pwd_exemption_limit'] ?? 150000.00,
-    ]
-);
+            if ($validated['payment_type'] === 'hourly') {
+                $paymentDetailsData['hourly_rate'] = $validated['hourly_rate'];
+                $paymentDetailsData['basic_salary'] = 0;
+            } else {
+                $paymentDetailsData['basic_salary'] = $validated['basic_salary'];
+                $paymentDetailsData['hourly_rate'] = 0;
+            }
+            // ── WHT fields ──────────────────────────────────────────────
+            $isConsultant = in_array($validated['employment_term'], ['consultant', 'locum']);
+            $paymentDetailsData['is_consultant']               = $isConsultant;
+            $paymentDetailsData['wht_payment_type']            = $isConsultant ? ($request->wht_payment_type ?? 'professional_fees') : null;
+            $paymentDetailsData['wht_residency']               = $isConsultant ? ($request->wht_residency ?? 'resident') : 'resident';
+            $paymentDetailsData['wht_pin']                     = $isConsultant ? $request->wht_pin : null;
+            $paymentDetailsData['consultant_shif_covered']     = $isConsultant && $request->has('consultant_shif_covered');
+            $paymentDetailsData['consultant_shif_basis']       = $isConsultant ? $request->consultant_shif_basis : null;
+            $paymentDetailsData['consultant_shif_fixed_amount'] = $isConsultant ? $request->consultant_shif_fixed_amount : null;
+            $paymentDetailsData['consultant_nssf_covered']     = $isConsultant && $request->has('consultant_nssf_covered');
+            $paymentDetailsData['consultant_nssf_basis']       = $isConsultant ? $request->consultant_nssf_basis : null;
+            $paymentDetailsData['consultant_nssf_fixed_amount'] = $isConsultant ? $request->consultant_nssf_fixed_amount : null;
+            // ────────────────────────────────────────────────────────────
+            $employee->paymentDetails()->create($paymentDetailsData);
+            $employee->payrollDetail()->updateOrCreate(
+                ['employee_id' => $employee->id],
+                [
+                    'business_id'              => $business->id,
+                    'has_disability_exemption' => $validated['has_disability_exemption'] ?? false,
+                    'pwd_certificate_no'       => $validated['pwd_certificate_no'] ?? null,
+                    'pwd_ncpwd_membership_no'  => $validated['pwd_ncpwd_membership_no'] ?? null,
+                    'pwd_exemption_limit'      => $validated['pwd_exemption_limit'] ?? 150000.00,
+                ]
+            );
 
             if ($request->hasFile('profile_picture')) {
                 $employee->addMedia($request->file('profile_picture'))->toMediaCollection('avatars');
@@ -604,8 +615,8 @@ $employee->payrollDetail()->updateOrCreate(
             'job_category_id' => 'nullable|exists:job_categories,id',
             'location_id' => 'nullable|exists:locations,id',
             'payment_type' => 'required|in:salary,hourly',
-'basic_salary' => 'required_if:payment_type,salary|nullable|numeric|min:0',
-'hourly_rate' => 'required_if:payment_type,hourly|nullable|numeric|min:0',
+            'basic_salary' => 'required_if:payment_type,salary|nullable|numeric|min:0',
+            'hourly_rate' => 'required_if:payment_type,hourly|nullable|numeric|min:0',
             // 'basic_salary' => 'required|numeric|min:0',
             'currency' => 'required|string|size:3',
             'payment_mode' => 'required|string|in:bank,cash,cheque,mpesa',
@@ -636,7 +647,7 @@ $employee->payrollDetail()->updateOrCreate(
             'kra_employee_status' => 'nullable|in:Primary Employee,Secondary Employee',
             'profile_picture' => 'nullable|file|image|max:2048',
             'employment_date' => 'nullable|date|before_or_equal:today',
-            'employment_term' => 'required|in:permanent,contract,temporary,internship',
+            'employment_term' => 'required|in:permanent,contract,temporary,fulltime,internship,consultant,locum',
             'probation_end_date' => 'nullable|date|after:employment_date',
             'contract_end_date' => 'nullable|date|after:employment_date',
             'retirement_date' => 'nullable|date|after:employment_date',
@@ -647,9 +658,9 @@ $employee->payrollDetail()->updateOrCreate(
             'document_types.*' => 'nullable|string|max:255',
             'second_probation_end_date' => 'nullable|date|after:probation_end_date',
             'has_disability_exemption'  => 'nullable|boolean',
-'pwd_certificate_no'        => 'required_if:has_disability_exemption,1|nullable|string|max:255',
-'pwd_ncpwd_membership_no'   => 'required_if:has_disability_exemption,1|nullable|string|max:255',
-'pwd_exemption_limit'       => 'nullable|numeric|min:0|max:150000',
+            'pwd_certificate_no'        => 'required_if:has_disability_exemption,1|nullable|string|max:255',
+            'pwd_ncpwd_membership_no'   => 'required_if:has_disability_exemption,1|nullable|string|max:255',
+            'pwd_exemption_limit'       => 'nullable|numeric|min:0|max:150000',
 
         ]);
 
@@ -708,45 +719,58 @@ $employee->payrollDetail()->updateOrCreate(
                     'retirement_date' => $validated['retirement_date'] ?? null,
                     'job_description' => $validated['job_description'] ?? null,
                     'license_reg_number' => $validated['license_reg_number'] ?? null,
-        'license_expiry_date' => $validated['license_expiry_date'] ?? null
+                    'license_expiry_date' => $validated['license_expiry_date'] ?? null
                 ]
             );
 
-           $paymentDetailsData = [
-    'payment_type' => $validated['payment_type'],
-    'currency' => $validated['currency'],
-    'payment_mode' => $validated['payment_mode'],
-    'account_name' => $validated['account_name'],
-    'account_number' => $validated['account_number'],
-    'bank_name' => $validated['bank_name'],
-    'bank_code' => $validated['bank_code'] ?? null,
-    'bank_branch' => $validated['bank_branch'] ?? null,
-    'bank_branch_code' => $validated['bank_branch_code'] ?? null,
-];
+            $paymentDetailsData = [
+                'payment_type' => $validated['payment_type'],
+                'currency' => $validated['currency'],
+                'payment_mode' => $validated['payment_mode'],
+                'account_name' => $validated['account_name'],
+                'account_number' => $validated['account_number'],
+                'bank_name' => $validated['bank_name'],
+                'bank_code' => $validated['bank_code'] ?? null,
+                'bank_branch' => $validated['bank_branch'] ?? null,
+                'bank_branch_code' => $validated['bank_branch_code'] ?? null,
+            ];
 
-if ($validated['payment_type'] === 'hourly') {
-    $paymentDetailsData['hourly_rate'] = $validated['hourly_rate'];
-    $paymentDetailsData['basic_salary'] = 0;
-} else {
-    $paymentDetailsData['basic_salary'] = $validated['basic_salary'];
-    $paymentDetailsData['hourly_rate'] = 0;
-}
+            if ($validated['payment_type'] === 'hourly') {
+                $paymentDetailsData['hourly_rate'] = $validated['hourly_rate'];
+                $paymentDetailsData['basic_salary'] = 0;
+            } else {
+                $paymentDetailsData['basic_salary'] = $validated['basic_salary'];
+                $paymentDetailsData['hourly_rate'] = 0;
+            }
+            // ── WHT fields — MUST be set before updateOrCreate ──────────
+            $isConsultant = in_array($validated['employment_term'], ['consultant', 'locum']);
+            $paymentDetailsData['is_consultant']                = $isConsultant;
+            $paymentDetailsData['wht_payment_type']             = $isConsultant ? ($request->wht_payment_type ?? 'professional_fees') : null;
+            $paymentDetailsData['wht_residency']                = $isConsultant ? ($request->wht_residency ?? 'resident') : 'resident';
+            $paymentDetailsData['wht_pin']                      = $isConsultant ? $request->wht_pin : null;
+            $paymentDetailsData['consultant_shif_covered']      = $isConsultant && $request->has('consultant_shif_covered');
+            $paymentDetailsData['consultant_shif_basis']        = $isConsultant ? $request->consultant_shif_basis : null;
+            $paymentDetailsData['consultant_shif_fixed_amount'] = $isConsultant ? $request->consultant_shif_fixed_amount : null;
+            $paymentDetailsData['consultant_nssf_covered']      = $isConsultant && $request->has('consultant_nssf_covered');
+            $paymentDetailsData['consultant_nssf_basis']        = $isConsultant ? $request->consultant_nssf_basis : null;
+            $paymentDetailsData['consultant_nssf_fixed_amount'] = $isConsultant ? $request->consultant_nssf_fixed_amount : null;
 
-$paymentDetails = $employee->paymentDetails()->updateOrCreate(
-    ['employee_id' => $employee->id],
-    $paymentDetailsData
-);
-// $business = Business::findBySlug(session('active_business_slug'));
-$employee->payrollDetail()->updateOrCreate(
-    ['employee_id' => $employee->id],
-    [
-        // 'business_id'              => $business->id,
-        'has_disability_exemption' => $validated['has_disability_exemption'] ?? false,
-        'pwd_certificate_no'       => $validated['pwd_certificate_no'] ?? null,
-        'pwd_ncpwd_membership_no'  => $validated['pwd_ncpwd_membership_no'] ?? null,
-        'pwd_exemption_limit'      => $validated['pwd_exemption_limit'] ?? 150000.00,
-    ]
-);
+
+            $employee->paymentDetails()->updateOrCreate(
+                ['employee_id' => $employee->id],
+                $paymentDetailsData
+            );
+
+            $employee->payrollDetail()->updateOrCreate(
+                ['employee_id' => $employee->id],
+                [
+                    // 'business_id'              => $business->id,
+                    'has_disability_exemption' => $validated['has_disability_exemption'] ?? false,
+                    'pwd_certificate_no'       => $validated['pwd_certificate_no'] ?? null,
+                    'pwd_ncpwd_membership_no'  => $validated['pwd_ncpwd_membership_no'] ?? null,
+                    'pwd_exemption_limit'      => $validated['pwd_exemption_limit'] ?? 150000.00,
+                ]
+            );
 
             if ($request->hasFile('profile_picture')) {
                 $employee->clearMediaCollection('avatars');
@@ -894,7 +918,7 @@ $employee->payrollDetail()->updateOrCreate(
             'employment_terms' => 'array|nullable',
             'employment_terms.*' => [
                 function ($attribute, $value, $fail) {
-                    $validTerms = ['permanent', 'contract', 'temporary', 'internship'];
+                    $validTerms = ['permanent', 'contract', 'temporary', 'fulltime', 'internship', 'consultant', 'locum'];
                     if ($value !== 'all' && !in_array($value, $validTerms)) {
                         $fail("The selected employment term '$value' is invalid.");
                     }
@@ -1044,259 +1068,259 @@ $employee->payrollDetail()->updateOrCreate(
         return response()->json(['message' => 'User preferences updated.']);
     }
 
-public function import(Request $request)
-{
-    $request->validate([
-        'file' => 'required|file|max:2048|mimetypes:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    ]);
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|max:2048|mimetypes:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
 
-    $file = $request->file('file');
-    $business = Business::findBySlug(session('active_business_slug'));
-    if (!$business) {
-        Log::error('Business not found during import.', ['slug' => session('active_business_slug')]);
-        return response()->json([
-            'success' => false,
-            'message' => 'Business not found.',
-            'successful' => 0,
-            'errors' => ['Business not found.'],
-        ], 400);
-    }
-
-    $errors = [];
-    $successful = 0;
-
-    $departments = $business->departments()->pluck('id', 'name')->toArray();
-    $locations = $business->locations()->pluck('id', 'name')->toArray();
-    $locations[$business->company_name] = null; // Add main business as a location (nullable ID)
-    $jobCategories = $business->job_categories()->pluck('id', 'name')->toArray();
-
-    try {
-        DB::beginTransaction();
-
-        Log::info('Starting import process.', ['file' => $file->getClientOriginalName()]);
-        $records = Excel::toArray(new EmployeesImport, $file)[0];
-        Log::info('Excel parsed.', ['row_count' => count($records)]);
-
-        if (empty($records)) {
-            $errorMsg = 'The uploaded XLSX file is empty or invalid.';
-            Log::warning($errorMsg, ['file' => $file->getClientOriginalName()]);
+        $file = $request->file('file');
+        $business = Business::findBySlug(session('active_business_slug'));
+        if (!$business) {
+            Log::error('Business not found during import.', ['slug' => session('active_business_slug')]);
             return response()->json([
                 'success' => false,
-                'message' => $errorMsg,
+                'message' => 'Business not found.',
                 'successful' => 0,
-                'errors' => ['No data found in the file.'],
+                'errors' => ['Business not found.'],
             ], 400);
         }
 
-        $headers = array_shift($records);
-        Log::info('Headers extracted.', ['headers' => $headers]);
-        $records = array_map(function ($row) use ($headers) {
-            return array_combine($headers, array_map('trim', $row));
-        }, $records);
-        Log::info('Rows mapped.', ['record_count' => count($records)]);
+        $errors = [];
+        $successful = 0;
 
-        foreach ($records as $index => $row) {
-            try {
-                $validator = Validator::make($row, [
-                    'first_name' => 'required|string|max:255',
-                    'last_name' => 'required|string|max:255',
-                    'email' => 'required|email|unique:users,email|max:255',
-                    'phone' => 'required|string|max:20',
-                    'gender' => 'required|string|max:20',
-                    'employee_code' => 'required|string|unique:employees,employee_code|max:50',
-                    'department' => 'nullable|string|exists:departments,name',
-                    'job_category' => 'nullable|string|exists:job_categories,name',
-                    'location' => 'nullable|string|in:' . implode(',', array_keys($locations)),
-                    'basic_salary' => 'required|numeric|min:0',
-                    'currency' => 'required|string|size:3',
-                    'payment_mode' => 'required|string|in:bank,cash,cheque,mpesa',
-                    'account_name' => 'required|string|max:255',
-                    'account_number' => 'required|string|unique:employee_payment_details,account_number|max:50',
-                    'bank_name' => 'required|string|max:255',
-                    'bank_code' => 'nullable|string|max:50',
-                    'bank_branch' => 'nullable|string|max:255',
-                    'bank_branch_code' => 'nullable|string|max:50',
-                    'national_id' => 'nullable|string|unique:employees,national_id|max:255',
-                    'tax_no' => 'nullable|string|max:20',
-                    'date_of_birth' => 'nullable|date|before:today',
-                    'marital_status' => 'nullable|string|in:single,married,divorced,widowed',
-                    'nhif_no' => 'nullable|string|max:20',
-                    'nssf_no' => 'nullable|string|max:20',
-                    'passport_no' => 'nullable|string|max:255',
-                    'passport_issue_date' => 'nullable|date|before:today',
-                    'passport_expiry_date' => 'nullable|date|after:passport_issue_date',
-                    'place_of_birth' => 'nullable|string|max:255',
-                    'place_of_issue' => 'nullable|string|max:255',
-                    'address' => 'nullable|string|max:255',
-                    'permanent_address' => 'nullable|string|max:255',
-                    'alternate_phone' => 'nullable|string|max:20',
-                    'blood_group' => 'nullable|string|max:255',
-                    'is_exempt_from_payroll' => 'nullable|boolean',
-                    'resident_status' => 'nullable|string|max:255',
-                    'kra_employee_status' => 'nullable|in:Primary Employee,Secondary Employee',
-                    'employment_date' => 'nullable|date|before_or_equal:today',
-                    'employment_term' => 'required|in:permanent,contract,temporary,internship,consultant',
-                    'probation_end_date' => 'nullable|date|after:employment_date',
-                    'contract_end_date' => 'nullable|date|after:employment_date',
-                    'retirement_date' => 'nullable|date|after:employment_date',
-                    'job_description' => 'nullable|string|max:1000',
-                ]);
+        $departments = $business->departments()->pluck('id', 'name')->toArray();
+        $locations = $business->locations()->pluck('id', 'name')->toArray();
+        $locations[$business->company_name] = null; // Add main business as a location (nullable ID)
+        $jobCategories = $business->job_categories()->pluck('id', 'name')->toArray();
 
-                if ($validator->fails()) {
-                    $errors[] = "Row " . ($index + 2) . ": " . implode(', ', $validator->errors()->all());
-                    continue;
-                }
+        try {
+            DB::beginTransaction();
 
-                $departmentId = !empty($row['department']) ? ($departments[$row['department']] ?? null) : null;
-                $jobCategoryId = !empty($row['job_category']) ? ($jobCategories[$row['job_category']] ?? null) : null;
-                $locationId = !empty($row['location']) && isset($locations[$row['location']]) ? $locations[$row['location']] : null;
+            Log::info('Starting import process.', ['file' => $file->getClientOriginalName()]);
+            $records = Excel::toArray(new EmployeesImport, $file)[0];
+            Log::info('Excel parsed.', ['row_count' => count($records)]);
 
-                if (!empty($row['department']) && !$departmentId) {
-                    $errors[] = "Row " . ($index + 2) . ": Department '{$row['department']}' not found.";
-                    continue;
-                }
-                if (!empty($row['job_category']) && !$jobCategoryId) {
-                    $errors[] = "Row " . ($index + 2) . ": Job Category '{$row['job_category']}' not found.";
-                    continue;
-                }
-                if (!empty($row['location']) && !array_key_exists($row['location'], $locations)) {
-                    $errors[] = "Row " . ($index + 2) . ": Location '{$row['location']}' not found.";
-                    continue;
-                }
-
-                $user = User::create([
-                    'name' => trim("{$row['first_name']} {$row['last_name']}"),
-                    'email' => $row['email'],
-                    'phone' => $row['phone'],
-                    'password' => null,
-                ]);
-
-                $token = Password::createToken($user);
-                $user->sendPasswordResetNotification($token);
-
-                $user->notify(new WelcomeEmployeeNotification($user, $token));
-
-                $role = Role::where('name', 'business-employee')
-                    ->where('business_id', $business->id)
-                    ->first();
-                if ($role) {
-                    $user->assignRole($role);
-                } else {
-                    Log::warning('business-employee role not found for business.', ['business_id' => $business->id]);
-                    $errors[] = "Row " . ($index + 2) . ": business-employee role not found.";
-                }
-
-                $employee = $business->employees()->create([
-                    'user_id' => $user->id,
-                    'employee_code' => $row['employee_code'],
-                    'department_id' => $departmentId,
-                    'job_category_id' => $jobCategoryId,
-                    'location_id' => $locationId,
-                    'national_id' => $row['national_id'] ?? null,
-                    'marital_status' => $row['marital_status'],
-                    'nhif_no' => $row['nhif_no'] ?? null,
-                    'nssf_no' => $row['nssf_no'] ?? null,
-                    'tax_no' => $row['tax_no'] ?? null,
-                    'date_of_birth' => $row['date_of_birth'],
-                    'gender' => $row['gender'],
-                    'phone' => $row['phone'],
-                    'alternate_phone' => $row['alternate_phone'] ?? null,
-                    'passport_no' => $row['passport_no'] ?? null,
-                    'passport_issue_date' => $row['passport_issue_date'] ?? null,
-                    'passport_expiry_date' => $row['passport_expiry_date'] ?? null,
-                    'place_of_birth' => $row['place_of_birth'] ?? null,
-                    'place_of_issue' => $row['place_of_issue'] ?? null,
-                    'address' => $row['address'] ?? null,
-                    'permanent_address' => $row['permanent_address'],
-                    'blood_group' => $row['blood_group'] ?? null,
-                    'is_exempt_from_payroll' => $row['is_exempt_from_payroll'] ?? false,
-                    'resident_status' => $row['resident_status'] ?? null,
-                    'kra_employee_status' => $row['kra_employee_status'] ?? null,
-                ]);
-
-                $employee->employmentDetails()->create([
-                    'job_category_id' => $jobCategoryId,
-                    'department_id' => $departmentId,
-                    'employment_date' => $row['employment_date'] ?? now(),
-                    'employment_term' => $row['employment_term'],
-                    'probation_end_date' => $row['probation_end_date'] ?? null,
-                    'contract_end_date' => $row['contract_end_date'] ?? null,
-                    'retirement_date' => $row['retirement_date'] ?? null,
-                    'job_description' => $row['job_description'] ?? null,
-                ]);
-
-                $employee->paymentDetails()->create([
-                    'basic_salary' => $row['basic_salary'],
-                    'currency' => $row['currency'],
-                    'payment_mode' => $row['payment_mode'],
-                    'account_name' => $row['account_name'],
-                    'account_number' => $row['account_number'],
-                    'bank_name' => $row['bank_name'],
-                    'bank_code' => $row['bank_code'] ?? null,
-                    'bank_branch' => $row['bank_branch'] ?? null,
-                    'bank_branch_code' => $row['bank_branch_code'] ?? null,
-                ]);
-
-                $successful++; // Ensure this is incremented after all creations
-                Log::info('Employee imported successfully.', ['row' => $index + 2, 'employee_id' => $employee->id]);
-            } catch (\Exception $e) {
-                $errors[] = "Row " . ($index + 2) . ": " . $e->getMessage();
-                Log::error('Error importing row.', ['row' => $index + 2, 'error' => $e->getMessage()]);
+            if (empty($records)) {
+                $errorMsg = 'The uploaded XLSX file is empty or invalid.';
+                Log::warning($errorMsg, ['file' => $file->getClientOriginalName()]);
+                return response()->json([
+                    'success' => false,
+                    'message' => $errorMsg,
+                    'successful' => 0,
+                    'errors' => ['No data found in the file.'],
+                ], 400);
             }
-        }
 
-        DB::commit();
-        Log::info('Import process completed.', ['successful' => $successful, 'errors' => count($errors)]);
+            $headers = array_shift($records);
+            Log::info('Headers extracted.', ['headers' => $headers]);
+            $records = array_map(function ($row) use ($headers) {
+                return array_combine($headers, array_map('trim', $row));
+            }, $records);
+            Log::info('Rows mapped.', ['record_count' => count($records)]);
 
-        $responseData = [
-            'successful' => $successful,
-            'errors' => $errors,
-        ];
+            foreach ($records as $index => $row) {
+                try {
+                    $validator = Validator::make($row, [
+                        'first_name' => 'required|string|max:255',
+                        'last_name' => 'required|string|max:255',
+                        'email' => 'required|email|unique:users,email|max:255',
+                        'phone' => 'required|string|max:20',
+                        'gender' => 'required|string|max:20',
+                        'employee_code' => 'required|string|unique:employees,employee_code|max:50',
+                        'department' => 'nullable|string|exists:departments,name',
+                        'job_category' => 'nullable|string|exists:job_categories,name',
+                        'location' => 'nullable|string|in:' . implode(',', array_keys($locations)),
+                        'basic_salary' => 'required|numeric|min:0',
+                        'currency' => 'required|string|size:3',
+                        'payment_mode' => 'required|string|in:bank,cash,cheque,mpesa',
+                        'account_name' => 'required|string|max:255',
+                        'account_number' => 'required|string|unique:employee_payment_details,account_number|max:50',
+                        'bank_name' => 'required|string|max:255',
+                        'bank_code' => 'nullable|string|max:50',
+                        'bank_branch' => 'nullable|string|max:255',
+                        'bank_branch_code' => 'nullable|string|max:50',
+                        'national_id' => 'nullable|string|unique:employees,national_id|max:255',
+                        'tax_no' => 'nullable|string|max:20',
+                        'date_of_birth' => 'nullable|date|before:today',
+                        'marital_status' => 'nullable|string|in:single,married,divorced,widowed',
+                        'nhif_no' => 'nullable|string|max:20',
+                        'nssf_no' => 'nullable|string|max:20',
+                        'passport_no' => 'nullable|string|max:255',
+                        'passport_issue_date' => 'nullable|date|before:today',
+                        'passport_expiry_date' => 'nullable|date|after:passport_issue_date',
+                        'place_of_birth' => 'nullable|string|max:255',
+                        'place_of_issue' => 'nullable|string|max:255',
+                        'address' => 'nullable|string|max:255',
+                        'permanent_address' => 'nullable|string|max:255',
+                        'alternate_phone' => 'nullable|string|max:20',
+                        'blood_group' => 'nullable|string|max:255',
+                        'is_exempt_from_payroll' => 'nullable|boolean',
+                        'resident_status' => 'nullable|string|max:255',
+                        'kra_employee_status' => 'nullable|in:Primary Employee,Secondary Employee',
+                        'employment_date' => 'nullable|date|before_or_equal:today',
+                        'employment_term' => 'required|in:permanent,contract,temporary,internship,consultant',
+                        'probation_end_date' => 'nullable|date|after:employment_date',
+                        'contract_end_date' => 'nullable|date|after:employment_date',
+                        'retirement_date' => 'nullable|date|after:employment_date',
+                        'job_description' => 'nullable|string|max:1000',
+                    ]);
 
-        if ($successful > 0 && count($errors) === 0) {
-            return response()->json([
-                'success' => true,
-                'message' => 'All employees imported successfully.',
-                'successful' => $successful,
-                'errors' => [],
-            ], 200);
-        }
+                    if ($validator->fails()) {
+                        $errors[] = "Row " . ($index + 2) . ": " . implode(', ', $validator->errors()->all());
+                        continue;
+                    }
 
-        if ($successful > 0 && count($errors) > 0) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Some employees were imported, but there were errors.',
+                    $departmentId = !empty($row['department']) ? ($departments[$row['department']] ?? null) : null;
+                    $jobCategoryId = !empty($row['job_category']) ? ($jobCategories[$row['job_category']] ?? null) : null;
+                    $locationId = !empty($row['location']) && isset($locations[$row['location']]) ? $locations[$row['location']] : null;
+
+                    if (!empty($row['department']) && !$departmentId) {
+                        $errors[] = "Row " . ($index + 2) . ": Department '{$row['department']}' not found.";
+                        continue;
+                    }
+                    if (!empty($row['job_category']) && !$jobCategoryId) {
+                        $errors[] = "Row " . ($index + 2) . ": Job Category '{$row['job_category']}' not found.";
+                        continue;
+                    }
+                    if (!empty($row['location']) && !array_key_exists($row['location'], $locations)) {
+                        $errors[] = "Row " . ($index + 2) . ": Location '{$row['location']}' not found.";
+                        continue;
+                    }
+
+                    $user = User::create([
+                        'name' => trim("{$row['first_name']} {$row['last_name']}"),
+                        'email' => $row['email'],
+                        'phone' => $row['phone'],
+                        'password' => null,
+                    ]);
+
+                    $token = Password::createToken($user);
+                    $user->sendPasswordResetNotification($token);
+
+                    $user->notify(new WelcomeEmployeeNotification($user, $token));
+
+                    $role = Role::where('name', 'business-employee')
+                        ->where('business_id', $business->id)
+                        ->first();
+                    if ($role) {
+                        $user->assignRole($role);
+                    } else {
+                        Log::warning('business-employee role not found for business.', ['business_id' => $business->id]);
+                        $errors[] = "Row " . ($index + 2) . ": business-employee role not found.";
+                    }
+
+                    $employee = $business->employees()->create([
+                        'user_id' => $user->id,
+                        'employee_code' => $row['employee_code'],
+                        'department_id' => $departmentId,
+                        'job_category_id' => $jobCategoryId,
+                        'location_id' => $locationId,
+                        'national_id' => $row['national_id'] ?? null,
+                        'marital_status' => $row['marital_status'],
+                        'nhif_no' => $row['nhif_no'] ?? null,
+                        'nssf_no' => $row['nssf_no'] ?? null,
+                        'tax_no' => $row['tax_no'] ?? null,
+                        'date_of_birth' => $row['date_of_birth'],
+                        'gender' => $row['gender'],
+                        'phone' => $row['phone'],
+                        'alternate_phone' => $row['alternate_phone'] ?? null,
+                        'passport_no' => $row['passport_no'] ?? null,
+                        'passport_issue_date' => $row['passport_issue_date'] ?? null,
+                        'passport_expiry_date' => $row['passport_expiry_date'] ?? null,
+                        'place_of_birth' => $row['place_of_birth'] ?? null,
+                        'place_of_issue' => $row['place_of_issue'] ?? null,
+                        'address' => $row['address'] ?? null,
+                        'permanent_address' => $row['permanent_address'],
+                        'blood_group' => $row['blood_group'] ?? null,
+                        'is_exempt_from_payroll' => $row['is_exempt_from_payroll'] ?? false,
+                        'resident_status' => $row['resident_status'] ?? null,
+                        'kra_employee_status' => $row['kra_employee_status'] ?? null,
+                    ]);
+
+                    $employee->employmentDetails()->create([
+                        'job_category_id' => $jobCategoryId,
+                        'department_id' => $departmentId,
+                        'employment_date' => $row['employment_date'] ?? now(),
+                        'employment_term' => $row['employment_term'],
+                        'probation_end_date' => $row['probation_end_date'] ?? null,
+                        'contract_end_date' => $row['contract_end_date'] ?? null,
+                        'retirement_date' => $row['retirement_date'] ?? null,
+                        'job_description' => $row['job_description'] ?? null,
+                    ]);
+
+                    $employee->paymentDetails()->create([
+                        'basic_salary' => $row['basic_salary'],
+                        'currency' => $row['currency'],
+                        'payment_mode' => $row['payment_mode'],
+                        'account_name' => $row['account_name'],
+                        'account_number' => $row['account_number'],
+                        'bank_name' => $row['bank_name'],
+                        'bank_code' => $row['bank_code'] ?? null,
+                        'bank_branch' => $row['bank_branch'] ?? null,
+                        'bank_branch_code' => $row['bank_branch_code'] ?? null,
+                    ]);
+
+                    $successful++; // Ensure this is incremented after all creations
+                    Log::info('Employee imported successfully.', ['row' => $index + 2, 'employee_id' => $employee->id]);
+                } catch (\Exception $e) {
+                    $errors[] = "Row " . ($index + 2) . ": " . $e->getMessage();
+                    Log::error('Error importing row.', ['row' => $index + 2, 'error' => $e->getMessage()]);
+                }
+            }
+
+            DB::commit();
+            Log::info('Import process completed.', ['successful' => $successful, 'errors' => count($errors)]);
+
+            $responseData = [
                 'successful' => $successful,
                 'errors' => $errors,
-            ], 200);
-        }
+            ];
 
-        if ($successful === 0 && count($errors) > 0) {
+            if ($successful > 0 && count($errors) === 0) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'All employees imported successfully.',
+                    'successful' => $successful,
+                    'errors' => [],
+                ], 200);
+            }
+
+            if ($successful > 0 && count($errors) > 0) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Some employees were imported, but there were errors.',
+                    'successful' => $successful,
+                    'errors' => $errors,
+                ], 200);
+            }
+
+            if ($successful === 0 && count($errors) > 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Import failed. No employees were added.',
+                    'successful' => 0,
+                    'errors' => $errors,
+                ], 400);
+            }
+
             return response()->json([
                 'success' => false,
-                'message' => 'Import failed. No employees were added.',
+                'message' => 'No employees were added. Please check the file format or data.',
                 'successful' => 0,
-                'errors' => $errors,
+                'errors' => [],
+            ], 400);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to import employees.', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to import employees.',
+                'successful' => 0,
+                'errors' => [$e->getMessage()],
             ], 400);
         }
-
-        return response()->json([
-            'success' => false,
-            'message' => 'No employees were added. Please check the file format or data.',
-            'successful' => 0,
-            'errors' => [],
-        ], 400);
-    } catch (\Exception $e) {
-        DB::rollBack();
-        Log::error('Failed to import employees.', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
-        return response()->json([
-            'success' => false,
-            'message' => 'Failed to import employees.',
-            'successful' => 0,
-            'errors' => [$e->getMessage()],
-        ], 400);
     }
-}
     public function downloadXlsxTemplate()
     {
         $business = Business::findBySlug(session('active_business_slug'));
@@ -1568,185 +1592,185 @@ public function import(Request $request)
         }, 'employees_template.xlsx');
     }
 
-public function export(Request $request)
-{
-    try {
-        $business = Business::findBySlug(session('active_business_slug'));
-        if (!$business) {
-            return RequestResponse::badRequest('Business not found.');
-        }
+    public function export(Request $request)
+    {
+        try {
+            $business = Business::findBySlug(session('active_business_slug'));
+            if (!$business) {
+                return RequestResponse::badRequest('Business not found.');
+            }
 
-        // Eager-load all necessary relationships
-        $query = Employee::where('business_id', $business->id)
-            ->with(['user', 'department', 'location', 'paymentDetails', 'employmentDetails.jobCategory']);
+            // Eager-load all necessary relationships
+            $query = Employee::where('business_id', $business->id)
+                ->with(['user', 'department', 'location', 'paymentDetails', 'employmentDetails.jobCategory']);
 
-        // Apply filters
-        if ($search = $request->input('search')) {
-            $query->where(function ($q) use ($search) {
-                $q->whereHas('user', fn($q) => $q->where('name', 'like', "%{$search}%"))
-                    ->orWhere('employee_code', 'like', "%{$search}%");
-            });
-        }
-        if ($department = $request->input('department')) {
-            $query->where('department_id', $department);
-        }
-        if ($location = $request->input('location')) {
-            $query->where('location_id', $location);
-        }
-        if ($jobCategory = $request->input('job_category')) {
-            $query->whereHas('employmentDetails', function ($q) use ($jobCategory) {
-                $q->where('job_category_id', $jobCategory);
-            });
-        }
+            // Apply filters
+            if ($search = $request->input('search')) {
+                $query->where(function ($q) use ($search) {
+                    $q->whereHas('user', fn($q) => $q->where('name', 'like', "%{$search}%"))
+                        ->orWhere('employee_code', 'like', "%{$search}%");
+                });
+            }
+            if ($department = $request->input('department')) {
+                $query->where('department_id', $department);
+            }
+            if ($location = $request->input('location')) {
+                $query->where('location_id', $location);
+            }
+            if ($jobCategory = $request->input('job_category')) {
+                $query->whereHas('employmentDetails', function ($q) use ($jobCategory) {
+                    $q->where('job_category_id', $jobCategory);
+                });
+            }
 
-        $employees = $query->get();
+            $employees = $query->get();
 
-        if ($employees->isEmpty()) {
-            return RequestResponse::badRequest('No employees found with the applied filters.');
-        }
+            if ($employees->isEmpty()) {
+                return RequestResponse::badRequest('No employees found with the applied filters.');
+            }
 
-        // Define headers for all fields from validation rules
-        $headers = [
-            'Name',
-            'Employee Code',
-            'Email',
-            'Phone',
-            'Alternate Phone',
-            'Gender',
-            'National ID',
-            'Tax Number',
-            'NHIF Number',
-            'NSSF Number',
-            'Passport Number',
-            'Passport Issue Date',
-            'Passport Expiry Date',
-            'Place of Birth',
-            'Place of Issue',
-            'Date of Birth',
-            'Marital Status',
-            'Address',
-            'Permanent Address',
-            'Blood Group',
-            'Resident Status',
-            'KRA Employee Status',
-            'Department',
-            'Job Category',
-            'Location',
-            'Basic Salary',
-            'Currency',
-            'Payment Mode',
-            'Account Name',
-            'Account Number',
-            'Bank Name',
-            'Bank Code',
-            'Bank Branch',
-            'Bank Branch Code',
-            'Employment Date',
-            'Employment Term',
-            'Probation End Date',
-            'Contract End Date',
-            'Retirement Date',
-            'Job Description',
-            'Is Exempt from Payroll',
-        ];
-
-        // Map employee data to include all fields
-        $data = $employees->map(function ($employee) {
-            return [
-                $employee->user->name ?? 'N/A',
-                $employee->employee_code ?? 'N/A',
-                $employee->user->email ?? 'N/A',
-                $employee->user->phone ?? 'N/A',
-                $employee->alternate_phone ?? 'N/A',
-                $employee->gender ?? 'N/A',
-                $employee->national_id ?? 'N/A',
-                $employee->tax_no ?? 'N/A',
-                $employee->nhif_no ?? 'N/A',
-                $employee->nssf_no ?? 'N/A',
-                $employee->passport_no ?? 'N/A',
-                $employee->passport_issue_date ?? 'N/A',
-                $employee->passport_expiry_date ?? 'N/A',
-                $employee->place_of_birth ?? 'N/A',
-                $employee->place_of_issue ?? 'N/A',
-                $employee->date_of_birth ?? 'N/A',
-                $employee->marital_status ?? 'N/A',
-                $employee->address ?? 'N/A',
-                $employee->permanent_address ?? 'N/A',
-                $employee->blood_group ?? 'N/A',
-                $employee->resident_status ?? 'N/A',
-                $employee->kra_employee_status ?? 'N/A',
-                $employee->department->name ?? 'N/A',
-                optional($employee->employmentDetails)->jobCategory->name ?? 'N/A',
-                $employee->location ? $employee->location->name : $employee->business->company_name,
-                number_format((float) (optional($employee->paymentDetails)->basic_salary ?? 0), 2),
-                optional($employee->paymentDetails)->currency ?? 'N/A',
-                optional($employee->paymentDetails)->payment_mode ?? 'N/A',
-                optional($employee->paymentDetails)->account_name ?? 'N/A',
-                optional($employee->paymentDetails)->account_number ?? 'N/A',
-                optional($employee->paymentDetails)->bank_name ?? 'N/A',
-                optional($employee->paymentDetails)->bank_code ?? 'N/A',
-                optional($employee->paymentDetails)->bank_branch ?? 'N/A',
-                optional($employee->paymentDetails)->bank_branch_code ?? 'N/A',
-                optional($employee->employmentDetails)->employment_date ?? 'N/A',
-                optional($employee->employmentDetails)->employment_term ?? 'N/A',
-                optional($employee->employmentDetails)->probation_end_date ?? 'N/A',
-                optional($employee->employmentDetails)->contract_end_date ?? 'N/A',
-                optional($employee->employmentDetails)->retirement_date ?? 'N/A',
-                optional($employee->employmentDetails)->job_description ?? 'N/A',
-                optional($employee->employmentDetails)->is_exempt_from_payroll ? 'Yes' : 'No',
+            // Define headers for all fields from validation rules
+            $headers = [
+                'Name',
+                'Employee Code',
+                'Email',
+                'Phone',
+                'Alternate Phone',
+                'Gender',
+                'National ID',
+                'Tax Number',
+                'NHIF Number',
+                'NSSF Number',
+                'Passport Number',
+                'Passport Issue Date',
+                'Passport Expiry Date',
+                'Place of Birth',
+                'Place of Issue',
+                'Date of Birth',
+                'Marital Status',
+                'Address',
+                'Permanent Address',
+                'Blood Group',
+                'Resident Status',
+                'KRA Employee Status',
+                'Department',
+                'Job Category',
+                'Location',
+                'Basic Salary',
+                'Currency',
+                'Payment Mode',
+                'Account Name',
+                'Account Number',
+                'Bank Name',
+                'Bank Code',
+                'Bank Branch',
+                'Bank Branch Code',
+                'Employment Date',
+                'Employment Term',
+                'Probation End Date',
+                'Contract End Date',
+                'Retirement Date',
+                'Job Description',
+                'Is Exempt from Payroll',
             ];
-        })->toArray();
 
-        return Excel::download(new class($headers, $data) implements
-            \Maatwebsite\Excel\Concerns\FromArray,
-            \Maatwebsite\Excel\Concerns\WithHeadings,
-            \Maatwebsite\Excel\Concerns\WithEvents
-        {
-            private $headers;
-            private $data;
-
-            public function __construct(array $headers, array $data)
-            {
-                $this->headers = $headers;
-                $this->data = $data;
-            }
-
-            public function array(): array
-            {
-                return $this->data;
-            }
-
-            public function headings(): array
-            {
-                return $this->headers;
-            }
-
-            public function registerEvents(): array
-            {
+            // Map employee data to include all fields
+            $data = $employees->map(function ($employee) {
                 return [
-                    AfterSheet::class => function (AfterSheet $event) {
-                        $sheet = $event->sheet->getDelegate();
-                        $highestColumn = $event->sheet->getHighestColumn();
-                        $sheet->getStyle("A1:{$highestColumn}1")->applyFromArray([
-                            'font' => ['bold' => true],
-                            'fill' => [
-                                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
-                                'startColor' => ['argb' => 'FFCCCCCC'],
-                            ],
-                        ]);
-
-                        foreach (range('A', $highestColumn) as $col) {
-                            $sheet->getColumnDimension($col)->setAutoSize(true);
-                        }
-                    }
+                    $employee->user->name ?? 'N/A',
+                    $employee->employee_code ?? 'N/A',
+                    $employee->user->email ?? 'N/A',
+                    $employee->user->phone ?? 'N/A',
+                    $employee->alternate_phone ?? 'N/A',
+                    $employee->gender ?? 'N/A',
+                    $employee->national_id ?? 'N/A',
+                    $employee->tax_no ?? 'N/A',
+                    $employee->nhif_no ?? 'N/A',
+                    $employee->nssf_no ?? 'N/A',
+                    $employee->passport_no ?? 'N/A',
+                    $employee->passport_issue_date ?? 'N/A',
+                    $employee->passport_expiry_date ?? 'N/A',
+                    $employee->place_of_birth ?? 'N/A',
+                    $employee->place_of_issue ?? 'N/A',
+                    $employee->date_of_birth ?? 'N/A',
+                    $employee->marital_status ?? 'N/A',
+                    $employee->address ?? 'N/A',
+                    $employee->permanent_address ?? 'N/A',
+                    $employee->blood_group ?? 'N/A',
+                    $employee->resident_status ?? 'N/A',
+                    $employee->kra_employee_status ?? 'N/A',
+                    $employee->department->name ?? 'N/A',
+                    optional($employee->employmentDetails)->jobCategory->name ?? 'N/A',
+                    $employee->location ? $employee->location->name : $employee->business->company_name,
+                    number_format((float) (optional($employee->paymentDetails)->basic_salary ?? 0), 2),
+                    optional($employee->paymentDetails)->currency ?? 'N/A',
+                    optional($employee->paymentDetails)->payment_mode ?? 'N/A',
+                    optional($employee->paymentDetails)->account_name ?? 'N/A',
+                    optional($employee->paymentDetails)->account_number ?? 'N/A',
+                    optional($employee->paymentDetails)->bank_name ?? 'N/A',
+                    optional($employee->paymentDetails)->bank_code ?? 'N/A',
+                    optional($employee->paymentDetails)->bank_branch ?? 'N/A',
+                    optional($employee->paymentDetails)->bank_branch_code ?? 'N/A',
+                    optional($employee->employmentDetails)->employment_date ?? 'N/A',
+                    optional($employee->employmentDetails)->employment_term ?? 'N/A',
+                    optional($employee->employmentDetails)->probation_end_date ?? 'N/A',
+                    optional($employee->employmentDetails)->contract_end_date ?? 'N/A',
+                    optional($employee->employmentDetails)->retirement_date ?? 'N/A',
+                    optional($employee->employmentDetails)->job_description ?? 'N/A',
+                    optional($employee->employmentDetails)->is_exempt_from_payroll ? 'Yes' : 'No',
                 ];
-            }
-        }, 'employees_export_' . now()->format('Ymd_His') . '.xlsx');
-    } catch (\Exception $e) {
-        \Log::error('Failed to export employees: ' . $e->getMessage());
-        return RequestResponse::badRequest('Failed to export employees: ' . $e->getMessage());
+            })->toArray();
+
+            return Excel::download(new class($headers, $data) implements
+                \Maatwebsite\Excel\Concerns\FromArray,
+                \Maatwebsite\Excel\Concerns\WithHeadings,
+                \Maatwebsite\Excel\Concerns\WithEvents
+            {
+                private $headers;
+                private $data;
+
+                public function __construct(array $headers, array $data)
+                {
+                    $this->headers = $headers;
+                    $this->data = $data;
+                }
+
+                public function array(): array
+                {
+                    return $this->data;
+                }
+
+                public function headings(): array
+                {
+                    return $this->headers;
+                }
+
+                public function registerEvents(): array
+                {
+                    return [
+                        AfterSheet::class => function (AfterSheet $event) {
+                            $sheet = $event->sheet->getDelegate();
+                            $highestColumn = $event->sheet->getHighestColumn();
+                            $sheet->getStyle("A1:{$highestColumn}1")->applyFromArray([
+                                'font' => ['bold' => true],
+                                'fill' => [
+                                    'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                                    'startColor' => ['argb' => 'FFCCCCCC'],
+                                ],
+                            ]);
+
+                            foreach (range('A', $highestColumn) as $col) {
+                                $sheet->getColumnDimension($col)->setAutoSize(true);
+                            }
+                        }
+                    ];
+                }
+            }, 'employees_export_' . now()->format('Ymd_His') . '.xlsx');
+        } catch (\Exception $e) {
+            \Log::error('Failed to export employees: ' . $e->getMessage());
+            return RequestResponse::badRequest('Failed to export employees: ' . $e->getMessage());
+        }
     }
-}
 
     // public function export(Request $request)
     // {
@@ -1869,54 +1893,54 @@ public function export(Request $request)
     //     }
     // }
 
-   public function contracts(Request $request)
-{
-    $page = 'Information Management';
-    $business = Business::findBySlug(session('active_business_slug'));
-    if (!$business) {
-        return redirect()->back()->with('error', 'Business not found.');
+    public function contracts(Request $request)
+    {
+        $page = 'Information Management';
+        $business = Business::findBySlug(session('active_business_slug'));
+        if (!$business) {
+            return redirect()->back()->with('error', 'Business not found.');
+        }
+
+        // Employees nearing contract or license expiry (within 30 days)
+        $employees = Employee::where('business_id', $business->id)
+            ->whereHas('employmentDetails', function ($query) {
+                $query->where(function ($q) {
+                    $q->where('employment_term', 'contract')
+                        ->whereNotNull('contract_end_date')
+                        ->where('contract_end_date', '<=', now()->addDays(30))
+                        ->where('contract_end_date', '>=', now())
+                        ->where('status', '!=', 'terminated');
+                })->orWhere(function ($q) {
+                    $q->whereNotNull('license_expiry_date')
+                        ->where('license_expiry_date', '<=', now()->addDays(30))
+                        ->where('license_expiry_date', '>=', now())
+                        ->where('status', '!=', 'terminated');
+                });
+            })
+            ->with([
+                'user:id,name',
+                'employmentDetails:employee_id,contract_end_date,license_expiry_date,license_reg_number'
+            ])
+            ->get();
+
+        // Paginated employees for termination section
+        $terminationEmployees = Employee::where('business_id', $business->id)
+            ->whereHas('employmentDetails', function ($query) {
+                $query->where('status', '!=', 'terminated'); // Exclude already terminated
+            })
+            ->with([
+                'user:id,name',
+                'employmentDetails:employee_id,status,employment_term'
+            ])
+            ->select('id', 'user_id')
+            ->paginate(25);
+
+        $contractActions = EmployeeContractAction::where('business_id', $business->id)
+            ->with(['employee.user', 'issuedBy'])
+            ->get();
+
+        return view('employees.contracts.index', compact('employees', 'terminationEmployees', 'contractActions', 'business', 'page'));
     }
-
-    // Employees nearing contract or license expiry (within 30 days)
-    $employees = Employee::where('business_id', $business->id)
-        ->whereHas('employmentDetails', function ($query) {
-            $query->where(function ($q) {
-                $q->where('employment_term', 'contract')
-                  ->whereNotNull('contract_end_date')
-                  ->where('contract_end_date', '<=', now()->addDays(30))
-                  ->where('contract_end_date', '>=', now())
-                  ->where('status', '!=', 'terminated');
-            })->orWhere(function ($q) {
-                $q->whereNotNull('license_expiry_date')
-                  ->where('license_expiry_date', '<=', now()->addDays(30))
-                  ->where('license_expiry_date', '>=', now())
-                  ->where('status', '!=', 'terminated');
-            });
-        })
-        ->with([
-            'user:id,name',
-            'employmentDetails:employee_id,contract_end_date,license_expiry_date,license_reg_number'
-        ])
-        ->get();
-
-    // Paginated employees for termination section
-    $terminationEmployees = Employee::where('business_id', $business->id)
-        ->whereHas('employmentDetails', function ($query) {
-            $query->where('status', '!=', 'terminated'); // Exclude already terminated
-        })
-        ->with([
-            'user:id,name',
-            'employmentDetails:employee_id,status,employment_term'
-        ])
-        ->select('id', 'user_id')
-        ->paginate(25);
-
-    $contractActions = EmployeeContractAction::where('business_id', $business->id)
-        ->with(['employee.user', 'issuedBy'])
-        ->get();
-
-    return view('employees.contracts.index', compact('employees', 'terminationEmployees', 'contractActions', 'business', 'page'));
-}
 
     public function fetchContracts(Request $request)
     {

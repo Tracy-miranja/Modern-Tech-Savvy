@@ -11,39 +11,51 @@
                 </a>
             </div>
             <div class="d-flex align-items-center justify-content-between">
-                <div class="d-flex align-items-center me-3">
-                    <img src="{{ $currentBusiness->getImageUrl() }}" style="height: 20px" alt="">
-                    <h2 class="header__title ms-1">{{ $currentBusiness->company_name }}. </h2>
-                </div>
+    <div class="d-flex align-items-center me-3">
+        <img src="{{ $currentBusiness->getImageUrl() }}" style="height: 20px" alt="">
+        <h2 class="header__title ms-1">{{ $currentBusiness->company_name }}. </h2>
+    </div>
 
-                @if (auth()->user()->hasRole('business-admin'))
+                @if (auth()->user()->hasRole('business-admin, business-hr, admin') && (session('active_role') == 'business-admin' || session('active_role') == 'business-hr' || session('active_role') == 'admin'))
 
-                <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown"
-                        aria-expanded="false">
-                        Switch Business
-                    </a>
-                    <ul class="dropdown-menu">
-                        @if ($managedBusinesses->isNotEmpty())
-                        @foreach ($managedBusinesses as $managed_business)
-                        <li>
-                            <a class="dropdown-item" onclick="event.preventDefault(); bsImpersonate(this)"
-                                data-business="{{ $managed_business->slug }}" href="#">
-                                {{ $managed_business->company_name }} </a>
-                        </li>
-                        @endforeach
-                        @else
-                        <li>
-                            <a class="dropdown-item" onclick="event.preventDefault()" href="#"> No managed businesses
-                                found </a>
-                        </li>
-                        @endif
-                    </ul>
-                </li>
+    <li class="nav-item dropdown">
+        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown"
+            aria-expanded="false">
+            Switch Business
+        </a>
+        <ul class="dropdown-menu">
+            <!-- Back to Admin Button (only show if impersonating) -->
+            @if (session('original_business_slug'))
+            <li>
+                <a class="dropdown-item" href="#"
+                   onclick="event.preventDefault(); switchBackToAdmin()">
+                    <i class="fa-solid fa-arrow-left"></i> Back to Admin
+                </a>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            @endif
 
-                @endif
+            @if ($managedBusinesses->isNotEmpty())
+            @foreach ($managedBusinesses as $managed_business)
+            <li>
+                <a class="dropdown-item"
+                   href="#"
+                   onclick="event.preventDefault(); impersonateBusiness('{{ $managed_business->slug }}')">
+                    {{ $managed_business->company_name }}
+                </a>
+            </li>
+            @endforeach
+            @else
+            <li>
+                <a class="dropdown-item" onclick="event.preventDefault()" href="#"> No managed businesses
+                    found </a>
+            </li>
+            @endif
+        </ul>
+    </li>
 
-            </div>
+    @endif
+</div>
         </div>
         <div class="app__header-right">
             <div class="app__herader-input p-relative">

@@ -64,33 +64,45 @@ class AllowanceController extends Controller
             'applies_to' => 'required|in:all,specific',
         ]);
 
-        return $this->handleTransaction(function () use ($validatedData) {
-            $business = Business::findBySlug(session('active_business_slug'));
-            if (!$business) {
-                return RequestResponse::badRequest('Business not found.');
-            }
+       return $this->handleTransaction(
+    function () use ($validatedData) {
+        $business = Business::findBySlug(session('active_business_slug'));
+        if (!$business) {
+            return RequestResponse::badRequest('Business not found.');
+        }
 
-            $slug = \Str::slug($validatedData['name']);
-            $allowance = Allowance::create([
-                'name' => $validatedData['name'],
-                'slug' => $slug,
-                'type' => $validatedData['type'],
-                'calculation_basis' => $validatedData['calculation_basis'],
-                'amount' => $validatedData['type'] === 'fixed' ? $validatedData['amount'] : null,
-                'rate' => $validatedData['type'] === 'rate' ? $validatedData['rate'] : null,
-                'is_taxable' => $validatedData['is_taxable'] ?? true,
-                'applies_to' => $validatedData['applies_to'],
-                'business_id' => $business->id,
-            ]);
+        $slug = \Str::slug($validatedData['name']);
 
-            return RequestResponse::created('Allowance created successfully.', $allowance->id);
-        }, function ($e) {
-            return RequestResponse::badRequest('Failed to create allowance.', [
-                'errors' => $e instanceof \Illuminate\Validation\ValidationException
-                    ? $e->errors()
-                    : [$e->getMessage()]
-            ]);
-        });
+        $amount = $validatedData['type'] === 'fixed' && ($validatedData['amount'] ?? '') !== ''
+            ? $validatedData['amount']
+            : null;
+
+        $rate = $validatedData['type'] === 'rate' && ($validatedData['rate'] ?? '') !== ''
+            ? $validatedData['rate']
+            : null;
+
+        $allowance = Allowance::create([
+            'name'              => $validatedData['name'],
+            'slug'              => $slug,
+            'type'              => $validatedData['type'],
+            'calculation_basis' => $validatedData['calculation_basis'],
+            'amount'            => $amount,
+            'rate'              => $rate,
+            'is_taxable'        => $validatedData['is_taxable'] ?? true,
+            'applies_to'        => $validatedData['applies_to'],
+            'business_id'       => $business->id,
+        ]);
+
+        return RequestResponse::created('Allowance created successfully.', $allowance->id);
+    },
+    function ($e) {
+        return RequestResponse::badRequest('Failed to create allowance.', [
+            'errors' => $e instanceof \Illuminate\Validation\ValidationException
+                ? $e->errors()
+                : [$e->getMessage()]
+        ]);
+    }
+);
     }
 
     public function edit(Request $request)
@@ -146,15 +158,15 @@ class AllowanceController extends Controller
 
             $slug = \Str::slug($validatedData['name']);
             $updateData = [
-                'name' => $validatedData['name'],
-                'slug' => $slug,
-                'type' => $validatedData['type'],
-                'calculation_basis' => $validatedData['calculation_basis'],
-                'amount' => $validatedData['type'] === 'fixed' ? $validatedData['amount'] : null,
-                'rate' => $validatedData['type'] === 'rate' ? $validatedData['rate'] : null,
-                'is_taxable' => $validatedData['is_taxable'] ?? true,
-                'applies_to' => $validatedData['applies_to'],
-            ];
+    'name' => $validatedData['name'],
+    'slug' => $slug,
+    'type' => $validatedData['type'],
+    'calculation_basis' => $validatedData['calculation_basis'],
+    'amount' => $validatedData['type'] === 'fixed' && $validatedData['amount'] !== '' ? $validatedData['amount'] : null,
+    'rate' => $validatedData['type'] === 'rate' && $validatedData['rate'] !== '' ? $validatedData['rate'] : null,
+    'is_taxable' => $validatedData['is_taxable'] ?? true,
+    'applies_to' => $validatedData['applies_to'],
+];
 
             \Log::info('Data to update allowance:', $updateData);
 

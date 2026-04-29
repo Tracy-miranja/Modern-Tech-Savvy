@@ -21,6 +21,8 @@ class Allowance extends Model
         'name',
         'slug',
         'is_taxable',
+        'amount',
+        'rate',
     ];
 
     protected function casts(): array

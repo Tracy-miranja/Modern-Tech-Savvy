@@ -1,4 +1,6 @@
 <?php
+ini_set('memory_limit', '256M');
+
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\LoanController;
@@ -53,17 +55,21 @@ Route::middleware(['auth'])->group(function () {
         Route::post('destroy', [BusinessController::class, 'destroy'])->name('destroy');
         Route::post('update', [BusinessController::class, 'update'])->name('update');
         Route::post('modules/store', [BusinessController::class, 'saveModules'])->name('modules.store');
+        Route::post('/{business}/switch-back', [BusinessController::class, 'switchBackToAdmin'])->name('business.switch-back');
     });
 
     Route::prefix('businesses/{business_slug}')->name('business.clients.')->group(function () {
         Route::prefix('clients')->group(function () {
             Route::post('fetch', [ClientController::class, 'fetch'])->name('fetch');
             Route::post('{client_business_slug}/impersonate', [ClientController::class, 'impersonateManagedBusiness'])->name('impersonate');
+
             Route::post('{client_business_slug}/verify', [ClientController::class, 'verifyBusiness'])->name('verify');
             Route::post('{client_business_slug}/deactivate', [ClientController::class, 'deactivateBusiness'])->name('deactivate');
             Route::post('{client_business_slug}/modules/assign', [ClientController::class, 'assignModules'])->name('modules.assign');
         });
     });
+
+
 
     Route::name('job-categories.')->prefix('job-categories')->group(function () {
         Route::post('edit', [JobCategoryController::class, 'edit'])->name('edit');

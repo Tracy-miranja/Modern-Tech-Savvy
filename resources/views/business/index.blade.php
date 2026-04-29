@@ -67,10 +67,11 @@
                         </button>
                     </div>
 
-                    <button class="btn p-0 text-white">
-                        <i class="fa-solid fa-user-plus me-1"></i>
-                        New Employee
-                    </button>
+                    <a href="{{ route('business.employees.index', ['business' => session('active_business_slug')]) }}"
+   class="btn p-0 text-white">
+    <i class="fa-solid fa-user-plus me-1"></i>
+    New Employee
+</a>
 
                 </div>
 
@@ -121,10 +122,11 @@
                     </div>
                 </div>
 
-                <button class="btn fw-semibold px-3 py-2 w-100"
-                        style="background:#3AAE8D; color:#fff; border-radius:10px;">
-                    View Leave Report
-                </button>
+                <a href="{{ route('business.leave.index', ['business' => session('active_business_slug')]) }}"
+   class="btn fw-semibold px-3 py-2 w-100"
+   style="background:#3AAE8D; color:#fff; border-radius:10px;">
+    View Leave Details
+</a>
 
 
             </div>

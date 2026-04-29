@@ -22,6 +22,10 @@ window.saveAllowance = async function (btn) {
     btn_loader(btn, true);
 
     let formData = new FormData(document.getElementById("allowanceForm"));
+     console.log("Form data entries:");
+    for (let [key, value] of formData.entries()) {
+        console.log(key, ':', value);
+    }
 
     try {
         if (formData.get("allowance_id")) {

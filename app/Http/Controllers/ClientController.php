@@ -25,11 +25,11 @@ class ClientController extends Controller
     public function index(Request $request)
     {
         $business = Business::findBySlug(session('active_business_slug'));
-        if (!$business || $business->slug !== 'krest') {
-            return redirect()->route('business.index', $business->slug)->with('error', 'Only krest can manage clients.');
+        if (!$business || $business->slug !== 'amsol') {
+            return redirect()->route('business.index', $business->slug)->with('error', 'Only Amsol can manage clients.');
         }
 
-        $businesses = Business::where('slug', '!=', 'krest')
+        $businesses = Business::where('slug', '!=', 'amsol')
             ->with(['media', 'user'])
             ->paginate(10);
 
@@ -41,11 +41,11 @@ class ClientController extends Controller
         $business_slug = session('active_business_slug');
         $business = Business::findBySlug($business_slug);
 
-        if (!$business || $business->slug !== 'krest') {
-            return RequestResponse::forbidden('Only krest can fetch clients.');
+        if (!$business || $business->slug !== 'amsol') {
+            return RequestResponse::forbidden('Only Amsol can fetch clients.');
         }
 
-        $businesses = Business::where('slug', '!=', 'krest')
+        $businesses = Business::where('slug', '!=', 'amsol')
             ->with(['media', 'user'])
             ->paginate(10);
 
@@ -57,8 +57,8 @@ class ClientController extends Controller
     public function view(Request $request, $business_slug, $client_business_slug)
     {
         $business = Business::findBySlug($business_slug);
-        if (!$business || $business->slug !== 'krest') {
-            return redirect()->route('business.index', $business->slug)->with('error', 'Only krest can view client details.');
+        if (!$business || $business->slug !== 'amsol') {
+            return redirect()->route('business.index', $business->slug)->with('error', 'Only Amsol can view client details.');
         }
 
         $clientBusiness = Business::findBySlug($client_business_slug);
@@ -105,9 +105,9 @@ class ClientController extends Controller
                 return RequestResponse::badRequest('Business not found.');
             }
 
-            if ($business->company_name !== 'krest') {
-                $krest = Business::where('company_name', 'krest')->first();
-                if ($krest && $krest->managingBusinesses()->where('client_business', $business->id)->exists()) {
+            if ($business->company_name !== 'Amsol') {
+                $amsol = Business::where('company_name', 'Amsol')->first();
+                if ($amsol && $amsol->managingBusinesses()->where('client_business', $business->id)->exists()) {
                     return RequestResponse::forbidden('Clients cannot share accounts.');
                 }
             }
@@ -154,9 +154,9 @@ class ClientController extends Controller
             $accessRequest = AccessRequest::findOrFail($request->request_id);
             $business = Business::findOrFail($accessRequest->business_id);
 
-            if ($business->company_name !== 'krest') {
-                $krest = Business::where('slug', 'krest')->first();
-                if ($krest && $krest->managingBusinesses()->where('client_business', $business->id)->exists()) {
+            if ($business->company_name !== 'Amsol') {
+                $amsol = Business::where('slug', 'amsol')->first();
+                if ($amsol && $amsol->managingBusinesses()->where('client_business', $business->id)->exists()) {
                     return RequestResponse::forbidden('Clients cannot grant access.');
                 }
             }
@@ -186,37 +186,55 @@ class ClientController extends Controller
         });
     }
 
-    public function impersonateManagedBusiness(Request $request, $business_slug, $client_business_slug)
-    {
-        $business = Business::findBySlug($business_slug);
-        if (!$business || $business->slug !== 'krest') {
-            return RequestResponse::forbidden('Only krest can impersonate businesses.');
-        }
-
-        $managedBusiness = Business::findBySlug($client_business_slug);
-        if (!$managedBusiness) {
-            return RequestResponse::badRequest('Managed business not found.');
-        }
-
-        session(['active_business_slug' => $managedBusiness->slug]);
-        View::share('currentBusiness', $managedBusiness);
-
-        activity()
-            ->causedBy($request->user())
-            ->performedOn($managedBusiness)
-            ->log('Impersonated business');
-
-        return RequestResponse::ok(
-            message: "Welcome to {$managedBusiness->company_name} dashboard",
-            data: ['redirect_url' => route('business.index', ['business' => $managedBusiness->slug])]
-        );
+   public function impersonateManagedBusiness(Request $request, $business_slug, $client_business_slug)
+{
+    $business = Business::findBySlug($business_slug);
+    if (!$business || $business->slug !== 'amsol') {
+        return RequestResponse::forbidden('Only Amsol can impersonate businesses.');
     }
+
+    $managedBusiness = Business::findBySlug($client_business_slug);
+    if (!$managedBusiness) {
+        return RequestResponse::badRequest('Managed business not found.');
+    }
+
+    // Store the original business slug before switching
+    session(['original_business_slug' => $business_slug]);
+    session(['active_business_slug' => $managedBusiness->slug]);
+
+    activity()
+        ->causedBy($request->user())
+        ->performedOn($managedBusiness)
+        ->log('Impersonated business');
+
+    return RequestResponse::ok(
+        message: "Welcome to {$managedBusiness->company_name} dashboard",
+        data: ['redirect_url' => route('business.index', ['business' => $managedBusiness->slug])]
+    );
+}
+
+public function switchBackToAdmin(Request $request, $business_slug)
+{
+    $originalBusinessSlug = session('original_business_slug', 'amsol');
+
+    session(['active_business_slug' => $originalBusinessSlug]);
+    session()->forget('original_business_slug');
+
+    activity()
+        ->causedBy($request->user())
+        ->log('Switched back from impersonated business');
+
+    return RequestResponse::ok(
+        message: "Switched back to admin dashboard",
+        data: ['redirect_url' => route('business.index', ['business' => $originalBusinessSlug])]
+    );
+}
 
     public function verifyBusiness(Request $request, $business_slug, $client_business_slug)
     {
         $business = Business::findBySlug($business_slug);
-        if (!$business || $business->slug !== 'krest') {
-            return RequestResponse::forbidden('Only krest can verify clients.');
+        if (!$business || $business->slug !== 'amsol') {
+            return RequestResponse::forbidden('Only Amsol can verify clients.');
         }
 
         $clientBusiness = Business::findBySlug($client_business_slug);
@@ -246,8 +264,8 @@ class ClientController extends Controller
     public function deactivateBusiness(Request $request, $business_slug, $client_business_slug)
     {
         $business = Business::findBySlug($business_slug);
-        if (!$business || $business->slug !== 'krest') {
-            return RequestResponse::forbidden('Only krest can deactivate clients.');
+        if (!$business || $business->slug !== 'amsol') {
+            return RequestResponse::forbidden('Only Amsol can deactivate clients.');
         }
 
         $clientBusiness = Business::findBySlug($client_business_slug);
@@ -277,8 +295,8 @@ class ClientController extends Controller
     public function assignModules(Request $request, $business_slug, $client_business_slug)
     {
         $business = Business::findBySlug($business_slug);
-        if (!$business || $business->slug !== 'krest') {
-            return RequestResponse::forbidden('Only krest can manage modules.');
+        if (!$business || $business->slug !== 'amsol') {
+            return RequestResponse::forbidden('Only Amsol can manage modules.');
         }
 
         $clientBusiness = Business::findBySlug($client_business_slug);

@@ -19,7 +19,7 @@ class WorkScheduleController extends Controller
         $business = Business::findBySlug(session('active_business_slug'));
 
         $employeeId = $request->input('employee_id');
-        $shiftId    = $request->input('shift_id'); // <-- NEW
+        $shiftId    = $request->input('shift_id'); //
 
         $query = WorkSchedule::where('business_id', $business->id)
             ->with(['employee.user', 'shift']);
@@ -74,30 +74,86 @@ class WorkScheduleController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        return $this->handleTransaction(function () use ($request, $validated) {
+        return $this->handleTransaction(function () use ($validated) {
             $business = Business::findBySlug(session('active_business_slug'));
 
-            // Deactivate overlapping schedules
-            WorkSchedule::where('employee_id', $validated['employee_id'])
+            // shift may be null (No Shift schedule)
+            $newShift = null;
+            $newStart = null;
+            $newEnd   = null;
+
+            if (!empty($validated['shift_id'])) {
+                $newShift = \App\Models\Shift::findOrFail($validated['shift_id']);
+
+                $newStart = Carbon::parse($newShift->start_time);
+                $newEnd   = Carbon::parse($newShift->end_time);
+
+                // overnight
+                if ($newEnd->lessThanOrEqualTo($newStart)) {
+                    $newEnd->addDay();
+                }
+            }
+
+            $newFrom = Carbon::parse($validated['effective_from'])->startOfDay();
+            $newTo   = !empty($validated['effective_to'])
+                ? Carbon::parse($validated['effective_to'])->endOfDay()
+                : Carbon::parse('9999-12-31')->endOfDay();
+
+            $newDays = collect($validated['working_days'])->map(fn($d) => (int)$d)->unique();
+
+            // Get existing active schedules for employee
+            $existingSchedules = WorkSchedule::where('employee_id', $validated['employee_id'])
                 ->where('business_id', $business->id)
-                ->where(function ($query) use ($validated) {
-                    $query->where('effective_from', '<=', $validated['effective_to'] ?? '9999-12-31')
-                        ->where(function ($q) use ($validated) {
-                            $q->whereNull('effective_to')
-                                ->orWhere('effective_to', '>=', $validated['effective_from']);
-                        });
-                })
-                ->update(['is_active' => false]);
+                ->where('is_active', true)
+                ->with('shift')
+                ->get();
+
+            foreach ($existingSchedules as $s) {
+
+                // 1) Check effective range overlap
+                $oldFrom = Carbon::parse($s->effective_from)->startOfDay();
+                $oldTo   = $s->effective_to
+                    ? Carbon::parse($s->effective_to)->endOfDay()
+                    : Carbon::parse('9999-12-31')->endOfDay();
+
+                $dateRangesOverlap = $newFrom->lte($oldTo) && $newTo->gte($oldFrom);
+                if (!$dateRangesOverlap) continue;
+
+                // 2) Check working days overlap
+                $oldDays = collect($s->working_days ?? [])->map(fn($d) => (int)$d)->unique();
+                $daysOverlap = $newDays->intersect($oldDays)->isNotEmpty();
+                if (!$daysOverlap) continue;
+
+                // 3) If either schedule has no shift, we don't time-overlap-check
+                // (you may choose to block "no shift" + shift on same days, but I’m leaving it permissive)
+                if (!$newShift || !$s->shift) continue;
+
+                $existingStart = Carbon::parse($s->shift->start_time);
+                $existingEnd   = Carbon::parse($s->shift->end_time);
+                if ($existingEnd->lessThanOrEqualTo($existingStart)) {
+                    $existingEnd->addDay();
+                }
+
+                // 4) Time overlap check (allow touching edges)
+                // overlap if: newStart < existingEnd AND newEnd > existingStart
+                $overlap = $newStart->lt($existingEnd) && $newEnd->gt($existingStart);
+
+                if ($overlap) {
+                    return RequestResponse::badRequest(
+                        'Shift time overlaps with an existing active schedule (same effective period + working days).'
+                    );
+                }
+            }
 
             WorkSchedule::create([
-                'employee_id' => $validated['employee_id'],
-                'shift_id' => $validated['shift_id'],
-                'business_id' => $business->id,
-                'working_days' => $validated['working_days'],
+                'employee_id'    => $validated['employee_id'],
+                'shift_id'       => $validated['shift_id'] ?? null,
+                'business_id'    => $business->id,
+                'working_days'   => $validated['working_days'],
                 'effective_from' => $validated['effective_from'],
-                'effective_to' => $validated['effective_to'] ?? null,
-                'is_active' => true,
-                'notes' => $validated['notes'],
+                'effective_to'   => $validated['effective_to'] ?? null,
+                'is_active'      => true,
+                'notes'          => $validated['notes'] ?? null,
             ]);
 
             return RequestResponse::created('Work schedule created successfully.');
@@ -183,7 +239,7 @@ class WorkScheduleController extends Controller
             'shift' => $schedule->shift,
             'is_working_day' => $schedule->isWorkingDay($date),
             'working_days' => $schedule->working_days_names,
-        ]);        
+        ]);
     }
 
     public function activate(Request $request)
@@ -194,15 +250,60 @@ class WorkScheduleController extends Controller
 
         return $this->handleTransaction(function () use ($validated) {
             $business = Business::findBySlug(session('active_business_slug'));
+
             $schedule = WorkSchedule::where('business_id', $business->id)
+                ->with(['shift'])
                 ->findOrFail($validated['schedule']);
 
-            // deactivate all schedules for this employee in this business
-            WorkSchedule::where('business_id', $business->id)
-                ->where('employee_id', $schedule->employee_id)
-                ->update(['is_active' => false]);
+            // If it has no shift, we allow activation (optional)
+            $newShift = $schedule->shift;
+            $newStart = null; $newEnd = null;
 
-            // activate selected
+            if ($newShift) {
+                $newStart = Carbon::parse($newShift->start_time);
+                $newEnd   = Carbon::parse($newShift->end_time);
+                if ($newEnd->lessThanOrEqualTo($newStart)) $newEnd->addDay();
+            }
+
+            $newFrom = Carbon::parse($schedule->effective_from)->startOfDay();
+            $newTo   = $schedule->effective_to
+                ? Carbon::parse($schedule->effective_to)->endOfDay()
+                : Carbon::parse('9999-12-31')->endOfDay();
+
+            $newDays = collect($schedule->working_days ?? [])->map(fn($d) => (int)$d)->unique();
+
+            // check other active schedules for overlap
+            $others = WorkSchedule::where('business_id', $business->id)
+                ->where('employee_id', $schedule->employee_id)
+                ->where('is_active', true)
+                ->where('id', '!=', $schedule->id)
+                ->with('shift')
+                ->get();
+
+            foreach ($others as $s) {
+                $oldFrom = Carbon::parse($s->effective_from)->startOfDay();
+                $oldTo   = $s->effective_to
+                    ? Carbon::parse($s->effective_to)->endOfDay()
+                    : Carbon::parse('9999-12-31')->endOfDay();
+
+                $dateRangesOverlap = $newFrom->lte($oldTo) && $newTo->gte($oldFrom);
+                if (!$dateRangesOverlap) continue;
+
+                $oldDays = collect($s->working_days ?? [])->map(fn($d) => (int)$d)->unique();
+                if ($newDays->intersect($oldDays)->isEmpty()) continue;
+
+                if (!$newShift || !$s->shift) continue;
+
+                $existingStart = Carbon::parse($s->shift->start_time);
+                $existingEnd   = Carbon::parse($s->shift->end_time);
+                if ($existingEnd->lessThanOrEqualTo($existingStart)) $existingEnd->addDay();
+
+                $overlap = $newStart->lt($existingEnd) && $newEnd->gt($existingStart);
+                if ($overlap) {
+                    return RequestResponse::badRequest('Cannot activate: schedule overlaps an existing active schedule.');
+                }
+            }
+
             $schedule->is_active = true;
             $schedule->save();
 
@@ -230,31 +331,77 @@ class WorkScheduleController extends Controller
         return $this->handleTransaction(function () use ($validated) {
             $business = Business::findBySlug(session('active_business_slug'));
 
+            $newFrom = Carbon::parse($validated['effective_from'])->startOfDay();
+            $newTo   = !empty($validated['effective_to'])
+                ? Carbon::parse($validated['effective_to'])->endOfDay()
+                : Carbon::parse('9999-12-31')->endOfDay();
+
+            $newDays = collect($validated['working_days'])->map(fn($d) => (int)$d)->unique();
+
+            // preload shifts
+            $shifts = \App\Models\Shift::whereIn('id', $validated['shift_ids'])->get()->keyBy('id');
+
             foreach ($validated['employee_ids'] as $employeeId) {
+
+                $existingSchedules = WorkSchedule::where('employee_id', $employeeId)
+                    ->where('business_id', $business->id)
+                    ->where('is_active', true)
+                    ->with('shift')
+                    ->get();
+
                 foreach ($validated['shift_ids'] as $shiftId) {
 
-                    // Deactivate overlapping schedules for that employee (same business)
-                    WorkSchedule::where('employee_id', $employeeId)
-                        ->where('business_id', $business->id)
-                        ->where(function ($query) use ($validated) {
-                            $query->where('effective_from', '<=', $validated['effective_to'] ?? '9999-12-31')
-                                ->where(function ($q) use ($validated) {
-                                    $q->whereNull('effective_to')
-                                        ->orWhere('effective_to', '>=', $validated['effective_from']);
-                                });
-                        })
-                        ->update(['is_active' => false]);
+                    $shift = $shifts->get($shiftId);
+                    if (!$shift) {
+                        return RequestResponse::badRequest("Shift not found: {$shiftId}");
+                    }
+
+                    $newStart = Carbon::parse($shift->start_time);
+                    $newEnd   = Carbon::parse($shift->end_time);
+                    if ($newEnd->lessThanOrEqualTo($newStart)) $newEnd->addDay();
+
+                    // validate against existing
+                    foreach ($existingSchedules as $s) {
+                        $oldFrom = Carbon::parse($s->effective_from)->startOfDay();
+                        $oldTo   = $s->effective_to
+                            ? Carbon::parse($s->effective_to)->endOfDay()
+                            : Carbon::parse('9999-12-31')->endOfDay();
+
+                        $dateRangesOverlap = $newFrom->lte($oldTo) && $newTo->gte($oldFrom);
+                        if (!$dateRangesOverlap) continue;
+
+                        $oldDays = collect($s->working_days ?? [])->map(fn($d) => (int)$d)->unique();
+                        $daysOverlap = $newDays->intersect($oldDays)->isNotEmpty();
+                        if (!$daysOverlap) continue;
+
+                        if (!$s->shift) continue;
+
+                        $existingStart = Carbon::parse($s->shift->start_time);
+                        $existingEnd   = Carbon::parse($s->shift->end_time);
+                        if ($existingEnd->lessThanOrEqualTo($existingStart)) $existingEnd->addDay();
+
+                        $overlap = $newStart->lt($existingEnd) && $newEnd->gt($existingStart);
+
+                        if ($overlap) {
+                            return RequestResponse::badRequest(
+                                "Overlap detected for employee {$employeeId}. Shift {$shift->name} conflicts with an existing active schedule."
+                            );
+                        }
+                    }
 
                     WorkSchedule::create([
-                        'employee_id' => $employeeId,
-                        'shift_id' => $shiftId,
-                        'business_id' => $business->id,
-                        'working_days' => $validated['working_days'],
+                        'employee_id'    => $employeeId,
+                        'shift_id'       => $shiftId,
+                        'business_id'    => $business->id,
+                        'working_days'   => $validated['working_days'],
                         'effective_from' => $validated['effective_from'],
-                        'effective_to' => $validated['effective_to'] ?? null,
-                        'is_active' => true,
-                        'notes' => $validated['notes'] ?? null,
+                        'effective_to'   => $validated['effective_to'] ?? null,
+                        'is_active'      => true,
+                        'notes'          => $validated['notes'] ?? null,
                     ]);
+
+                    // also add the newly created schedule into $existingSchedules so subsequent shifts validate against it
+                    $existingSchedules->push(WorkSchedule::latest('id')->with('shift')->first());
                 }
             }
 
@@ -262,5 +409,24 @@ class WorkScheduleController extends Controller
         });
     }
 
+    public function timeline(Request $request)
+    {
+        $business = Business::findBySlug(session('active_business_slug'));
 
+        $validated = $request->validate([
+            'employee_id' => 'required|exists:employees,id',
+        ]);
+
+        $employee = Employee::with('user')->findOrFail($validated['employee_id']);
+
+        $schedules = WorkSchedule::where('business_id', $business->id)
+            ->where('employee_id', $employee->id)
+            ->where('is_active', true)
+            ->with('shift')
+            ->orderBy('effective_from', 'desc')
+            ->get();
+
+        $html = view('attendances._work_schedule_timeline', compact('employee','schedules'))->render();
+        return RequestResponse::ok('Ok.', $html);
+    }
 }

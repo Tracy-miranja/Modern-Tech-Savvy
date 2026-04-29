@@ -145,8 +145,9 @@
                 @include('payroll-formulas._bracket', ['index' => 0])
                 @endif
             </div>
-            <button type="button" class="btn btn-outline-primary btn-sm mt-2" onclick="addBracket()">Add
-                Bracket</button>
+            <button type="button" class="btn btn-outline-primary btn-sm mt-2" onclick="addBracket()">
+    Add Bracket
+</button>
         </div>
     </div>
     <div class="mt-4">
@@ -158,34 +159,35 @@
 
 @push('scripts')
 <script>
-$('#is_progressive').on('change', function() {
-    const isProgressive = $(this).is(':checked');
-    $('#brackets_container').toggle(isProgressive);
-    $('#minimum_amount_field').toggle(!isProgressive && $('#formula_type').val() !== 'expression');
-    if (isProgressive && $('#brackets .bracket').length === 0) {
-        addBracket();
-    }
-});
+    const bracketTemplateUrl = "{{ route('business.payroll-formulas.bracket-template', ['business' => $business->slug]) }}";
 
-$('#formula_type').on('change', function() {
-    const type = $(this).val();
-    const isProgressive = $('#is_progressive').is(':checked');
-    $('#expression_field').toggle(type === 'expression');
-    $('#minimum_amount_field').toggle(type !== 'progressive' && type !== 'expression' && !isProgressive);
-    $('#brackets_container').toggle(type === 'progressive' || isProgressive);
-});
+    $('#is_progressive').on('change', function() {
+        const isProgressive = $(this).is(':checked');
+        $('#brackets_container').toggle(isProgressive);
+        $('#minimum_amount_field').toggle(!isProgressive && $('#formula_type').val() !== 'expression');
+        if (isProgressive && $('#brackets .bracket').length === 0) {
+            addBracket();
+        }
+    });
 
-function addBracket() {
+    $('#formula_type').on('change', function() {
+        const type = $(this).val();
+        const isProgressive = $('#is_progressive').is(':checked');
+        $('#expression_field').toggle(type === 'expression');
+        $('#minimum_amount_field').toggle(type !== 'progressive' && type !== 'expression' && !isProgressive);
+        $('#brackets_container').toggle(type === 'progressive' || isProgressive);
+    });
+
+   function addBracket() {
     const index = $('#brackets .bracket').length;
-    $.get('/payroll-formulas/bracket-template', {
-        index: index
-    }, function(template) {
-        $('#brackets').append(template);
+    $.get(bracketTemplateUrl, { index: index }, function(response) {
+        const html = typeof response === 'object' ? response.html : response;
+        $('#brackets').append(html);
     });
 }
 
-function removeBracket(btn) {
-    $(btn).closest('.bracket').remove();
-}
+    function removeBracket(btn) {
+        $(btn).closest('.bracket').remove();
+    }
 </script>
 @endpush
