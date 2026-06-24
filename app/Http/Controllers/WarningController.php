@@ -35,30 +35,53 @@ class WarningController extends Controller
         return view('employees.warning.index', compact('page', 'description', 'employees', 'locations', 'warnings'));
     }
 
-    public function fetch(Request $request)
-    {
-        try {
-            $business = Business::findBySlug(session('active_business_slug'));
-            if (!$business) {
-                return RequestResponse::badRequest('Business not found.');
-            }
-            $warnings = Warning::where('business_id', $business->id)
-                ->with('employee.user', 'issuedBy')
-                ->orderBy('issue_date', 'desc')
-                ->get();
+    // public function fetch(Request $request)
+    // {
+    //     try {
+    //         $business = Business::findBySlug(session('active_business_slug'));
+    //         if (!$business) {
+    //             return RequestResponse::badRequest('Business not found.');
+    //         }
+    //         $warnings = Warning::where('business_id', $business->id)
+    //             ->with('employee.user', 'issuedBy')
+    //             ->orderBy('issue_date', 'desc')
+    //             ->get();
 
-            $warningsTable = view('employees.warning._cards', compact('warnings'))->render();
-            return RequestResponse::ok('Warnings fetched successfully.', [
-                'html' => $warningsTable,
-                'count' => $warnings->count()
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Failed to fetch warnings:', ['error' => $e->getMessage()]);
-            return RequestResponse::badRequest('Failed to fetch warnings.', [
-                'errors' => [$e->getMessage()]
-            ]);
+    //         $warningsTable = view('employees.warning._cards', compact('warnings'))->render();
+    //         return RequestResponse::ok('Warnings fetched successfully.', [
+    //             'html' => $warningsTable,
+    //             'count' => $warnings->count()
+    //         ]);
+    //     } catch (\Exception $e) {
+    //         Log::error('Failed to fetch warnings:', ['error' => $e->getMessage()]);
+    //         return RequestResponse::badRequest('Failed to fetch warnings.', [
+    //             'errors' => [$e->getMessage()]
+    //         ]);
+    //     }
+    // }
+    public function fetch(Request $request)
+{
+    try {
+        $business = Business::findBySlug(session('active_business_slug'));
+        if (!$business) {
+            return RequestResponse::badRequest('Business not found.');
         }
+        $warnings = Warning::where('business_id', $business->id)
+            ->with('employee.user', 'issuedBy')
+            ->orderBy('issue_date', 'desc')
+            ->get();
+
+        $html = view('employees.warning._rows', compact('warnings'))->render();
+
+        return RequestResponse::ok('Warnings fetched successfully.', [
+            'html'  => $html,
+            'count' => $warnings->count(),
+        ]);
+    } catch (\Exception $e) {
+        Log::error('Failed to fetch warnings:', ['error' => $e->getMessage()]);
+        return RequestResponse::badRequest('Failed to fetch warnings.');
     }
+}
 
     public function store(Request $request)
     {

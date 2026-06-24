@@ -4,7 +4,7 @@
             <div class="col-12">
                 <div class="card">
                     <div class="card-header">
-                        <h3 class="card-title">Help & Support</h3>
+                        <h3 class="card-title">Helps & Support</h3>
                     </div>
                     <div class="card-body">
                         <div class="row">
@@ -15,8 +15,8 @@
                                     </div>
                                     <div class="card-body">
                                         <p><strong>Email:</strong> support@krest.com</p>
-                                        <p><strong>Phone:</strong> +1-800-krest-HELP</p>
-                                        <p><strong>Address:</strong> 123 krest Ave, Tech City, TC 12345</p>
+                                        <p><strong>Phone:</strong> +254 711 903 289</p>
+                                        <p><strong>Address:</strong>Nairobi, Kenya</p>
                                         <p><strong>Support Hours:</strong> Mon-Fri, 9AM-5PM</p>
                                     </div>
                                 </div>

@@ -25,6 +25,11 @@ class InterviewController extends Controller
 
     public function store(Request $request)
     {
+        if ($request->interview_date && $request->interview_time) {
+        $request->merge([
+            'scheduled_at' => $request->interview_date . ' ' . $request->interview_time . ':00'
+        ]);
+    }
         Log::debug($request->all());
         $validatedData = $request->validate([
             'application_id' => 'required|exists:applications,id',

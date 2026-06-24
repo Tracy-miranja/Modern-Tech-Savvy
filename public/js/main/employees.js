@@ -323,14 +323,9 @@ window.viewEmployee = async function (id) {
 
 const $ = window.jQuery || window.$;
 const Swal = window.Swal || window.sweetAlert;
-
 window.importEmployees = function (btn) {
     btn = $(btn);
-    if (typeof btn_loader === 'undefined') {
-        btn.prop('disabled', true);
-    } else {
-        btn_loader(btn, true);
-    }
+    btn_loader(btn, true);
 
     const form         = document.getElementById('importEmployeesForm');
     const formData     = new FormData(form);
@@ -362,65 +357,184 @@ window.importEmployees = function (btn) {
             loadingDiv.hide();
             resultDiv.show();
 
-            let successful;
-            if (result && typeof result === 'object' && result.hasOwnProperty('successful')) {
-                successful = parseInt(result.successful, 10);
-            } else if (typeof result === 'string') {
-                try {
-                    const parsedResult = JSON.parse(result);
-                    successful = parsedResult.hasOwnProperty('successful') ? parseInt(parsedResult.successful, 10) : 0;
-                } catch (e) {
-                    console.error('Failed to parse response as JSON:', e);
-                    successful = 0;
-                }
+            const successful = parseInt(result.successful ?? 0, 10);
+            const errors     = result.errors || [];
+            const hasErrors  = errors.length > 0;
+
+            // Success count line
+            if (successful > 0) {
+                successCount
+                    .removeClass('text-danger')
+                    .addClass('text-success')
+                    .html(`<i class="bi bi-check-circle-fill me-1"></i> ${successful} employee(s) imported successfully.`);
             } else {
-                successful = 0;
+                successCount
+                    .removeClass('text-success')
+                    .addClass('text-danger')
+                    .html(`<i class="bi bi-x-circle-fill me-1"></i> No employees were imported.`);
             }
 
-            const errors    = result.errors || [];
-            const message   = result.message || 'An unknown error occurred.';
-            const hasErrors = errors.length > 0;
-
-            successCount.text(`Successfully added ${successful} employees.`);
-            errorCount.text(`Errors: ${errors.length}`);
-
+            // Error list
             if (hasErrors) {
+                errorCount
+                    .addClass('text-warning fw-semibold mt-2 d-block')
+                    .text(`${errors.length} row(s) had errors:`);
+
                 errors.forEach(error => {
-                    errorList.append(`<li>${error}</li>`);
+                    errorList.append(
+                        `<li class="text-danger small mt-1">
+                            <i class="bi bi-exclamation-triangle-fill me-1"></i>${error}
+                        </li>`
+                    );
                 });
+            } else {
+                errorCount.text('');
             }
 
+            // "Go to Employees" button if any were inserted
+            if (successful > 0) {
+                const manageUrl = window.location.href.replace('/import', '');
+                resultDiv.append(
+                    `<div class="mt-3">
+                        <a href="${manageUrl}" class="btn btn-primary btn-sm">
+                            <i class="bi bi-people-fill me-1"></i> Manage Employees
+                        </a>
+                        <small class="text-muted ms-2">Edit imported records to fill in any missing fields.</small>
+                    </div>`
+                );
+            }
+
+            // SweetAlert summary
             if (successful > 0 && !hasErrors) {
-                Swal.fire({ title: 'Success!', text: message, icon: 'success', confirmButtonText: 'OK' });
+                Swal.fire({ title: 'Success!', text: result.message, icon: 'success' });
             } else if (successful > 0 && hasErrors) {
-                Swal.fire({ title: 'Warning!', text: message, icon: 'warning', confirmButtonText: 'OK' });
-            } else if (successful === 0 && hasErrors) {
-                Swal.fire({ title: 'Error!', text: message, icon: 'error', confirmButtonText: 'OK' });
+                Swal.fire({ title: 'Partially Imported', text: result.message, icon: 'warning' });
             } else {
-                Swal.fire({ title: 'Notice!', text: message, icon: 'info', confirmButtonText: 'OK' });
+                Swal.fire({ title: 'Import Failed', text: result.message, icon: 'error' });
             }
         },
-        error: function (xhr, status, error) {
+        error: function (xhr) {
             loadingDiv.hide();
             resultDiv.show();
-            errorCount.text('An unexpected error occurred.');
-            errorList.append(`<li>${error}</li>`);
-            Swal.fire({
-                title: 'Error!',
-                text: 'Something went wrong during import: ' + error,
-                icon: 'error',
-                confirmButtonText: 'OK'
-            });
+
+            // Try to parse the error body — it may still contain useful info
+            let message = 'An unexpected server error occurred.';
+            try {
+                const body = JSON.parse(xhr.responseText);
+                message = body.message || message;
+                const errors = body.errors || [];
+                if (errors.length) {
+                    errors.forEach(e => errorList.append(`<li class="text-danger small">${e}</li>`));
+                    errorCount.text(`${errors.length} error(s):`);
+                }
+            } catch (_) {}
+
+            successCount.addClass('text-danger').text(message);
+            Swal.fire({ title: 'Error!', text: message, icon: 'error' });
         },
         complete: function () {
-            if (typeof btn_loader === 'undefined') {
-                btn.prop('disabled', false);
-            } else {
-                btn_loader(btn, false);
-            }
+            btn_loader(btn, false);
         }
     });
 };
+
+// window.importEmployees = function (btn) {
+//     btn = $(btn);
+//     if (typeof btn_loader === 'undefined') {
+//         btn.prop('disabled', true);
+//     } else {
+//         btn_loader(btn, true);
+//     }
+
+//     const form         = document.getElementById('importEmployeesForm');
+//     const formData     = new FormData(form);
+//     const loadingDiv   = $('#loading');
+//     const resultDiv    = $('#import-result');
+//     const progressText = $('#progress');
+//     const successCount = $('#success-count');
+//     const errorCount   = $('#error-count');
+//     const errorList    = $('#error-list');
+
+//     loadingDiv.show();
+//     resultDiv.hide();
+//     progressText.text('');
+//     successCount.text('');
+//     errorCount.text('');
+//     errorList.empty();
+
+//     $.ajax({
+//         url: form.action,
+//         method: 'POST',
+//         data: formData,
+//         processData: false,
+//         contentType: false,
+//         headers: {
+//             'X-Requested-With': 'XMLHttpRequest',
+//             'Accept': 'application/json',
+//         },
+//         success: function (result) {
+//             loadingDiv.hide();
+//             resultDiv.show();
+
+//             let successful;
+//             if (result && typeof result === 'object' && result.hasOwnProperty('successful')) {
+//                 successful = parseInt(result.successful, 10);
+//             } else if (typeof result === 'string') {
+//                 try {
+//                     const parsedResult = JSON.parse(result);
+//                     successful = parsedResult.hasOwnProperty('successful') ? parseInt(parsedResult.successful, 10) : 0;
+//                 } catch (e) {
+//                     console.error('Failed to parse response as JSON:', e);
+//                     successful = 0;
+//                 }
+//             } else {
+//                 successful = 0;
+//             }
+
+//             const errors    = result.errors || [];
+//             const message   = result.message || 'An unknown error occurred.';
+//             const hasErrors = errors.length > 0;
+
+//             successCount.text(`Successfully added ${successful} employees.`);
+//             errorCount.text(`Errors: ${errors.length}`);
+
+//             if (hasErrors) {
+//                 errors.forEach(error => {
+//                     errorList.append(`<li>${error}</li>`);
+//                 });
+//             }
+
+//             if (successful > 0 && !hasErrors) {
+//                 Swal.fire({ title: 'Success!', text: message, icon: 'success', confirmButtonText: 'OK' });
+//             } else if (successful > 0 && hasErrors) {
+//                 Swal.fire({ title: 'Warning!', text: message, icon: 'warning', confirmButtonText: 'OK' });
+//             } else if (successful === 0 && hasErrors) {
+//                 Swal.fire({ title: 'Error!', text: message, icon: 'error', confirmButtonText: 'OK' });
+//             } else {
+//                 Swal.fire({ title: 'Notice!', text: message, icon: 'info', confirmButtonText: 'OK' });
+//             }
+//         },
+//         error: function (xhr, status, error) {
+//             loadingDiv.hide();
+//             resultDiv.show();
+//             errorCount.text('An unexpected error occurred.');
+//             errorList.append(`<li>${error}</li>`);
+//             Swal.fire({
+//                 title: 'Error!',
+//                 text: 'Something went wrong during import: ' + error,
+//                 icon: 'error',
+//                 confirmButtonText: 'OK'
+//             });
+//         },
+//         complete: function () {
+//             if (typeof btn_loader === 'undefined') {
+//                 btn.prop('disabled', false);
+//             } else {
+//                 btn_loader(btn, false);
+//             }
+//         }
+//     });
+// };
 
 window.previewImage = function (event) {
     const input   = event.target;

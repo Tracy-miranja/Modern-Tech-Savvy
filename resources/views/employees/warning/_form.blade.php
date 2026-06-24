@@ -1,84 +1,66 @@
-<!-- resources/views/employees/warning/_form.blade.php -->
-<form id="warningForm" class="needs-validation" novalidate>
-    @csrf
-    @if(isset($warning))
-    <input type="hidden" name="warning_id" value="{{ $warning->id }}">
-    @endif
-    <div class="row g-3">
-        <div class="col-12">
-            <label for="employee_id" class="form-label fw-medium text-dark">Employee</label>
-            <select name="employee_id" id="employee_id" class="form-select" required>
-                <option value="" disabled {{ !isset($warning) ? 'selected' : '' }}>Select Employee</option>
-                @foreach ($employees as $employee)
-                <option value="{{ $employee->id }}"
-                    {{ isset($warning) && $warning->employee_id == $employee->id ? 'selected' : '' }}>
-                    {{ $employee->user->name }}
-                </option>
-                @endforeach
-            </select>
-            @error('employee_id')
-            <div class="invalid-feedback">{{ $message }}</div>
-            @enderror
-        </div>
-        <div class="col-12">
-            <label for="issue_date" class="form-label fw-medium text-dark">Issue Date</label>
-            <input type="date" name="issue_date" id="issue_date" class="form-control"
-                value="{{ isset($warning) ? $warning->issue_date->toDateString() : now()->toDateString() }}" required>
-            @error('issue_date')
-            <div class="invalid-feedback">{{ $message }}</div>
-            @enderror
-        </div>
-        <div class="col-12">
-            <label for="reason" class="form-label fw-medium text-dark">Reason</label>
-            <input type="text" name="reason" id="reason" class="form-control" value="{{ $warning->reason ?? '' }}"
-                required>
-            @error('reason')
-            <div class="invalid-feedback">{{ $message }}</div>
-            @enderror
-        </div>
-        <div class="col-12">
-            <label for="description" class="form-label fw-medium text-dark">Description (Optional)</label>
-            <textarea name="description" id="description" class="form-control"
-                rows="3">{{ $warning->description ?? '' }}</textarea>
-            @error('description')
-            <div class="invalid-feedback">{{ $message }}</div>
-            @enderror
-        </div>
-        @if(isset($warning))
-        <div class="col-12">
-            <label for="status" class="form-label fw-medium text-dark">Status</label>
-            <select name="status" id="status" class="form-select" required>
-                <option value="active" {{ $warning->status === 'active' ? 'selected' : '' }}>Active</option>
-                <option value="resolved" {{ $warning->status === 'resolved' ? 'selected' : '' }}>Resolved</option>
-            </select>
-            @error('status')
-            <div class="invalid-feedback">{{ $message }}</div>
-            @enderror
-        </div>
-        @endif
-    </div>
-    <div class="mt-4">
-        <button type="button" class="btn btn-primary btn-modern" onclick="saveWarning(this)">
-            <i class="fa fa-save me-2"></i> {{ isset($warning) ? 'Update Warning' : 'Issue Warning' }}
-        </button>
-    </div>
-</form>
+<form id="warningForm">
+  @csrf
+  {{-- <input type="hidden" name="warning_id" value="{{ $warning->id ?? '' }}"> --}}
+  @if(isset($warning) && $warning->id)
+  <input type="hidden" name="warning_id" value="{{ $warning->id }}">
+@endif
 
-@push('scripts')
-<script>
-(function() {
-    'use strict';
-    var forms = document.querySelectorAll('.needs-validation');
-    Array.prototype.slice.call(forms).forEach(function(form) {
-        form.addEventListener('submit', function(event) {
-            event.stopPropagation();
-            if (form.checkValidity()) {
-                saveWarning(form.querySelector(
-                    'button[type="button"]'));
-            }
-            form.classList.add('was-validated');
-        }, false);
-    });
-})();
-</script>
-@endpush
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+    <div>
+      <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">Employee *</label>
+      <select name="employee_id"
+        style="width:100%;border:1px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:13px;">
+        <option value="">Select employee</option>
+        @foreach($employees as $emp)
+          <option value="{{ $emp->id }}"
+            {{ isset($warning) && $warning->employee_id == $emp->id ? 'selected' : '' }}>
+            {{ $emp->user->name }}
+          </option>
+        @endforeach
+      </select>
+    </div>
+    <div>
+      <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">Issue Date *</label>
+      <input type="date" name="issue_date"
+        value="{{ isset($warning) ? \Carbon\Carbon::parse($warning->issue_date)->format('Y-m-d') : '' }}"
+        style="width:100%;border:1px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:13px;">
+    </div>
+  </div>
+
+  <div style="margin-bottom:16px;">
+    <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">Reason *</label>
+    <input type="text" name="reason"
+      value="{{ $warning->reason ?? '' }}"
+      placeholder="Brief reason for warning"
+      style="width:100%;border:1px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:13px;">
+  </div>
+
+  <div style="margin-bottom:16px;">
+    <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">Description</label>
+    <textarea name="description" rows="3"
+      placeholder="Additional details..."
+      style="width:100%;border:1px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:13px;resize:vertical;">{{ $warning->description ?? '' }}</textarea>
+  </div>
+
+  @if(isset($warning) && $warning->id)
+  <div style="margin-bottom:16px;">
+    <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">Status</label>
+    <select name="status"
+      style="width:100%;border:1px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:13px;">
+      <option value="active"   {{ ($warning->status ?? '') === 'active'   ? 'selected' : '' }}>Active</option>
+      <option value="resolved" {{ ($warning->status ?? '') === 'resolved' ? 'selected' : '' }}>Resolved</option>
+    </select>
+  </div>
+  @endif
+
+  <div style="display:flex;justify-content:flex-end;gap:8px;padding-top:12px;border-top:1px solid #f3f4f6;margin-top:4px;">
+    <button type="button" onclick="closeWarningModal()"
+      style="background:#f3f4f6;border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer;">
+      Cancel
+    </button>
+    <button type="button" onclick="saveWarning(this)"
+      style="background:#10b981;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer;">
+      {{ isset($warning) && $warning->id ? 'Update Warning' : 'Issue Warning' }}
+    </button>
+  </div>
+</form>

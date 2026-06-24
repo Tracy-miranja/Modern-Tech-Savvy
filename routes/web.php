@@ -32,6 +32,7 @@ use App\Http\Controllers\OvertimeController;
 use App\Http\Controllers\WorkScheduleController;
 use App\Http\Controllers\HolidayController;
 use App\Http\Controllers\BusinessCurrencyController;
+use App\Http\Controllers\WarningController;
 
 use App\Models\Business;
 
@@ -98,7 +99,17 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
     Route::post('roles/update-departments', [RoleController::class, 'updateDepartments'])->name('roles.update-departments');
             Route::get('/employees', [DashboardController::class, 'employees'])->name('employees.index');
             Route::get('/employees/import', [DashboardController::class, 'importEmployees'])->name('employees.import');
-            Route::get('/employees/warning', [DashboardController::class, 'warning'])->name('employees.warning');
+            // Route::get('/employees/warning', [DashboardController::class, 'warning'])->name('employees.warning');
+
+Route::get('/employees/warning', [WarningController::class, 'index'])->name('employees.warning');
+            Route::prefix('employees/warning')->name('warnings.')->group(function () {
+
+    Route::get('/fetch',      [WarningController::class, 'fetch'])->name('fetch');
+    Route::post('/store',     [WarningController::class, 'store'])->name('store');
+    Route::post('/edit',      [WarningController::class, 'edit'])->name('edit');
+    Route::post('/{id}/update', [WarningController::class, 'update'])->name('update');
+    Route::post('/{id}/delete', [WarningController::class, 'destroy'])->name('destroy');
+});
             Route::get('/employees/contracts', [DashboardController::class, 'contracts'])->name('employees.contracts');
 
             Route::get('/employees/download-csv-template', [EmployeeController::class, 'downloadCsvTemplate'])->name('employees.downloadCsvTemplate');
@@ -250,6 +261,7 @@ Route::get('/payroll/variance/data', [PayrollController::class, 'varianceData'])
                     Route::get('/edit', [KPIsController::class, 'edit'])->name('edit');
                 });
             });
+
 
             Route::prefix('attendances')->name('attendances.')->group(function () {
                 Route::get('/', [DashboardController::class, 'attendances'])->name('index');
@@ -492,6 +504,9 @@ require __DIR__ . '/requests.php';
 Route::get('/test-leave-types/{slug}/edit', function($slug) {
     return "Edit page for $slug";
 });
+
+  Route::get('applications/kpis', [ApplicationController::class, 'kpis'])->name('business.applications.kpis');
+  Route::post('/interviews', [InterviewController::class, 'store'])->name('business.interviews.store');
 
 Route::middleware(['ensure_role', 'role:business-admin|business-hr|business-finance'])
     ->name('business.')

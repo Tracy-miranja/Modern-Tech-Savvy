@@ -1114,9 +1114,12 @@ class EmployeeController extends Controller
 
             $headers = array_shift($records);
             Log::info('Headers extracted.', ['headers' => $headers]);
-            $records = array_map(function ($row) use ($headers) {
-                return array_combine($headers, array_map('trim', $row));
-            }, $records);
+          $records = array_map(function ($row) use ($headers) {
+    return array_combine($headers, array_map(function ($value) {
+        $trimmed = trim((string) $value);
+        return $trimmed === '' ? null : $trimmed;
+    }, $row));
+}, $records);
             Log::info('Rows mapped.', ['record_count' => count($records)]);
 
             foreach ($records as $index => $row) {
@@ -1270,46 +1273,32 @@ class EmployeeController extends Controller
             }
 
             DB::commit();
-            Log::info('Import process completed.', ['successful' => $successful, 'errors' => count($errors)]);
+Log::info('Import process completed.', ['successful' => $successful, 'errors' => count($errors)]);
 
-            $responseData = [
-                'successful' => $successful,
-                'errors' => $errors,
-            ];
+if ($successful > 0 && count($errors) === 0) {
+    return response()->json([
+        'success' => true,
+        'message' => "All {$successful} employee(s) imported successfully.",
+        'successful' => $successful,
+        'errors' => [],
+    ], 200);
+}
 
-            if ($successful > 0 && count($errors) === 0) {
-                return response()->json([
-                    'success' => true,
-                    'message' => 'All employees imported successfully.',
-                    'successful' => $successful,
-                    'errors' => [],
-                ], 200);
-            }
+if ($successful > 0 && count($errors) > 0) {
+    return response()->json([
+        'success' => true,
+        'message' => "{$successful} employee(s) imported. " . count($errors) . " row(s) had errors.",
+        'successful' => $successful,
+        'errors' => $errors,
+    ], 200);
+}
 
-            if ($successful > 0 && count($errors) > 0) {
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Some employees were imported, but there were errors.',
-                    'successful' => $successful,
-                    'errors' => $errors,
-                ], 200);
-            }
-
-            if ($successful === 0 && count($errors) > 0) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Import failed. No employees were added.',
-                    'successful' => 0,
-                    'errors' => $errors,
-                ], 400);
-            }
-
-            return response()->json([
-                'success' => false,
-                'message' => 'No employees were added. Please check the file format or data.',
-                'successful' => 0,
-                'errors' => [],
-            ], 400);
+return response()->json([
+    'success' => false,
+    'message' => 'Import failed. No employees were added.',
+    'successful' => 0,
+    'errors' => $errors,
+], 200);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Failed to import employees.', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
@@ -1466,9 +1455,13 @@ class EmployeeController extends Controller
                         ]);
 
                         // Set column widths for readability
-                        foreach (range('A', 'AR') as $col) {
-                            $sheet->getColumnDimension($col)->setWidth(15);
-                        }
+                        $columns = [];
+for ($i = 'A'; $i <= 'AR'; $i++) {
+    $columns[] = $i;
+}
+foreach ($columns as $col) {
+    $sheet->getColumnDimension($col)->setWidth(15);
+}
                         $sheet->getColumnDimension('C')->setWidth(25); // Email
                         $sheet->getColumnDimension('M')->setWidth(20); // Account Name
                         $sheet->getColumnDimension('V')->setWidth(25); // Permanent Address
@@ -1759,9 +1752,13 @@ class EmployeeController extends Controller
                                 ],
                             ]);
 
-                            foreach (range('A', $highestColumn) as $col) {
-                                $sheet->getColumnDimension($col)->setAutoSize(true);
-                            }
+                           $cols = [];
+for ($i = 'A'; $i <= $highestColumn; $i++) {
+    $cols[] = $i;
+}
+foreach ($cols as $col) {
+    $sheet->getColumnDimension($col)->setAutoSize(true);
+}
                         }
                     ];
                 }
@@ -1895,7 +1892,7 @@ class EmployeeController extends Controller
 
     public function contracts(Request $request)
     {
-        $page = 'Information Management';
+        $page = 'Contracts Management';
         $business = Business::findBySlug(session('active_business_slug'));
         if (!$business) {
             return redirect()->back()->with('error', 'Business not found.');

@@ -740,6 +740,22 @@ class ApplicationController extends Controller
         });
     }
 
+    public function kpis()
+{
+    $business = Business::findBySlug(session('active_business_slug'));
+
+    $base = Application::where('business_id', $business->id);
+
+    return response()->json([
+        'total'       => (clone $base)->count(),
+        'pending'     => (clone $base)->where('stage', 'pending')->count(),
+        'under_review'=> (clone $base)->where('stage', 'under_review')->count(),
+        'shortlisted' => (clone $base)->where('stage', 'shortlisted')->count(),
+        'rejected'    => (clone $base)->where('stage', 'rejected')->count(),
+        'interviewed' => (clone $base)->whereHas('interviews')->count(),
+    ]);
+}
+
     public function export(Request $request)
     {
         $business = Business::findBySlug(session('active_business_slug'));

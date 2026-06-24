@@ -222,13 +222,13 @@
                         <li class="slide {{ request()->routeIs('business.employees.warning') ? 'active' : '' }}">
                             <a class="sidebar__menu-item {{ request()->routeIs('business.employees.warning') ? 'active' : '' }}"
                                 href="{{ route('business.employees.warning', $currentBusiness->slug) }}">
-                                Employee Warnings
+                                Disciplinary
                             </a>
                         </li>
                         <li class="slide {{ request()->routeIs('business.employees.contracts') ? 'active' : '' }}">
                             <a class="sidebar__menu-item {{ request()->routeIs('business.employees.contracts') ? 'active' : '' }}"
                                 href="{{ route('business.employees.contracts', $currentBusiness->slug) }}">
-                                Info Management
+                                Contracts Management
                             </a>
                         </li>
                     </ul>

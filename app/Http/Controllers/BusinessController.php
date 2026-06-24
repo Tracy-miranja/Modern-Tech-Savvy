@@ -178,7 +178,12 @@ class BusinessController extends Controller
         return $this->handleTransaction(function () use ($request, $validatedData) {
             try {
                 $countryCode = $validatedData['code'];
-                $phoneNumber = "+{$countryCode}{$validatedData['phone']}";
+                // $phoneNumber = "+{$countryCode}{$validatedData['phone']}";
+                $phone = ltrim($validatedData['phone'], '+');
+                $code = ltrim($validatedData['code'], '+');
+                $phoneNumber = str_starts_with($phone, $code)
+                    ? '+' . $phone
+                    : '+' . $code . $phone;
                 $validator = Validator::make(['phone' => $phoneNumber], [
                     'phone' => 'unique:businesses,phone',
                 ]);
@@ -304,7 +309,12 @@ class BusinessController extends Controller
 
         return $this->handleTransaction(function () use ($request, $validatedData) {
             $countryCode = $validatedData['code'];
-            $phoneNumber = "+{$countryCode}{$validatedData['phone']}";
+            // $phoneNumber = "+{$countryCode}{$validatedData['phone']}";
+            $phone = ltrim($validatedData['phone'], '+');
+            $code = ltrim($validatedData['code'], '+');
+            $phoneNumber = str_starts_with($phone, $code)
+                ? '+' . $phone
+                : '+' . $code . $phone;
             $business = Business::findBySlug($validatedData['business_slug']);
 
             $validator = Validator::make(['phone' => $phoneNumber], [
