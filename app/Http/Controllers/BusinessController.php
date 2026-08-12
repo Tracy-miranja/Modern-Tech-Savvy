@@ -28,7 +28,18 @@ class BusinessController extends Controller
         $description = "Fill in your business details to get started with your account.";
         $industries = Industry::all();
         $user = auth()->user();
-        $business = Business::where('user_id', $user->id)->first();
+        // Only prefill when the user's very first setup wizard is still
+        // in progress (status still 'setup') - that's a resume, not a
+        // fresh business. Once status has moved past 'setup' (they've
+        // completed at least one business), this page is reached via
+        // "Add Business" instead, which must start from a blank form -
+        // otherwise it'd silently reload the OLD business's data,
+        // including several unique-constrained fields (company_name,
+        // registration_no, tax_pin_no, business_license_no, phone) that
+        // would then fail validation unless every one of them is edited.
+        $business = $user->status === Status::SETUP
+            ? Business::where('user_id', $user->id)->first()
+            : null;
 
         return view('auth.business-setup', compact('page', 'description', 'industries', 'business'));
     }
@@ -38,7 +49,11 @@ class BusinessController extends Controller
         $user = auth()->user();
 
         if ($user->hasRole('business-admin')) {
-            $business = $user->business()->first();
+            // businesses() (hasMany), not the naive business() hasOne -
+            // an admin who has added more than one business (see the Add
+            // Business feature) still needs a deterministic "first/default"
+            // one to land on; Switch Business is how they reach the rest.
+            $business = $user->businesses()->first();
             if ($user->status === 'setup' || !$business) {
                 return redirect()->route('setup.business');
             } elseif ($user->status === 'module') {
@@ -47,14 +62,20 @@ class BusinessController extends Controller
             session(['active_business_slug' => $business->slug, 'active_role' => 'business-admin']);
             return redirect()->route('business.index', ['business' => $business->slug]);
         } elseif ($user->hasRole('business-hr') || $user->hasRole('business-finance')) {
-            $business = $user->employee->business;
+            $business = $user->activeEmployee()?->business;
             if (!$business) {
                 return redirect()->route('setup.business');
             }
-            session(['active_business_slug' => $business->slug, 'active_role' => $user->hasRole('business-hr') ? 'business-hr' : 'business-finance']);
-            return redirect()->route('business.index', ['business' => $business->slug]);
+            $isHr = $user->hasRole('business-hr');
+            session(['active_business_slug' => $business->slug, 'active_role' => $isHr ? 'business-hr' : 'business-finance']);
+            // business-hr's permission set deliberately excludes
+            // access.dashboard (PermissionSeeder, "aligned with
+            // restricted-hr") - business.index would 403 them immediately.
+            // Matches the same fix already applied to
+            // AuthenticatedSessionController::getRedirectUrlForRole().
+            return redirect()->route($isHr ? 'business.employees.index' : 'business.index', ['business' => $business->slug]);
         } elseif ($user->hasRole('business-employee')) {
-            $business = $user->employee->business;
+            $business = $user->activeEmployee()?->business;
             if (!$business) {
                 return redirect()->route('setup.business');
             }
@@ -178,12 +199,7 @@ class BusinessController extends Controller
         return $this->handleTransaction(function () use ($request, $validatedData) {
             try {
                 $countryCode = $validatedData['code'];
-                // $phoneNumber = "+{$countryCode}{$validatedData['phone']}";
-                $phone = ltrim($validatedData['phone'], '+');
-                $code = ltrim($validatedData['code'], '+');
-                $phoneNumber = str_starts_with($phone, $code)
-                    ? '+' . $phone
-                    : '+' . $code . $phone;
+                $phoneNumber = "+{$countryCode}{$validatedData['phone']}";
                 $validator = Validator::make(['phone' => $phoneNumber], [
                     'phone' => 'unique:businesses,phone',
                 ]);
@@ -309,12 +325,7 @@ class BusinessController extends Controller
 
         return $this->handleTransaction(function () use ($request, $validatedData) {
             $countryCode = $validatedData['code'];
-            // $phoneNumber = "+{$countryCode}{$validatedData['phone']}";
-            $phone = ltrim($validatedData['phone'], '+');
-            $code = ltrim($validatedData['code'], '+');
-            $phoneNumber = str_starts_with($phone, $code)
-                ? '+' . $phone
-                : '+' . $code . $phone;
+            $phoneNumber = "+{$countryCode}{$validatedData['phone']}";
             $business = Business::findBySlug($validatedData['business_slug']);
 
             $validator = Validator::make(['phone' => $phoneNumber], [
@@ -473,7 +484,6 @@ class BusinessController extends Controller
         });
     }
 
-
     public function showApiTokenForm($businessSlug)
     {
         $business = Business::findBySlug($businessSlug);
@@ -481,5 +491,25 @@ class BusinessController extends Controller
             abort(403, 'Unauthorized.');
         }
         return view('business.api-token', compact('business'));
+    }
+    public function switchBackToAdmin(Request $request, $business)
+    {
+        $originalBusinessSlug = session('original_business_slug', 'krest');
+        $originalActiveRole = session('original_active_role');
+
+        session(['active_business_slug' => $originalBusinessSlug]);
+        if ($originalActiveRole) {
+            session(['active_role' => $originalActiveRole]);
+        }
+        session()->forget(['original_business_slug', 'original_active_role']);
+
+        activity()
+            ->causedBy($request->user())
+            ->log('Switched back from impersonated business');
+
+        return RequestResponse::ok(
+            message: "Switched back to admin dashboard",
+            data: ['redirect_url' => route('business.index', ['business' => $originalBusinessSlug])]
+        );
     }
 }

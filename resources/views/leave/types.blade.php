@@ -8,9 +8,16 @@
                         @csrf
 
                         <div class="form-group mb-3">
-                            <label for="name">Name</label>
-                            <input type="text" name="name" id="name" placeholder="Leave Name"
-                                class="form-control" required>
+                            <label for="name_select">Name</label>
+                            <select id="name_select" name="name" class="form-select" required>
+                                <option value="">Select a leave type</option>
+                                @foreach (getLeaveTypeNames() as $leaveTypeName)
+                                    <option value="{{ $leaveTypeName }}">{{ $leaveTypeName }}</option>
+                                @endforeach
+                                <option value="__other__">Other (specify)...</option>
+                            </select>
+                            <input type="text" id="name_custom" placeholder="Enter a custom leave type name"
+                                class="form-control mt-2 d-none">
                         </div>
 
                         <div class="form-group mb-3">
@@ -150,37 +157,25 @@
                                 <input type="date" class="form-control datepicker" id="end_date" name="end_date">
                             </div>
 
-                            <div class="col-md-12 mb-3">
-                                <label for="excluded_days">Excluded (Non-working) Days</label>
-                                <div class="d-flex flex-wrap">
-                                    @php
-                                        $daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-                                    @endphp
-                                    @foreach ($daysOfWeek as $day)
-                                        <div class="form-check me-3">
-                                            <input class="form-check-input" type="checkbox"
-                                                name="excluded_days[]"
-                                                id="day_{{ $day }}"
-                                                value="{{ $day }}">
-                                            <label class="form-check-label" for="day_{{ $day }}">
-                                                {{ ucfirst($day) }}
-                                            </label>
-                                        </div>
-                                    @endforeach
-                                </div>
+                            <div class="col-md-4">
+                                <label for="exclude_public_holidays">Exclude Public Holidays</label>
+                                <select name="exclude_public_holidays" id="exclude_public_holidays" class="form-select">
+                                    <option value="1" selected>Yes</option>
+                                    <option value="0">No</option>
+                                </select>
+                                <small class="text-muted d-block mt-1">
+                                    Skip business holidays (from the Holidays calendar) when counting days for this leave type.
+                                </small>
                             </div>
 
-                            <div class="col-md-12 mb-3">
-                                <label for="excluded_dates">Excluded Holiday Dates</label>
-                                <div class="d-flex align-items-start gap-2 mb-2">
-                                    <input type="date" id="excluded_date_input" class="form-control" style="max-width: 220px;">
-                                    <button type="button" class="btn btn-outline-primary" id="add_excluded_date_btn">Add date</button>
-                                </div>
-                                <div id="excluded_dates_pills" class="d-flex flex-wrap gap-2"></div>
-                                <!-- Hidden inputs get appended here so they submit with the form -->
-                                <div id="excluded_dates_inputs"></div>
+                            <div class="col-md-4">
+                                <label for="exclude_non_working_days">Exclude Non-Working Days</label>
+                                <select name="exclude_non_working_days" id="exclude_non_working_days" class="form-select">
+                                    <option value="1" selected>Yes</option>
+                                    <option value="0">No</option>
+                                </select>
                                 <small class="text-muted d-block mt-1">
-                                    Specific dates (YYYY-MM-DD) that won’t be counted for this leave type.
+                                    Skip the company's non-working days (set in Leave Settings, e.g. weekends) when counting days for this leave type.
                                 </small>
                             </div>
 
@@ -191,6 +186,14 @@
                                         <option value="{{ $i }}">{{ $i }}</option>
                                     @endfor
                                 </select>
+                            </div>
+
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label d-block">Who Approves Each Level</label>
+                                <div id="approval_chain_rows" class="d-flex flex-wrap gap-2" data-approval-chain="[]"></div>
+                                <small class="text-muted d-block mt-1">
+                                    "Employee's Manager" walks the requester's real reporting line. "HR" routes straight to HR regardless of who manages the requester - e.g. pick this for every level if all leave requests for this type should go entirely to HR. "Department Head" requires the approver to hold the Head of Department role in the requester's own department.
+                                </small>
                             </div>
 
                             <div class="col-md-4">
@@ -243,78 +246,11 @@
         <script src="{{ asset('js/main/leave-type.js') }}" type="module"></script>
 
         <script>
-            // helpers live in this closure
-            (function () {
-                const input  = document.getElementById('excluded_date_input');
-                const pills  = document.getElementById('excluded_dates_pills');
-                const inputs = document.getElementById('excluded_dates_inputs');
-                const btn    = document.getElementById('add_excluded_date_btn');
-
-                function addDate(val) {
-                    if (!val) return;
-                    const d = new Date(val);
-                    if (isNaN(+d)) { alert('Invalid date'); return; }
-                    const iso = d.toISOString().slice(0, 10);
-
-                    // prevent duplicates
-                    if ([...inputs.querySelectorAll('input[name="excluded_dates[]"]')].some(i => i.value === iso)) return;
-
-                    // hidden input for form submit (INSIDE the form)
-                    const hidden = document.createElement('input');
-                    hidden.type = 'hidden';
-                    hidden.name = 'excluded_dates[]';
-                    hidden.value = iso;
-                    inputs.appendChild(hidden);
-
-                    // visual pill with remove
-                    const pill = document.createElement('span');
-                    pill.className = 'badge bg-secondary d-inline-flex align-items-center';
-                    pill.textContent = iso + ' ';
-                    const x = document.createElement('button');
-                    x.type = 'button';
-                    x.className = 'btn-close btn-close-white btn-sm ms-1';
-                    x.setAttribute('aria-label', 'Remove');
-                    x.onclick = () => { hidden.remove(); pill.remove(); };
-                    pill.appendChild(x);
-                    pills.appendChild(pill);
-
-                    input.value = '';
+            document.addEventListener('DOMContentLoaded', function () {
+                if (typeof getLeaveType === 'function') {
+                    getLeaveType();
                 }
-
-                // Add button & Enter key
-                btn?.addEventListener('click', () => addDate(input.value));
-                input?.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); addDate(input.value); }
-                });
-
-                document.addEventListener('DOMContentLoaded', function () {
-                    // Load Leave Types list (existing behavior)
-                    if (typeof getLeaveType === 'function') {
-                        getLeaveType();
-                    }
-
-                    // Autocomplete for name (existing behavior)
-                    const nameInput = document.getElementById('name');
-                    const availableTypes = @json(getLeaveTypeNames());
-                    if (typeof $ !== 'undefined' && $.fn.autocomplete) {
-                        $('#name').autocomplete({
-                            source: availableTypes,
-                            minLength: 1,
-                        });
-                    } else {
-                        console.error('jQuery or jQuery UI is not loaded. Autocomplete will not work.');
-                    }
-
-                    // Pre-populate excluded dates from server into the form UI
-                    const initialExcludedDates = @json($leaveType->excluded_dates ?? []);
-                    if (Array.isArray(initialExcludedDates)) {
-                        initialExcludedDates.forEach(function (iso) {
-                            // Feed directly to addDate; it will normalize & avoid duplicates
-                            addDate(iso);
-                        });
-                    }
-                });
-            })();
+            });
         </script>
     @endpush
 </x-app-layout>

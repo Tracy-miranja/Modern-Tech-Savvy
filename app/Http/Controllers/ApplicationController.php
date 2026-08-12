@@ -314,8 +314,8 @@ class ApplicationController extends Controller
                 'national_id.required' => 'National ID is required.',
             ]);
 
-            // Authorize API token (amsol)
-            $business = Business::where('slug', 'amsol')->first();
+            // Authorize API token (krest)
+            $business = Business::where('slug', 'krest')->first();
             if (!$business || !$business->api_token || !password_verify($validated['api_token'], $business->api_token)) {
                 return RequestResponse::unauthorized('Invalid or unauthorized API token.');
             }
@@ -770,4 +770,6 @@ class ApplicationController extends Controller
 
         return Excel::download(new ApplicationExport($applications), 'applications_' . now()->format('Y-m-d_His') . '.xlsx');
     }
+
+
 }

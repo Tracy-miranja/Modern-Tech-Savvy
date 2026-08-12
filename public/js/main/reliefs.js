@@ -24,16 +24,23 @@ window.saveRelief = async function (btn) {
     let formData = new FormData(document.getElementById("reliefForm"));
 
     try {
-        if (formData.has("relief_slug")) {
-            await reliefsService.update(formData, formData.get("relief_slug"));
+        const slug = formData.get("relief_slug");
+
+        if (slug) {
+            await reliefsService.update(formData, slug);
             Swal.fire('Success!', 'Relief updated successfully.', 'success');
         } else {
             await reliefsService.save(formData);
             Swal.fire('Success!', 'Relief created successfully.', 'success');
         }
+
         $("#reliefForm")[0].reset();
-        $('#reliefFormContainer').html(await reliefsService.edit({}));
+
+        // ❌ REMOVE THIS (causing the error)
+        // $('#reliefFormContainer').html(await reliefsService.edit({}));
+
         getReliefs();
+
     } catch (error) {
         console.error("Error saving relief:", error);
         Swal.fire('Error!', error.response?.data?.message || 'Failed to save relief.', 'error');

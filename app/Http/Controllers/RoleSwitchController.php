@@ -38,6 +38,36 @@ class RoleSwitchController extends Controller
 
         // Check if user has the role
         if ($user->hasRole($newRole)) {
+            // super-admin/krest-admin only ever operate against krest
+            // itself (see RoleOrImpersonation/EnsureCorrectRole's "krest
+            // home business" bypass) - force the business back to krest
+            // regardless of whatever was active before switching, and
+            // land on business.index directly rather than through the
+            // generic 'dashboard' fallback. That fallback
+            // (BusinessController::redirectToDashboard()) re-derives the
+            // active role from the user's OWN held roles via its own
+            // hardcoded business-admin-first priority chain, completely
+            // ignoring which role was just switched TO - an account that
+            // also holds business-admin (common for a super-admin testing
+            // account) would immediately get bounced back to
+            // active_role=business-admin, undoing the switch entirely.
+            if (in_array($newRole, ['super-admin', 'krest-admin'], true)) {
+                $krest = Business::where('slug', 'krest')->first();
+                if (!$krest) {
+                    return response()->json(['error' => 'krest business not found'], 500);
+                }
+
+                session(['active_business_slug' => $krest->slug, 'active_role' => $newRole]);
+                $redirect = route('business.index', $krest->slug);
+                Log::info('Role switched successfully to: ' . $newRole, ['redirect' => $redirect]);
+
+                if ($request->ajax()) {
+                    return response()->json(['success' => true, 'redirect' => $redirect]);
+                }
+
+                return redirect($redirect);
+            }
+
             $redirectRoute = $this->getRedirectRoute($newRole);
             $requiredPermission = $this->getRequiredPermissionForRoute($redirectRoute);
 
@@ -76,7 +106,6 @@ class RoleSwitchController extends Controller
             'restricted-hr' => 'business.employees.index',
             'head-of-department' => 'business.leave.index',
             'chief-of-staff' => 'business.leave.index',
-            'business-head' => 'business.index',
             default => 'dashboard',
         };
     }

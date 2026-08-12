@@ -10,29 +10,31 @@
                             <h5 class="mb-0">{{ $page }}</h5>
                         </div>
 
-                        <div class="col-md-6 text-end">
-                            <div class="row g-2 justify-content-end align-items-center">
-                                <div class="col-md-4">
-                                    <input type="date" 
-                                        class="form-control" 
-                                        name="date" 
+                        <div class="col-md-6">
+                            <div class="d-flex justify-content-end align-items-center gap-2 flex-wrap">
+
+                                <div style="min-width:180px;">
+                                    <input type="date"
+                                        class="form-control form-control-sm"
+                                        name="date"
                                         id="date"
                                         value="{{ request('date', now()->format('Y-m-d')) }}">
                                 </div>
-                                <div class="col-md-4">
-                                    <a class="btn btn-primary btn-sm w-100"
-                                       href="{{ route('business.attendances.clock-in', $currentBusiness->slug) }}">
-                                        <i class="bi bi-calendar-check me-2"></i> Record Attendances
-                                    </a>
-                                </div>
 
-                                {{-- Holidays button --}}
-                                <div class="col-md-3">
-                                    <a class="btn btn-outline-warning btn-sm w-100"
-                                    href="{{ route('business.holidays.index', $currentBusiness->slug) }}">
-                                        <i class="bi bi-calendar2-event me-2"></i> Holidays
-                                    </a>
-                                </div>
+                                <a class="btn btn-primary btn-sm"
+                                href="{{ route('business.attendances.clock-in', $currentBusiness->slug) }}">
+                                    <i class="bi bi-calendar-check me-1"></i> Record Attendance
+                                </a>
+
+                                <a class="btn btn-outline-success btn-sm"
+                                href="{{ route('business.attendances.payroll-hours', $currentBusiness->slug) }}">
+                                    <i class="bi bi-calculator me-1"></i> Payroll Hours
+                                </a>
+
+                                <a class="btn btn-outline-secondary btn-sm"
+                                href="{{ route('business.attendances.settings.index', $currentBusiness->slug) }}">
+                                    <i class="bi bi-gear me-1"></i> Settings
+                                </a>
 
                             </div>
                         </div>

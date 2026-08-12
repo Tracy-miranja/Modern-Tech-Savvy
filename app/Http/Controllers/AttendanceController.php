@@ -99,7 +99,7 @@ class AttendanceController extends Controller
             $selfPunch   = ($active_role === 'business-employee');
 
             if ($selfPunch) {
-                $employee = $user->employee;
+                $employee = $user->activeEmployee();
                 if (!$employee) {
                     return RequestResponse::badRequest('No employee record found for this user.');
                 }
@@ -176,7 +176,7 @@ class AttendanceController extends Controller
                     'device_mac.required' => 'A registered device is required to clock in.',
                 ]);
 
-                $employee = $user->employee;
+                $employee = $user->activeEmployee();
                 $registered = $employee->registered_device_mac;
                 if (!$registered) {
                     return RequestResponse::badRequest('No registered device found. Contact HR to register your device.');
@@ -258,7 +258,7 @@ class AttendanceController extends Controller
             $employee_id = null;
 
             if ($selfPunch) {
-                $employee = $user->employee;
+                $employee = $user->activeEmployee();
                 if (!$employee) {
                     return RequestResponse::badRequest('No employee record found for this user.');
                 }
@@ -312,7 +312,7 @@ class AttendanceController extends Controller
 
             if ($selfPunch && $business->enforce_mac) {
                 $request->validate(['device_mac' => 'required|string|max:64']);
-                $registered = optional($user->employee)->registered_device_mac;
+                $registered = optional($user->activeEmployee())->registered_device_mac;
                 if (!$registered) {
                     return RequestResponse::badRequest('No registered device found. Contact HR to register your device.');
                 }
@@ -668,6 +668,16 @@ class AttendanceController extends Controller
     }
 
     // Keep existing settings methods
+    /**
+     * Attendance settings page (geofencing, MAC enforcement) - lives in the
+     * Attendance module itself rather than Organization Setup, since that's
+     * where the rest of attendance configuration already happens.
+     */
+    public function settingsPage(Business $business)
+    {
+        return view('attendances.settings', compact('business'));
+    }
+
     public function updateSettings(Request $request, $slug)
     {
         return $this->handleTransaction(function () use ($request, $slug) {

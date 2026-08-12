@@ -6,6 +6,7 @@ use App\Enum\Status;
 use App\Models\Business;
 use Illuminate\Http\Request;
 use App\Http\RequestResponse;
+use Illuminate\Validation\Rule;
 use App\Traits\HandleTransactions;
 
 class LeavePeriodController extends Controller
@@ -20,10 +21,25 @@ class LeavePeriodController extends Controller
         return RequestResponse::ok('Leave periods fetched successfully.', $leavePeriodTable);
     }
 
+    /**
+     * Blank create form - used to reset #leavePeriodsFormContainer back to
+     * "create" mode after an edit is cancelled or successfully saved.
+     */
+    public function create(Request $request)
+    {
+        $form = view('leave._leave_period_form', ['leavePeriod' => null])->render();
+        return RequestResponse::ok('Ok', $form);
+    }
+
     public function store(Request $request)
     {
+        $business = Business::findBySlug(session('active_business_slug'));
+
         $validatedData = $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => [
+                'required', 'string', 'max:255',
+                Rule::unique('leave_periods', 'name')->where('business_id', $business?->id),
+            ],
             'start_date' => 'required|date',
             'end_date' => 'required|date',
             'is_active' => 'nullable|boolean',
@@ -62,11 +78,51 @@ class LeavePeriodController extends Controller
         return RequestResponse::ok('Leave period details fetched successfully.', $detailsView);
     }
 
+    /**
+     * Same details view as showDetails(), reached via the flat AJAX route
+     * (POST, id in the body) that the "View" button actually calls.
+     */
+    public function show(Request $request)
+    {
+        $validated = $request->validate(['id' => 'required|integer']);
+
+        $business = Business::findBySlug(session('active_business_slug'));
+        $leavePeriod = $business->leavePeriods()->findOrFail($validated['id']);
+
+        $detailsView = view('leave._leave_period_details', compact('leavePeriod'))->render();
+
+        return RequestResponse::ok('Leave period details fetched successfully.', $detailsView);
+    }
+
+    /**
+     * Returns the edit form pre-filled for the given leave period, for the
+     * "Edit" button to inject into #leavePeriodsFormContainer.
+     */
+    public function edit(Request $request)
+    {
+        $validated = $request->validate(['leave_period_slug' => 'required|string|exists:leave_periods,slug']);
+
+        $business = Business::findBySlug(session('active_business_slug'));
+        $leavePeriod = $business->leavePeriods()->where('slug', $validated['leave_period_slug'])->firstOrFail();
+
+        $form = view('leave._leave_period_form', compact('leavePeriod'))->render();
+
+        return RequestResponse::ok('Ok', $form);
+    }
+
     public function update(Request $request)
     {
+        $business = Business::findBySlug(session('active_business_slug'));
+        $currentLeavePeriod = $business?->leavePeriods()->where('slug', $request->input('leave_period_slug'))->first();
+
         $validatedData = $request->validate([
             'leave_period_slug' => 'required|string|exists:leave_periods,slug',
-            'name' => 'required|string|max:255',
+            'name' => [
+                'required', 'string', 'max:255',
+                Rule::unique('leave_periods', 'name')
+                    ->where('business_id', $business?->id)
+                    ->ignore($currentLeavePeriod?->id),
+            ],
             'start_date' => 'required|date',
             'end_date' => 'required|date',
             'is_active' => 'nullable|boolean',
@@ -79,7 +135,6 @@ class LeavePeriodController extends Controller
 
         return $this->handleTransaction(function () use ($validatedData) {
             $business = Business::findBySlug(session('active_business_slug'));
-            // Fixed: Use where()->firstOrFail() instead of findBySlug()
             $leavePeriod = $business->leavePeriods()->where('slug', $validatedData['leave_period_slug'])->firstOrFail();
 
             $leavePeriod->update([
@@ -117,15 +172,6 @@ class LeavePeriodController extends Controller
         ]);
     }
 
-    public function edit($leavePeriodId)
-    {
-        $business = Business::findBySlug(session('active_business_slug'));
-        $leavePeriod = $business->leavePeriods()->findOrFail($leavePeriodId);
-
-        $formView = view('leave._leave_period_form', compact('leavePeriod'))->render();
-        return RequestResponse::ok('Leave period form loaded.', $formView);
-    }
-
     public function destroy(Request $request)
     {
         $validatedData = $request->validate([
@@ -134,7 +180,6 @@ class LeavePeriodController extends Controller
 
         return $this->handleTransaction(function () use ($validatedData) {
             $business = Business::findBySlug(session('active_business_slug'));
-            // Fixed: Use where()->firstOrFail() instead of findBySlug()
             $leavePeriod = $business->leavePeriods()->where('slug', $validatedData['leave_period_slug'])->firstOrFail();
 
             $leavePeriod->delete();

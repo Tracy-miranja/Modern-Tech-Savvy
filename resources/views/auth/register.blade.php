@@ -522,7 +522,7 @@
                             <img src="{{ asset('media/krstlogo.png') }}" alt="{{ config('app.name') }}"
                                 class="img-fluid" style="max-height: 60px;">
                         </a>
-                        <h4 class="mt-4 mb-3">Sign up as <span class="amsol-text">Krest PayHR</span> Client</h4>
+                        <h4 class="mt-4 mb-3">Sign up as <span class="krest-text">Krest PayHR</span> Client</h4>
                         <p class="text-muted">Complete the form below to create your account</p>
                     </div>
 
@@ -653,7 +653,7 @@
 
         .marketing-section {
             background: rgb(6, 69, 125);
-            /* AMSOL blue color */
+            /* krest blue color */
             color: white;
             display: flex;
             align-items: center;
@@ -735,7 +735,7 @@
 
         .btn-primary {
             background-color: #0A4B9F;
-            /* AMSOL blue color */
+            /* krest blue color */
             border-color: #0A4B9F;
             border-radius: 6px;
         }
@@ -745,18 +745,18 @@
             border-color: #083e84;
         }
 
-        .amsol-text {
+        .krest-text {
             color: #0A4B9F;
-            /* AMSOL blue color */
+            /* krest blue color */
         }
 
-        .amsol-link {
+        .krest-link {
             color: #0A4B9F;
-            /* AMSOL blue color */
+            /* krest blue color */
             text-decoration: none;
         }
 
-        .amsol-link:hover {
+        .krest-link:hover {
             text-decoration: underline;
         }
 

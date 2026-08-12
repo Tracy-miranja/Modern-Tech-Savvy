@@ -295,21 +295,32 @@ window.downloadDocument = async function (btn) {
 };
 
 function initializeDataTable(selector) {
-    if ($(selector).length) {
-        if ($.fn.DataTable.isDataTable(selector)) {
-            $(selector).DataTable().destroy();
-        }
-        $(selector).DataTable({
-            responsive: true,
-            order: [[1, 'asc']],
-            columnDefs: [
-                { targets: 0, orderable: false, searchable: false },
-                { targets: '_all', searchable: true }
-            ],
-            language: {
-                emptyTable: "No applications available",
-                loadingRecords: "Loading..."
-            }
-        });
-    }
+  const $table = $(selector);
+  if (!$table.length) return;
+
+  // If DataTable already exists, destroy it cleanly
+  if ($.fn.DataTable.isDataTable($table)) {
+    $table.DataTable().clear().destroy();
+  }
+
+  // Remove leftover DT classes that can remain after destroy
+  $table.find('thead th').removeClass('sorting sorting_asc sorting_desc');
+
+  // IMPORTANT: initialize after DOM is settled (prevents _DT_CellIndex issues)
+  setTimeout(() => {
+    $table.DataTable({
+      responsive: true,
+      autoWidth: false,
+      destroy: true,
+      retrieve: true,
+      order: [[1, 'asc']],
+      columnDefs: [
+        { targets: 0, orderable: false, searchable: false },
+      ],
+      language: {
+        emptyTable: "No applications available",
+        loadingRecords: "Loading..."
+      }
+    });
+  }, 0);
 }

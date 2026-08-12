@@ -1,4 +1,4 @@
-POST http://amsol.local/employees/store
+POST http://krest.local/employees/store
 
 {
     "_token": "3eJC0PXMgBwKWmxLT4HLS5IatyLhCRoSJ5cWl90k",

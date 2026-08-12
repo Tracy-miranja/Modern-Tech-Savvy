@@ -2,6 +2,14 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 
 <head>
+ <!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-PQJZ4ZF5');</script>
+<!-- End Google Tag Manager -->
+
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -34,7 +42,7 @@
     <link rel="stylesheet" href="{{ asset('assets/css/plugins/nano.min.css') }}">
     <link rel="stylesheet" href="{{ asset('assets/css/main.css') }}">
     <link rel="stylesheet" href="{{ asset('assets/css/custom.css') }}">
-
+    <link rel="stylesheet" href="{{ asset('assets/css/applications-module.css') }}">
 
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" />
@@ -50,11 +58,51 @@
     <link rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.12/css/intlTelInput.min.css">
     <link rel="shortcut icon" href="media/favicon.ico" type="image/x-icon">
+   <style>
+        #impersonation-banner.impersonation-banner-bar {
+            display: flex !important;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-around;
+            width: 100%;
+            height: auto !important;
+            min-height: 65px;
+            overflow: visible !important;
+            position: relative;
+            z-index: 2000;
+            line-height: 1.5;
+            padding: 10px 24px;
+            background-color: #16518D;
+            color: #fbfcfd !important;
+            border-bottom: 1px solid rgb(252, 248, 248);
+        }
 
+        #impersonation-banner span {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        #impersonation-banner select#switchClientSelect {
+            height: 32px;
+        }
+
+        body.has-impersonation-banner .app-header,
+        body.has-impersonation-banner header,
+        body.has-impersonation-banner .navbar-fixed,
+        body.has-impersonation-banner [class*="header"] {
+
+        }
+    </style>
 
 </head>
 
+
 <body class="body-area">
+    <!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-PQJZ4ZF5"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
 
     <input type="text" id="receipient_id" value="{{ auth()->user()->id }}" hidden>
 
@@ -62,215 +110,49 @@
         body {
             visibility: hidden;
         }
+    </style>
 
-        .preloader {
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100% !important;
-    height: 100% !important;
-        background: linear-gradient(135deg, #0f1729 0%, #1a2847 50%, #0d1525 100%);
-        z-index: 999999 !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        opacity: 1;
-        transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.8s ease;
-        pointer-events: auto;
-        overflow: hidden;
-    }
-
-    .preloader::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background:
-            radial-gradient(circle at 20% 50%, rgba(243, 159, 4, 0.08) 0%, transparent 50%),
-            radial-gradient(circle at 80% 80%, rgba(243, 159, 4, 0.06) 0%, transparent 50%);
-        pointer-events: none;
-        animation: ambientShift 8s ease-in-out infinite;
-    }
-
-    @keyframes ambientShift {
-        0%, 100% { opacity: 0.8; }
-        50% { opacity: 1; }
-    }
-
-    .preloader.hidden {
-        opacity: 0;
-        visibility: hidden;
-        pointer-events: none;
-    }
-
-    .loader-container {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-        position: relative;
-        z-index: 1;
-    }
-
-    .modern-spinner {
-        width: 80px;
-        height: 80px;
-        position: relative;
-        margin-bottom: 2.5rem;
-    }
-
-
-
-    .modern-spinner::before,
-    .modern-spinner::after {
-        content: '';
-        position: absolute;
-        border-radius: 50%;
-        border: 2px solid transparent;
-        inset: 0;
-    }
-
-    .modern-spinner::before {
-         border-top-color: #f39f04;
-    border-right-color: #f39f04;
-    animation: spinOuter 1.2s linear infinite;
-        box-shadow:
-            0 0 20px rgba(243, 159, 4, 0.4),
-            inset 0 0 20px rgba(243, 159, 4, 0.1);
-    }
-
-    .modern-spinner::after {
-        border-bottom-color: rgba(243, 159, 4, 0.25);
-    border-left-color: rgba(243, 159, 4, 0.25);
-    animation: spinInner 1.2s linear infinite reverse;
-        inset: 8px;
-    }
-
-    @keyframes spinOuter {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-    }
-
-    @keyframes spinInner {
-        from { transform: rotate(360deg); }
-        to { transform: rotate(0deg); }
-    }
-
-    .loader-text {
-        color: #f39f04;
-        font-size: 0.85rem;
-        font-weight: 600;
-        letter-spacing: 3px;
-        text-transform: uppercase;
-        margin-top: 2.5rem;
-        animation: fadeInOutText 2.5s ease-in-out infinite;
-    }
-
-    @keyframes fadeInOutText {
-        0%, 100% { opacity: 0.5; }
-        50% { opacity: 1; }
-    }
-
-    .loader-accent {
-        position: absolute;
-        background: radial-gradient(circle, #f39f04 0%, rgba(243, 159, 4, 0.4) 100%);
-        border-radius: 50%;
-        opacity: 0.4;
-    }
-
-    .loader-accent-1 {
-        width: 8px;
-        height: 8px;
-        top: 15%;
-        left: 10%;
-        animation: floatAccent1 6s ease-in-out infinite;
-    }
-
-    .loader-accent-2 {
-        width: 6px;
-        height: 6px;
-        top: 20%;
-        right: 15%;
-        animation: floatAccent2 7s ease-in-out infinite;
-    }
-
-    .loader-accent-3 {
-        width: 6px;
-        height: 6px;
-        bottom: 20%;
-        left: 12%;
-        animation: floatAccent3 8s ease-in-out infinite;
-    }
-
-    .loader-accent-4 {
-        width: 8px;
-        height: 8px;
-        bottom: 15%;
-        right: 10%;
-        animation: floatAccent4 6.5s ease-in-out infinite;
-    }
-
-    @keyframes floatAccent1 {
-        0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.3; }
-        50% { transform: translate(-10px, -15px) scale(1.3); opacity: 0.7; }
-    }
-
-    @keyframes floatAccent2 {
-        0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.3; }
-        50% { transform: translate(12px, -12px) scale(1.3); opacity: 0.6; }
-    }
-
-    @keyframes floatAccent3 {
-        0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.3; }
-        50% { transform: translate(10px, 15px) scale(1.3); opacity: 0.6; }
-    }
-
-    @keyframes floatAccent4 {
-        0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.3; }
-        50% { transform: translate(-12px, 12px) scale(1.3); opacity: 0.7; }
-    }
-</style>
-
-<script>
-    // Show preloader immediately on page load
-    document.body.style.visibility = 'visible';
-
-    // Hide preloader when page fully loads
-    window.addEventListener('load', function() {
-        const preloader = document.getElementById('preloader');
-        if (preloader) {
-            preloader.classList.add('hidden');
-            setTimeout(() => {
-                preloader.remove();
-            }, 800);
-        }
-    });
-</script>
-
-<!-- Modern Preloader -->
-<div class="preloader" id="preloader">
-    <div class="loader-accent loader-accent-1"></div>
-    <div class="loader-accent loader-accent-2"></div>
-    <div class="loader-accent loader-accent-3"></div>
-    <div class="loader-accent loader-accent-4"></div>
-    <div class="loader-container">
-        <div class="modern-spinner"></div>
-        <div class="loader-text">Loading</div>
+    <div class="preloader" id="preloader">
+        <div class="loading">
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
     </div>
-</div>
+
+    @if(session('original_business_slug'))
+<div id="impersonation-banner" class="impersonation-banner-bar">
+        <span>
+            <i class="fas fa-user-secret"></i>
+            Viewing as <strong>{{ \App\Models\Business::findBySlug(session('active_business_slug'))->company_name }}</strong>
+            &mdash; krest admin session
+        </span>
+        <span>
+            <select id="switchClientSelect" class="form-select form-select-sm d-inline-block w-fit me-2">
+                <option value="">Switch to another business...</option>
+            </select>
+            <button class="btn btn-sm btn-dark" onclick="switchBackToAdmin()">
+                Return to krest
+            </button>
+        </span>
+    </div>
+    @endif
+
     <div class="page__full-wrapper">
+
 
         @php
         $activeRole = session('active_role');
         @endphp
 
-        @if (in_array($activeRole, ['business-admin', 'business-hr', 'business-finance']))
+        @if (in_array($activeRole, ['business-admin', 'business-hr', 'business-finance', 'krest-admin', 'restricted-hr', 'general-hr', 'head-of-department', 'chief-of-staff']))
         @include('layouts.partials.navbar')
         @elseif ($activeRole === 'business-employee')
         @include('layouts.partials.navbar-employee')
+        @elseif ($activeRole === 'super-admin')
+        @include('layouts.partials.navbar-super-admin')
         @endif
 
 
@@ -279,6 +161,24 @@
             @include('layouts.partials.app-header')
 
             <div class="app__slide-wrapper">
+                {{-- Nothing anywhere in this layout displayed flash
+                messages before - every back()->with('error'/'success', ...)
+                across the app silently showed nothing, which is why
+                validation bounces (e.g. "no employee record for this
+                business") looked exactly like a dead link. --}}
+                @if (session('error'))
+                <div class="alert alert-danger alert-dismissible fade show m-3" role="alert">
+                    {{ session('error') }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                @endif
+                @if (session('success'))
+                <div class="alert alert-success alert-dismissible fade show m-3" role="alert">
+                    {{ session('success') }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                @endif
+
                 {{ $slot }}
             </div>
 
@@ -357,6 +257,10 @@
     <script src="{{ asset('js/init.js') }}"></script>
     {{-- <script src="{{ asset('js/pusher.js') }}"></script> --}}
     <script src="{{ asset('js/main/logout.js') }}" type="module"></script>
+    <script>
+        window.currentBusinessSlug = "{{ session('active_business_slug') }}";
+    </script>
+    <script src="{{ asset('js/main/impersonation.js') }}" type="module"></script>
 
     <script type="text/javascript">
         document.addEventListener('DOMContentLoaded', function() {
@@ -375,6 +279,27 @@
                     }
                 });
             });
+
+
+            // $(".switch-role").click(function() {
+            //     let selectedRole = $(this).data("role");
+
+            //     $.ajax({
+            //         url: $("#switchRoleForm").attr("action"),
+            //         method: "POST",
+            //         data: {
+            //             _token: $('meta[name="csrf-token"]').attr("content"),
+            //             role: selectedRole
+            //         },
+            //         success: function(response) {
+            //             window.location.href = response.redirect;
+            //         },
+            //         error: function(error) {
+            //             console.log(error);
+            //             alert("You do not have permission to switch to this role.");
+            //         }
+            //     });
+            // });
 
 
             // Initialize all dropdowns with global configuration

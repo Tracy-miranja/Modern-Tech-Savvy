@@ -30,6 +30,7 @@ function openModal() {
 
 function renderHolidayForm({ mode = "create", holiday = null } = {}) {
   const isEdit = mode === "edit" && holiday;
+  const locations = window.businessLocations || [];
 
   return `
     <form id="holidayForm" method="post">
@@ -48,6 +49,16 @@ function renderHolidayForm({ mode = "create", holiday = null } = {}) {
         <input type="date" class="form-control" id="date" name="date" required
                value="${isEdit ? (holiday.date ?? "") : ""}">
       </div>
+
+      ${locations.length ? `
+      <div class="form-group mb-3">
+        <label for="location_id">Location</label>
+        <select class="form-select" id="location_id" name="location_id">
+          <option value="">Business-wide (applies to everyone)</option>
+          ${locations.map((l) => `<option value="${l.id}" ${isEdit && String(holiday.location_id) === String(l.id) ? "selected" : ""}>${l.name}</option>`).join("")}
+        </select>
+        <div class="form-text">Leave as business-wide unless this holiday only applies to one branch (e.g. a country-specific public holiday).</div>
+      </div>` : ""}
 
       <div class="row mb-3">
         <div class="col-md-6">
@@ -96,7 +107,8 @@ window.getHolidays = async function (year = null) {
   try {
     if (year) currentYear = year;
 
-    const holidaysTable = await holidayService.fetch({ year: currentYear });
+    const locationId = document.getElementById("holidayLocationFilter")?.value || null;
+    const holidaysTable = await holidayService.fetch({ year: currentYear, location_id: locationId });
     $("#holidaysContainer").html(holidaysTable);
 
     if (window.jQuery && $.fn.DataTable) {
@@ -222,4 +234,80 @@ window.deleteHoliday = async function (btn) {
   });
 };
 
-console.log("holiday.js loaded");
+// Cached per location (including "no location"/business-wide) since the
+// guessed country differs depending on which location is selected.
+const countriesCache = {};
+
+async function loadCountriesIntoSelect() {
+  const select = document.getElementById("importCountrySelect");
+  if (!select) return;
+
+  const locationId = document.getElementById("importLocationSelect")?.value || "";
+  const cacheKey = locationId || "__business__";
+
+  if (countriesCache[cacheKey]) {
+    renderCountryOptions(select, countriesCache[cacheKey]);
+    return;
+  }
+
+  try {
+    const data = await holidayService.availableCountries(locationId || null);
+    countriesCache[cacheKey] = data;
+    renderCountryOptions(select, data);
+  } catch (error) {
+    console.error("Error loading countries:", error);
+    select.innerHTML = '<option value="">Could not load countries</option>';
+  }
+}
+
+function renderCountryOptions(select, data) {
+  const countries = data.countries || [];
+  const guessed = data.guessed_country_code || null;
+
+  select.innerHTML = '<option value="">Select a country</option>'
+    + countries
+        .map((c) => `<option value="${c.countryCode}" ${c.countryCode === guessed ? "selected" : ""}>${c.name}</option>`)
+        .join("");
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+  const modalEl = document.getElementById("importHolidaysModal");
+  modalEl?.addEventListener("show.bs.modal", loadCountriesIntoSelect);
+
+  document.getElementById("importLocationSelect")?.addEventListener("change", loadCountriesIntoSelect);
+
+  document.getElementById("holidayLocationFilter")?.addEventListener("change", function () {
+    window.getHolidays();
+  });
+
+  document.getElementById("submitImportHolidaysBtn")?.addEventListener("click", async function () {
+    const form = document.getElementById("importHolidaysForm");
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+
+    const $btn = window.$ ? $(this) : null;
+    if ($btn) btn_loader($btn, true);
+
+    try {
+      const formData = new FormData(form);
+      await holidayService.importFromApi({
+        country_code: formData.get("country_code"),
+        year: formData.get("year"),
+        location_id: formData.get("location_id") || null,
+      });
+
+      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+      modal.hide();
+      await window.getHolidays();
+    } catch (error) {
+      console.error("Error importing holidays:", error);
+      Swal.fire("Error!", error.response?.data?.message || error.message || "Failed to load holidays.", "error");
+    } finally {
+      if ($btn) btn_loader($btn, false);
+    }
+  });
+});
+
+console.log("✅ holiday.js loaded");

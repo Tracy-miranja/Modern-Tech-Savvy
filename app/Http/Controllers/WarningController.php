@@ -8,7 +8,6 @@ use Illuminate\Http\Request;
 use App\Http\RequestResponse;
 use App\Traits\HandleTransactions;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\EmployeeWarningIssued;
 use App\Mail\EmployeeWarningResolved;
@@ -19,125 +18,149 @@ class WarningController extends Controller
 
     public function index(Request $request)
     {
-        $page = 'Employee Warnings';
-        $description = 'Manage employee warnings for disciplinary purposes. Issue, review, or resolve warnings as needed.';
+        $page = 'Disciplinary';
+        $description = 'Track disciplinary process from informal action through appeal';
+
         $business = Business::findBySlug(session('active_business_slug'));
         if (!$business) {
             return RequestResponse::badRequest('Business not found.');
         }
+
         $employees = $business->employees;
-        $locations = $business->locations;
         $warnings = Warning::where('business_id', $business->id)
             ->with('employee.user', 'issuedBy')
             ->orderBy('issue_date', 'desc')
             ->get();
 
-        return view('employees.warning.index', compact('page', 'description', 'employees', 'locations', 'warnings'));
+        return view('employees.warning.index', compact('page', 'description', 'employees', 'warnings'));
     }
 
-    // public function fetch(Request $request)
-    // {
-    //     try {
-    //         $business = Business::findBySlug(session('active_business_slug'));
-    //         if (!$business) {
-    //             return RequestResponse::badRequest('Business not found.');
-    //         }
-    //         $warnings = Warning::where('business_id', $business->id)
-    //             ->with('employee.user', 'issuedBy')
-    //             ->orderBy('issue_date', 'desc')
-    //             ->get();
-
-    //         $warningsTable = view('employees.warning._cards', compact('warnings'))->render();
-    //         return RequestResponse::ok('Warnings fetched successfully.', [
-    //             'html' => $warningsTable,
-    //             'count' => $warnings->count()
-    //         ]);
-    //     } catch (\Exception $e) {
-    //         Log::error('Failed to fetch warnings:', ['error' => $e->getMessage()]);
-    //         return RequestResponse::badRequest('Failed to fetch warnings.', [
-    //             'errors' => [$e->getMessage()]
-    //         ]);
-    //     }
-    // }
-    public function fetch(Request $request)
-{
-    try {
-        $business = Business::findBySlug(session('active_business_slug'));
-        if (!$business) {
-            return RequestResponse::badRequest('Business not found.');
-        }
-        $warnings = Warning::where('business_id', $business->id)
-            ->with('employee.user', 'issuedBy')
-            ->orderBy('issue_date', 'desc')
-            ->get();
-
-        $html = view('employees.warning._rows', compact('warnings'))->render();
-
-        return RequestResponse::ok('Warnings fetched successfully.', [
-            'html'  => $html,
-            'count' => $warnings->count(),
-        ]);
-    } catch (\Exception $e) {
-        Log::error('Failed to fetch warnings:', ['error' => $e->getMessage()]);
-        return RequestResponse::badRequest('Failed to fetch warnings.');
-    }
-}
-
-    public function store(Request $request)
+    protected function filtered(Business $business, Request $request)
     {
-        $validatedData = $request->validate([
-            'employee_id' => 'required|exists:employees,id',
-            'issue_date' => 'required|date',
-            'reason' => 'required|string|max:255',
-            'description' => 'nullable|string',
-        ]);
+        $query = Warning::where('business_id', $business->id)->with('employee.user', 'issuedBy');
 
-        return $this->handleTransaction(function () use ($validatedData) {
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('case_id', 'like', "%{$search}%")
+                  ->orWhere('offence', 'like', "%{$search}%")
+                  ->orWhereHas('employee.user', fn ($q2) => $q2->where('name', 'like', "%{$search}%"));
+            });
+        }
+
+        if ($request->filled('stage')) {
+            $query->where('stage', $request->input('stage'));
+        }
+
+        if ($request->filled('category')) {
+            $query->where('category', $request->input('category'));
+        }
+
+        return $query->orderBy('issue_date', 'desc');
+    }
+
+    public function fetch(Request $request)
+    {
+        try {
             $business = Business::findBySlug(session('active_business_slug'));
             if (!$business) {
                 return RequestResponse::badRequest('Business not found.');
             }
 
-            $warningCount = Warning::where('employee_id', $validatedData['employee_id'])
-                ->where('business_id', $business->id)
-                ->count();
+            $warnings = $this->filtered($business, $request)->get();
 
-            if ($warningCount >= 2) {
-                return RequestResponse::badRequest('Validation failed.', [
-                    'errors' => ['employee_id' => 'This employee has already received the maximum of 2 warnings.']
-                ]);
+            $counts = [
+                'open'            => Warning::where('business_id', $business->id)->where('stage', '!=', 'closed')->count(),
+                'investigation'   => Warning::where('business_id', $business->id)->where('stage', 'investigation')->count(),
+                'pending_hearing' => Warning::where('business_id', $business->id)->whereIn('stage', ['notification_to_hearing', 'disciplinary_hearing'])->count(),
+                'closed'          => Warning::where('business_id', $business->id)->where('stage', 'closed')->count(),
+            ];
+
+            $rows = view('employees.warning._rows', compact('warnings'))->render();
+
+            return RequestResponse::ok('Warnings fetched successfully.', [
+                'html'   => $rows,
+                'count'  => $warnings->count(),
+                'counts' => $counts,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to fetch warnings:', ['error' => $e->getMessage()]);
+            return RequestResponse::badRequest('Failed to fetch warnings.', ['errors' => [$e->getMessage()]]);
+        }
+    }
+
+    public function store(Request $request, Business $business)
+    {
+        $validatedData = $request->validate([
+            'employee_id'      => 'required|exists:employees,id',
+            'category'         => 'required|in:' . implode(',', Warning::CATEGORIES),
+            'offence'          => 'required|string',
+            'reported_by_name' => 'nullable|string|max:255',
+            'issue_date'       => 'required|date',
+            'stage'            => 'required|in:' . implode(',', Warning::STAGES),
+            'hearing_date'     => 'nullable|date',
+            'decision_outcome' => 'nullable|in:' . implode(',', Warning::DECISION_OUTCOMES),
+            'appeal_status'    => 'nullable|in:' . implode(',', Warning::APPEAL_STATUSES),
+            'description'      => 'nullable|string',
+            'attachment'       => 'nullable|file|mimes:pdf,jpg,png,doc,docx|max:2048',
+        ]);
+
+       return $this->handleTransaction(function () use ($validatedData, $request, $business) {
+            $attachmentPath = null;
+            if ($request->hasFile('attachment')) {
+                $attachmentPath = $request->file('attachment')->store('disciplinary', 'public');
             }
 
             $warning = Warning::create([
-                'employee_id' => $validatedData['employee_id'],
-                'business_id' => $business->id,
-                'issue_date' => $validatedData['issue_date'],
-                'reason' => $validatedData['reason'],
-                'description' => $validatedData['description'] ?? null,
-                'status' => 'active',
-                'issued_by' => auth()->user()->id,
+                'employee_id'      => $validatedData['employee_id'],
+                'business_id'      => $business->id,
+                'category'         => $validatedData['category'],
+                'offence'          => $validatedData['offence'],
+                'reason'           => $validatedData['offence'],
+                'reported_by_name' => $validatedData['reported_by_name'] ?? null,
+                'issue_date'       => $validatedData['issue_date'],
+                'stage'            => $validatedData['stage'],
+                'hearing_date'     => $validatedData['hearing_date'] ?? null,
+                'decision_outcome' => $validatedData['decision_outcome'] ?? 'pending',
+                'appeal_status'    => $validatedData['appeal_status'] ?? null,
+                'description'      => $validatedData['description'] ?? null,
+                'attachment'       => $attachmentPath,
+                'status'           => $validatedData['stage'] === 'closed' ? 'resolved' : 'active',
+                'issued_by'        => auth()->user()->id,
             ]);
 
-            // Send email notification to the employee
             $employee = $warning->employee;
             if ($employee && $employee->user && $employee->user->email) {
                 Mail::to($employee->user->email)->send(new EmployeeWarningIssued($warning));
             }
 
-            return RequestResponse::created('Warning issued successfully.', $warning->id);
+            return RequestResponse::created('Disciplinary case opened successfully.', $warning->id);
         });
     }
 
-    public function edit(Request $request)
+    public function acknowledge(Request $request, $id)
     {
-        $validatedData = $request->validate([
-            'warning_id' => 'nullable|exists:warnings,id',
-        ]);
-
-        $business = Business::findBySlug(session('active_business_slug'));
-        if (!$business) {
-            return RequestResponse::badRequest('Business not found.');
+        $employee = auth()->user()->activeEmployee();
+        if (!$employee) {
+            return RequestResponse::badRequest('No employee record for the current user.');
         }
+
+        return $this->handleTransaction(function () use ($id, $employee) {
+            $warning = Warning::where('id', $id)->where('employee_id', $employee->id)->first();
+            if (!$warning) {
+                return RequestResponse::badRequest('Disciplinary case not found for this employee.', 404);
+            }
+            if (!$warning->acknowledged_at) {
+                $warning->update(['acknowledged_at' => now(), 'acknowledged_by' => $employee->id]);
+            }
+            return RequestResponse::ok('Acknowledged.');
+        });
+    }
+
+   public function edit(Request $request, Business $business)
+    {
+        $validatedData = $request->validate(['warning_id' => 'nullable|exists:warnings,id']);
+
         $employees = $business->employees;
         $warning = null;
 
@@ -151,58 +174,58 @@ class WarningController extends Controller
         return RequestResponse::ok('Warning form loaded successfully.', $form);
     }
 
-    public function update(Request $request, $id)
+   public function show(Request $request, Business $business, $id)
+    {
+        $warning = Warning::where('business_id', $business->id)
+            ->with('employee.user', 'issuedBy')
+            ->where('id', $id)
+            ->firstOrFail();
+
+        $html = view('employees.warning._show', compact('warning'))->render();
+        return RequestResponse::ok('Warning details loaded.', $html);
+    }
+
+    public function update(Request $request, Business $business, $id)
     {
         $validatedData = $request->validate([
-            'warning_id' => 'required|exists:warnings,id',
-            'employee_id' => 'required|exists:employees,id',
-            'issue_date' => 'required|date',
-            'reason' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'status' => 'required|in:active,resolved',
+            'employee_id'      => 'required|exists:employees,id',
+            'category'         => 'required|in:' . implode(',', Warning::CATEGORIES),
+            'offence'          => 'required|string',
+            'reported_by_name' => 'nullable|string|max:255',
+            'issue_date'       => 'required|date',
+            'stage'            => 'required|in:' . implode(',', Warning::STAGES),
+            'hearing_date'     => 'nullable|date',
+            'decision_outcome' => 'nullable|in:' . implode(',', Warning::DECISION_OUTCOMES),
+            'appeal_status'    => 'nullable|in:' . implode(',', Warning::APPEAL_STATUSES),
+            'description'      => 'nullable|string',
         ]);
 
-        return $this->handleTransaction(function () use ($validatedData, $id) {
-            $business = Business::findBySlug(session('active_business_slug'));
-            if (!$business) {
-                return RequestResponse::badRequest('Business not found.');
-            }
+        return $this->handleTransaction(function () use ($validatedData, $business, $id) {
+            $warning = Warning::where('business_id', $business->id)->where('id', $id)->firstOrFail();
+            $previousStage = $warning->stage;
 
-            $warning = Warning::where('business_id', $business->id)
-                ->where('id', $id)
-                ->firstOrFail();
-
-            if ($warning->id != $validatedData['warning_id']) {
-                return RequestResponse::badRequest('Warning ID mismatch.');
-            }
-
-            if ($warning->employee_id != $validatedData['employee_id']) {
-                $warningCount = Warning::where('employee_id', $validatedData['employee_id'])
-                    ->where('business_id', $business->id)
-                    ->count();
-
-                if ($warningCount >= 2) {
-                    return RequestResponse::badRequest('Validation failed.', [
-                        'errors' => ['employee_id' => 'This employee has already received the maximum of 2 warnings.']
-                    ]);
-                }
-            }
-
-            $previousStatus = $warning->status; // Store previous status
             $warning->update([
-                'employee_id' => $validatedData['employee_id'],
-                'issue_date' => $validatedData['issue_date'],
-                'reason' => $validatedData['reason'],
-                'description' => $validatedData['description'] ?? null,
-                'status' => $validatedData['status'],
-                'issued_by' => auth()->user()->id,
+                'employee_id'      => $validatedData['employee_id'],
+                'category'         => $validatedData['category'],
+                'offence'          => $validatedData['offence'],
+                'reason'           => $validatedData['offence'],
+                'reported_by_name' => $validatedData['reported_by_name'] ?? $warning->reported_by_name,
+                'issue_date'       => $validatedData['issue_date'],
+                'stage'            => $validatedData['stage'],
+                'hearing_date'     => $validatedData['hearing_date'] ?? null,
+                'decision_outcome' => $validatedData['decision_outcome'] ?? $warning->decision_outcome,
+                'appeal_status'    => $validatedData['appeal_status'] ?? $warning->appeal_status,
+                'description'      => $validatedData['description'] ?? null,
+                'status'           => $validatedData['stage'] === 'closed' ? 'resolved' : 'active',
+                'issued_by'        => auth()->user()->id,
             ]);
 
-            // Check if status changed to 'resolved' and send email
-            if ($validatedData['status'] === 'resolved' && $previousStatus !== 'resolved') {
-                $employee = $warning->employee;
-                if ($employee && $employee->user && $employee->user->email) {
+            $employee = $warning->employee;
+            if ($employee && $employee->user && $employee->user->email) {
+                if ($validatedData['stage'] === 'closed' && $previousStage !== 'closed') {
                     Mail::to($employee->user->email)->send(new EmployeeWarningResolved($warning));
+                } elseif ($previousStage !== $validatedData['stage']) {
+                    Mail::to($employee->user->email)->send(new EmployeeWarningIssued($warning));
                 }
             }
 
@@ -210,28 +233,11 @@ class WarningController extends Controller
         });
     }
 
-    public function destroy(Request $request, $id)
+   public function destroy(Request $request, Business $business, $id)
     {
-        $validatedData = $request->validate([
-            'warning_id' => 'required|exists:warnings,id',
-        ]);
-
-        return $this->handleTransaction(function () use ($validatedData, $id) {
-            $business = Business::findBySlug(session('active_business_slug'));
-            if (!$business) {
-                return RequestResponse::badRequest('Business not found.');
-            }
-
-            $warning = Warning::where('business_id', $business->id)
-                ->where('id', $id)
-                ->firstOrFail();
-
-            if ($warning->id != $validatedData['warning_id']) {
-                return RequestResponse::badRequest('Warning ID mismatch.');
-            }
-
+        return $this->handleTransaction(function () use ($business, $id) {
+            $warning = Warning::where('business_id', $business->id)->where('id', $id)->firstOrFail();
             $warning->delete();
-
             return RequestResponse::ok('Warning deleted successfully.');
         });
     }

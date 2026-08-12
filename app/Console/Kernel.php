@@ -8,14 +8,25 @@ use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Log;
 use App\Models\Business;
 
-class Kernel extends ConsoleKernel
-{
+/**
+ * Kernel class handles the registration and scheduling of Artisan commands.
+ *
+ * This class defines scheduled tasks such as leave accruals and contract reminders,
+ * ensuring they run at specified times in the Africa/Nairobi timezone.
+ *
+ * Special Considerations:
+ * - Session usage in CLI: If any scheduled command relies on session data, ensure
+ *   that session drivers and configurations are compatible with CLI execution.
+ * - Logging: Scheduled tasks may log output for monitoring and debugging.
+ */
+class Kernel extends ConsoleKernel {
+
     /**
      * Define the application's command schedule.
      */
     protected function schedule(Schedule $schedule): void
     {
-        // Run leave accruals daily (Africa/Nairobi time)
+        /* Run leave accruals daily (Africa/Nairobi time)
         $schedule->command('leave:run-accruals')
             ->dailyAt('02:30')
             ->timezone('Africa/Nairobi')
@@ -23,36 +34,14 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping()
             ->runInBackground();
 
-        // Automated contract reminders (legacy code needs session-based active_business_slug)
-        $schedule->call(function () {
-            try {
-                if (!Session::isStarted()) {
-                    Session::start();
-                }
-
-                $slug = Session::get('active_business_slug');
-
-                if (!$slug) {
-                    // Prefer business id 1 if it exists, otherwise first business
-                    $business = Business::find(1) ?: Business::query()->orderBy('id')->first();
-                    if ($business) {
-                        Session::put('active_business_slug', $business->slug);
-                    }
-                }
-
-                app()->call('App\Http\Controllers\EmployeeController@sendAutomatedContractReminders');
-            } catch (\Throwable $e) {
-                Log::error('Contract reminder scheduler failed', [
-                    'message' => $e->getMessage(),
-                    'trace'   => $e->getTraceAsString(),
-                ]);
-            }
-        })
-        ->dailyAt('15:50')
-        ->timezone('Africa/Nairobi')
-        ->onOneServer()
-        ->withoutOverlapping()
-        ->runInBackground();
+        // Automated contract reminders using a dedicated Artisan command
+        $schedule->command('contract:send-reminders')
+            ->dailyAt('15:50')
+            ->timezone('Africa/Nairobi')
+            ->onOneServer()
+            ->withoutOverlapping()
+            ->runInBackground();
+        ->runInBackground();*/
     }
 
     /**
@@ -60,8 +49,14 @@ class Kernel extends ConsoleKernel
      */
     protected function commands(): void
     {
-        $this->load(__DIR__ . '/Commands');
+                Log::error('Contract reminder scheduler failed', [
+                    'active_business_slug' => isset($slug) ? $slug : null,
+                    'message' => $e->getMessage(),
+                    'trace'   => $e->getTraceAsString(),
+                ]);
 
+        require base_path('routes/console.php');
         require base_path('routes/console.php');
     }
 }
+

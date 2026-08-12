@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Log;
 use Spatie\Permission\Exceptions\UnauthorizedException;
 use Symfony\Component\HttpFoundation\Response;
 use App\Models\Business;
+use App\Services\RoleHomeRouteService;
 
 class EnsureCorrectRole
 {
@@ -35,8 +36,6 @@ class EnsureCorrectRole
         if (!$activeRole) {
             if ($user->hasRole('business-admin')) {
                 $activeRole = 'business-admin';
-            } elseif ($user->hasRole('business-head')) {
-                $activeRole = 'business-head';
             } elseif ($user->hasRole('general-hr')) {
                 $activeRole = 'general-hr';
             } elseif ($user->hasRole('restricted-hr')) {
@@ -66,20 +65,49 @@ class EnsureCorrectRole
 
         // Validate active role
         if (!$activeRole || !is_string($activeRole)) {
-            return response()->json(['message' => 'Unauthorized: Invalid or missing role'], 403);
+            return app(RoleHomeRouteService::class)->forbiddenResponse($request, $user, 'Unauthorized: Invalid or missing role');
         }
 
-        if (!$user->hasRole($activeRole)) {
-            return response()->json(['message' => 'Unauthorized: User does not have the required role'], 403);
+        // While an krest admin (super-admin/krest-admin) is impersonating a
+        // client business, active_role is set to the impersonated role (e.g.
+        // business-admin) which they don't personally hold - let them
+        // through anyway so they can operate exactly as that business's own
+        // admin would. Only applies during an active impersonation session
+        // (see ClientController::impersonateManagedBusiness()).
+        $isImpersonating = session()->has('original_business_slug');
+        $iskrestAdmin = $user->hasRole('super-admin') || $user->hasRole('krest-admin');
+
+        // Mirrors RoleOrImpersonation's "krest-admin operates krest's own
+        // business" bypass - without this, switching active_role to
+        // something krest-admin doesn't personally hold (e.g. previewing
+        // the employee portal via Switch Account) would 403 here before
+        // RoleOrImpersonation's own equivalent check is ever reached, even
+        // though the business in play is krest itself, not a client.
+        $isOperatingOwnkrestBusiness = $user->hasRole('krest-admin') && session('active_business_slug') === 'krest';
+
+        if (!$user->hasRole($activeRole) && !($isImpersonating && $iskrestAdmin) && !$isOperatingOwnkrestBusiness) {
+            return app(RoleHomeRouteService::class)->forbiddenResponse($request, $user, 'Unauthorized: User does not have the required role');
         }
 
         // Restrict `restricted-hr`, `head-of-department`, `chief-of-staff`, and `business-hr` for specific conditions
         if (in_array($activeRole, ['restricted-hr', 'head-of-department', 'chief-of-staff', 'business-hr'])) {
             $restrictedRoutes = [
+                // 'business.payroll.index' alone only matches the "Run
+                // Payroll" page (str_contains substring match below) -
+                // every other payroll-family route name (advances, loans,
+                // payroll-settings sub-pages, pay grades) needs its own
+                // explicit entry or it silently stays reachable.
                 'restricted-hr' => [
-                    'business.index',
                     'business.payroll.index',
-                    'business.payroll-settings',
+                    'business.payroll.all',
+                    'business.advances.index',
+                    'business.loans.index',
+                    'business.employee-reliefs.index',
+                    'business.payroll-formulas.index',
+                    'business.reliefs.index',
+                    'business.deductions',
+                    'business.allowances.index',
+                    'business.pay-grades.index',
                 ],
                 'head-of-department' => [
                     'business.index',
@@ -172,14 +200,14 @@ class EnsureCorrectRole
 
             foreach ($restrictedRoutes[$activeRole] ?? [] as $restrictedRoute) {
                 if (str_contains($currentRoute, $restrictedRoute)) {
-                    return response()->json(['message' => "Unauthorized: $activeRole cannot access this route"], 403);
+                    return app(RoleHomeRouteService::class)->forbiddenResponse($request, $user, "Unauthorized: $activeRole cannot access this route");
                 }
             }
 
             // Check permissions
             $requiredPermission = $this->getRequiredPermissionForRoute($currentRoute);
             if ($requiredPermission && !$user->hasPermissionTo($requiredPermission, 'web')) {
-                return response()->json(['message' => 'Unauthorized: Missing required permission'], 403);
+                return app(RoleHomeRouteService::class)->forbiddenResponse($request, $user, 'Unauthorized: Missing required permission');
             }
         }
 
@@ -187,7 +215,7 @@ class EnsureCorrectRole
         if ($user->business_id && str_contains($request->path(), 'business')) {
             $businessId = $request->route('business_id') ?? $request->input('business_id');
             if ($businessId && $businessId != $user->business_id) {
-                return response()->json(['message' => 'Unauthorized: Access to this business is restricted'], 403);
+                return app(RoleHomeRouteService::class)->forbiddenResponse($request, $user, 'Unauthorized: Access to this business is restricted');
             }
         }
 

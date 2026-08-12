@@ -1,0 +1,551 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Business;
+use App\Models\Employee;
+use App\Models\PerformanceCycle;
+use App\Models\PerformanceKeyResult;
+use App\Models\PerformanceObjective;
+use App\Models\PerformanceReview;
+use Illuminate\Http\Request;
+use App\Http\RequestResponse;
+use App\Traits\HandleTransactions;
+
+class PerformanceController extends Controller
+{
+    use HandleTransactions;
+
+    /* ----------------
+       Cycles (HR-defined: timeline + weighting)
+    -----------------*/
+
+    public function cyclesIndex(Business $business)
+    {
+        return view('performance.cycles', ['business' => $business]);
+    }
+
+    /**
+     * Active cycles only - what employees pick from when setting objectives.
+     */
+    public function fetchActiveCycles(Business $business)
+    {
+        $cycles = PerformanceCycle::where('business_id', $business->id)
+            ->where('status', 'active')
+            ->latest()
+            ->get();
+
+        return RequestResponse::ok('Active cycles fetched successfully.', $cycles);
+    }
+
+    public function fetchCycles(Business $business)
+    {
+        $cycles = PerformanceCycle::where('business_id', $business->id)->latest()->get();
+        return RequestResponse::ok('Cycles fetched successfully.', $cycles);
+    }
+
+    public function storeCycle(Request $request, Business $business)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after_or_equal:start_date',
+            'kpi_weight' => 'required|numeric|min:0|max:100',
+            'okr_weight' => 'required|numeric|min:0|max:100',
+            'competency_weight' => 'required|numeric|min:0|max:100',
+            'self_review_due_date' => 'nullable|date',
+            'manager_review_due_date' => 'nullable|date',
+            'lock_goals_on_start' => 'nullable|boolean',
+        ]);
+
+        $totalWeight = $validated['kpi_weight'] + $validated['okr_weight'] + $validated['competency_weight'];
+        if (abs($totalWeight - 100) > 0.01) {
+            return RequestResponse::badRequest('KPI, OKR, and competency weights must add up to 100%.', 422);
+        }
+
+        return $this->handleTransaction(function () use ($validated, $business, $request) {
+            $cycle = PerformanceCycle::create(array_merge($validated, [
+                'business_id' => $business->id,
+                'status' => 'draft',
+                'created_by' => $request->user()->id,
+            ]));
+
+            return RequestResponse::created('Performance cycle created successfully.', $cycle);
+        });
+    }
+
+    public function updateCycleStatus(Request $request, Business $business, PerformanceCycle $cycle)
+    {
+        if ((int) $cycle->business_id !== (int) $business->id) {
+            return RequestResponse::badRequest('Cycle not found for this business.', 404);
+        }
+
+        $validated = $request->validate([
+            'status' => 'required|in:draft,active,closed',
+        ]);
+
+        $wasClosed = $cycle->status === 'closed';
+        $cycle->update(['status' => $validated['status']]);
+
+        // Grade every objective once, the moment the cycle actually closes -
+        // final_score reflects where it landed, not a live-updating number.
+        if ($validated['status'] === 'closed' && !$wasClosed) {
+            $objectives = PerformanceObjective::where('performance_cycle_id', $cycle->id)
+                ->with('keyResults')
+                ->get();
+
+            foreach ($objectives as $objective) {
+                $objective->update(['final_score' => $objective->computeFinalScore()]);
+            }
+        }
+
+        return RequestResponse::ok('Cycle status updated successfully.');
+    }
+
+    /* ----------------
+       Objectives & Key Results (OKR side)
+    -----------------*/
+
+    public function myPerformance(Business $business)
+    {
+        $employee = auth()->user()->activeEmployee();
+
+        // No hard 403 on a missing employee record - same graceful
+        // pattern as the rest of the portal (see
+        // OrganogramController::myTeam()). performance.employee itself
+        // isn't null-employee-safe (heavy JS bindings on $employee->id
+        // throughout), so this renders a small dedicated placeholder
+        // instead of trying to force that view to cope with no employee.
+        if (!$employee || (int) $employee->business_id !== (int) $business->id) {
+            return view('performance.no-employee');
+        }
+
+        return view('performance.employee', [
+            'business' => $business,
+            'employee' => $employee,
+            'isOwnProfile' => true,
+            'routePrefix' => 'myaccount',
+            'departments' => \App\Models\Department::where('business_id', $business->id)->get(['id', 'name']),
+            'isHrOrAdmin' => in_array(strtolower((string) session('active_role')), ['business-hr', 'business-admin'], true),
+        ]);
+    }
+
+    public function employeePerformance(Request $request, Business $business, Employee $employee)
+    {
+        if ((int) $employee->business_id !== (int) $business->id) {
+            abort(404);
+        }
+
+        $routePrefix = str_starts_with((string) $request->route()->getName(), 'myaccount.') ? 'myaccount' : 'business';
+        $viewer = auth()->user()->activeEmployee();
+
+        return view('performance.employee', [
+            'business' => $business,
+            'employee' => $employee,
+            'isOwnProfile' => $viewer && (int) $viewer->id === (int) $employee->id,
+            'routePrefix' => $routePrefix,
+            'departments' => \App\Models\Department::where('business_id', $business->id)->get(['id', 'name']),
+            'isHrOrAdmin' => in_array(strtolower((string) session('active_role')), ['business-hr', 'business-admin'], true),
+        ]);
+    }
+
+    /**
+     * Self, their direct line manager, or HR/admin can view/manage an
+     * employee's objectives - anyone else is refused, even with a guessed id.
+     */
+    private function canManagePerformanceFor(Employee $target): bool
+    {
+        $actingEmployee = auth()->user()->activeEmployee();
+        if ($actingEmployee && (int) $actingEmployee->id === (int) $target->id) {
+            return true;
+        }
+        if ($actingEmployee && (int) $target->manager_id === (int) $actingEmployee->id) {
+            return true;
+        }
+
+        $activeRole = strtolower((string) session('active_role'));
+        return in_array($activeRole, ['business-hr', 'business-admin'], true);
+    }
+
+    public function fetchObjectives(Request $request, Business $business, Employee $employee)
+    {
+        if (!$this->canManagePerformanceFor($employee)) {
+            return RequestResponse::badRequest('You are not authorized to view this employee\'s performance.', 403);
+        }
+
+        $cycleId = $request->integer('performance_cycle_id');
+
+        $objectives = PerformanceObjective::where('business_id', $business->id)
+            ->where('employee_id', $employee->id)
+            ->when($cycleId, fn ($q) => $q->where('performance_cycle_id', $cycleId))
+            ->with(['keyResults', 'parentObjective:id,title,scope'])
+            ->latest()
+            ->get();
+
+        return RequestResponse::ok('Objectives fetched successfully.', $objectives);
+    }
+
+    /**
+     * This employee's individually-assigned KPIs, read-only, for display
+     * alongside their OKRs - the same "employee_id" scope
+     * PerformanceReview::computeKpiScore() already uses as the canonical
+     * definition of "this employee's KPIs".
+     */
+    public function fetchKpisForEmployee(Business $business, Employee $employee)
+    {
+        if (!$this->canManagePerformanceFor($employee)) {
+            return RequestResponse::badRequest('You are not authorized to view this employee\'s performance.', 403);
+        }
+
+        $kpis = \App\Models\Kpi::where('business_id', $business->id)
+            ->where('employee_id', $employee->id)
+            ->with('results')
+            ->get()
+            ->map(fn ($kpi) => [
+                'id' => $kpi->id,
+                'name' => $kpi->name,
+                'description' => $kpi->description,
+                'target_value' => $kpi->target_value,
+                'comparison_operator' => $kpi->comparison_operator,
+                'latest_result' => optional($kpi->results->last())->result_value,
+                'progress_percentage' => round($kpi->getProgressPercentage(), 1),
+            ]);
+
+        return RequestResponse::ok('KPIs fetched successfully.', $kpis);
+    }
+
+    /**
+     * Company pillars and departmental OKRs for a cycle - what the "align
+     * to" picker offers when someone sets an individual key result, and how
+     * anyone in the business browses the cascade above their own goals.
+     */
+    public function fetchCascadeObjectives(Request $request, Business $business)
+    {
+        $validated = $request->validate([
+            'performance_cycle_id' => 'required|exists:performance_cycles,id',
+            'scope' => 'nullable|in:company,department',
+        ]);
+
+        $objectives = PerformanceObjective::where('business_id', $business->id)
+            ->where('performance_cycle_id', $validated['performance_cycle_id'])
+            ->where('alignment_status', 'approved')
+            ->whereIn('scope', ($validated['scope'] ?? null) ? [$validated['scope']] : ['company', 'department'])
+            ->with(['employee.user:id,name', 'department:id,name', 'keyResults'])
+            ->orderBy('scope')
+            ->get();
+
+        return RequestResponse::ok('Cascade objectives fetched successfully.', $objectives);
+    }
+
+    public function storeObjective(Request $request, Business $business, Employee $employee)
+    {
+        if (!$this->canManagePerformanceFor($employee)) {
+            return RequestResponse::badRequest('You are not authorized to set objectives for this employee.', 403);
+        }
+
+        $validated = $request->validate([
+            'performance_cycle_id' => 'required|exists:performance_cycles,id',
+            'scope' => 'nullable|in:company,department,individual',
+            'department_id' => 'nullable|exists:departments,id',
+            'parent_objective_id' => 'nullable|exists:performance_objectives,id',
+            'title' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            // Every objective always has a weight - no silent fallback.
+            'weight' => 'required|numeric|min:0.01|max:100',
+        ]);
+
+        $cycle = PerformanceCycle::where('business_id', $business->id)->find($validated['performance_cycle_id']);
+        if (!$cycle) {
+            return RequestResponse::badRequest('Cycle not found for this business.', 404);
+        }
+        if ($cycle->goalsAreLocked()) {
+            return RequestResponse::badRequest('Goals are locked for this cycle - it is closed or its self-review window has opened. Progress can still be updated, but new objectives cannot be added.', 422);
+        }
+
+        $scope = $validated['scope'] ?? 'individual';
+        $activeRole = strtolower((string) session('active_role'));
+        $isHrOrAdmin = in_array($activeRole, ['business-hr', 'business-admin'], true);
+        $actingEmployee = auth()->user()->activeEmployee();
+
+        if ($scope !== 'individual' && !$isHrOrAdmin) {
+            return RequestResponse::badRequest('Only HR/admin can set company or departmental objectives.', 403);
+        }
+
+        if ($scope === 'department' && empty($validated['department_id'])) {
+            return RequestResponse::badRequest('A departmental objective must specify department_id.', 422);
+        }
+
+        $parentObjective = null;
+        if (!empty($validated['parent_objective_id'])) {
+            $parentObjective = PerformanceObjective::where('business_id', $business->id)
+                ->where('performance_cycle_id', $validated['performance_cycle_id'])
+                ->find($validated['parent_objective_id']);
+
+            if (!$parentObjective) {
+                return RequestResponse::badRequest('Parent objective not found in this cycle.', 422);
+            }
+
+            $parentRank = array_search($parentObjective->scope, PerformanceObjective::SCOPES, true);
+            $childRank = array_search($scope, PerformanceObjective::SCOPES, true);
+            if ($parentRank === false || $childRank === false || $parentRank >= $childRank) {
+                return RequestResponse::badRequest('An objective can only align to a more senior scope (individual -> department/company, department -> company).', 422);
+            }
+        }
+
+        // Self-service employees proposing an aligned individual objective
+        // need the parent objective's owner to approve it; everything else
+        // (HR/manager creating on someone's behalf, or no alignment at all)
+        // is approved immediately - there's no one upstream to review it.
+        $isSelfServiceAlignment = $scope === 'individual'
+            && $parentObjective
+            && $actingEmployee && (int) $actingEmployee->id === (int) $employee->id
+            && !$isHrOrAdmin;
+
+        return $this->handleTransaction(function () use ($validated, $business, $employee, $request, $scope, $parentObjective, $isSelfServiceAlignment) {
+            $objective = PerformanceObjective::create([
+                'business_id' => $business->id,
+                'performance_cycle_id' => $validated['performance_cycle_id'],
+                'employee_id' => $employee->id,
+                'scope' => $scope,
+                'department_id' => $validated['department_id'] ?? null,
+                'parent_objective_id' => $parentObjective?->id,
+                'title' => $validated['title'],
+                'description' => $validated['description'] ?? null,
+                'weight' => $validated['weight'],
+                'status' => 'on_track',
+                'alignment_status' => $isSelfServiceAlignment ? 'proposed' : 'approved',
+                'created_by' => $request->user()->id,
+            ]);
+
+            return RequestResponse::created('Objective created successfully.', $objective);
+        });
+    }
+
+    /**
+     * The parent objective's owner (or HR/admin) approves a proposed
+     * bottom-up alignment - one approval step, per the department-owner
+     * model.
+     */
+    public function approveAlignment(Request $request, Business $business, PerformanceObjective $objective)
+    {
+        if ((int) $objective->business_id !== (int) $business->id) {
+            return RequestResponse::badRequest('Objective not found for this business.', 404);
+        }
+        if ($objective->alignment_status !== 'proposed') {
+            return RequestResponse::badRequest('This objective is not awaiting alignment approval.', 422);
+        }
+
+        $parent = $objective->parentObjective;
+        if (!$parent) {
+            return RequestResponse::badRequest('This objective has no parent objective to align to.', 422);
+        }
+
+        $actingEmployee = auth()->user()->activeEmployee();
+        $activeRole = strtolower((string) session('active_role'));
+        if (!$actingEmployee || !$parent->canApproveAlignment($actingEmployee, $activeRole)) {
+            return RequestResponse::badRequest('Only the parent objective\'s owner or HR can approve this alignment.', 403);
+        }
+
+        $objective->update(['alignment_status' => 'approved']);
+
+        return RequestResponse::ok('Alignment approved.', $objective->fresh());
+    }
+
+    /**
+     * Declines a proposed alignment - sends it back to draft with the
+     * parent link cleared, rather than deleting the objective outright.
+     */
+    public function declineAlignment(Request $request, Business $business, PerformanceObjective $objective)
+    {
+        if ((int) $objective->business_id !== (int) $business->id) {
+            return RequestResponse::badRequest('Objective not found for this business.', 404);
+        }
+        if ($objective->alignment_status !== 'proposed') {
+            return RequestResponse::badRequest('This objective is not awaiting alignment approval.', 422);
+        }
+
+        $parent = $objective->parentObjective;
+        $actingEmployee = auth()->user()->activeEmployee();
+        $activeRole = strtolower((string) session('active_role'));
+        if (!$parent || !$actingEmployee || !$parent->canApproveAlignment($actingEmployee, $activeRole)) {
+            return RequestResponse::badRequest('Only the parent objective\'s owner or HR can decline this alignment.', 403);
+        }
+
+        $objective->update(['alignment_status' => 'draft', 'parent_objective_id' => null]);
+
+        return RequestResponse::ok('Alignment declined.', $objective->fresh());
+    }
+
+    public function storeKeyResult(Request $request, Business $business, PerformanceObjective $objective)
+    {
+        if ((int) $objective->business_id !== (int) $business->id) {
+            return RequestResponse::badRequest('Objective not found for this business.', 404);
+        }
+        if (!$this->canManagePerformanceFor($objective->employee)) {
+            return RequestResponse::badRequest('You are not authorized to manage this objective.', 403);
+        }
+        if ($objective->cycle && $objective->cycle->goalsAreLocked()) {
+            return RequestResponse::badRequest('Goals are locked for this cycle - it is closed or its self-review window has opened. Progress can still be updated, but new key results cannot be added.', 422);
+        }
+
+        $validated = $request->validate([
+            'description' => 'required|string|max:255',
+            'target_value' => 'required|numeric|min:0.01',
+            'current_value' => 'nullable|numeric|min:0',
+            'unit' => 'nullable|string|max:50',
+            'weight' => 'nullable|numeric|min:0|max:100',
+        ]);
+
+        $keyResult = PerformanceKeyResult::create([
+            'performance_objective_id' => $objective->id,
+            'description' => $validated['description'],
+            'target_value' => $validated['target_value'],
+            'current_value' => $validated['current_value'] ?? 0,
+            'unit' => $validated['unit'] ?? null,
+            'weight' => $validated['weight'] ?? 100,
+        ]);
+
+        return RequestResponse::created('Key result added successfully.', $keyResult);
+    }
+
+    public function updateKeyResultProgress(Request $request, Business $business, PerformanceKeyResult $keyResult)
+    {
+        if ((int) $keyResult->objective->business_id !== (int) $business->id) {
+            return RequestResponse::badRequest('Key result not found for this business.', 404);
+        }
+        if (!$this->canManagePerformanceFor($keyResult->objective->employee)) {
+            return RequestResponse::badRequest('You are not authorized to update this key result.', 403);
+        }
+
+        $validated = $request->validate([
+            'current_value' => 'required|numeric|min:0',
+        ]);
+
+        $keyResult->update(['current_value' => $validated['current_value']]);
+        $keyResult->objective->refreshConfidence();
+
+        return RequestResponse::ok('Progress updated successfully.', $keyResult->fresh());
+    }
+
+    /**
+     * Manager feed: objectives that have dropped to critical confidence,
+     * scoped to the acting manager's team (or business-wide for HR/admin) -
+     * so a roadblock gets noticed without hunting through every profile.
+     */
+    public function fetchCriticalObjectives(Request $request, Business $business)
+    {
+        $actingEmployee = auth()->user()->activeEmployee();
+        $activeRole = strtolower((string) session('active_role'));
+        $isHrOrAdmin = in_array($activeRole, ['business-hr', 'business-admin'], true);
+
+        $query = PerformanceObjective::where('business_id', $business->id)
+            ->where('confidence', 'critical')
+            ->where('status', '!=', 'completed')
+            ->with(['employee.user:id,name', 'keyResults']);
+
+        if (!$isHrOrAdmin) {
+            if (!$actingEmployee) {
+                return RequestResponse::badRequest('No employee record for this business.', 403);
+            }
+            $teamIds = $actingEmployee->allReports()->pluck('id')->push($actingEmployee->id);
+            $query->whereIn('employee_id', $teamIds);
+        }
+
+        $cycleId = $request->integer('performance_cycle_id');
+        if ($cycleId) {
+            $query->where('performance_cycle_id', $cycleId);
+        }
+
+        return RequestResponse::ok('Critical objectives fetched successfully.', $query->latest()->get());
+    }
+
+    /* ----------------
+       Reviews (self-assessment -> manager assessment -> completed)
+    -----------------*/
+
+    /**
+     * Fetch (creating on first access) the review row for an employee+cycle,
+     * auto-assigning the reviewer from the organogram (direct manager).
+     */
+    public function fetchReview(Business $business, PerformanceCycle $cycle, Employee $employee)
+    {
+        if ((int) $cycle->business_id !== (int) $business->id || (int) $employee->business_id !== (int) $business->id) {
+            abort(404);
+        }
+        if (!$this->canManagePerformanceFor($employee)) {
+            abort(403, 'You are not authorized to view this employee\'s review.');
+        }
+
+        $review = PerformanceReview::firstOrCreate(
+            ['performance_cycle_id' => $cycle->id, 'employee_id' => $employee->id],
+            ['business_id' => $business->id, 'reviewer_id' => $employee->manager_id, 'status' => 'pending_self']
+        );
+
+        return RequestResponse::ok('Review fetched successfully.', $review->fresh());
+    }
+
+    public function submitSelfAssessment(Request $request, Business $business, PerformanceReview $review)
+    {
+        if ((int) $review->business_id !== (int) $business->id) {
+            return RequestResponse::badRequest('Review not found for this business.', 404);
+        }
+
+        $employee = auth()->user()->activeEmployee();
+        if (!$employee || (int) $employee->id !== (int) $review->employee_id) {
+            return RequestResponse::badRequest('Only the reviewed employee can submit their self-assessment.', 403);
+        }
+
+        $validated = $request->validate([
+            'self_assessment' => 'required|string',
+        ]);
+
+        return $this->handleTransaction(function () use ($validated, $review) {
+            $review->update([
+                'self_assessment' => $validated['self_assessment'],
+                'kpi_score' => $review->computeKpiScore(),
+                'okr_score' => $review->computeOkrScore(),
+                'status' => 'pending_manager',
+                'self_submitted_at' => now(),
+            ]);
+
+            return RequestResponse::ok('Self-assessment submitted successfully.', $review->fresh());
+        });
+    }
+
+    public function submitManagerAssessment(Request $request, Business $business, PerformanceReview $review)
+    {
+        if ((int) $review->business_id !== (int) $business->id) {
+            return RequestResponse::badRequest('Review not found for this business.', 404);
+        }
+
+        $managerEmployee = auth()->user()->activeEmployee();
+        $isLineManager = $managerEmployee && (int) $managerEmployee->id === (int) $review->reviewer_id;
+        $activeRole = strtolower((string) session('active_role'));
+        $isHr = in_array($activeRole, ['business-hr', 'business-admin'], true);
+
+        if (!$isLineManager && !$isHr) {
+            return RequestResponse::badRequest('Only the assigned reviewer or HR can submit this assessment.', 403);
+        }
+
+        $validated = $request->validate([
+            'manager_assessment' => 'required|string',
+            'competency_score' => 'required|numeric|min:0|max:100',
+        ]);
+
+        return $this->handleTransaction(function () use ($validated, $review) {
+            $review->update([
+                'manager_assessment' => $validated['manager_assessment'],
+                'competency_score' => $validated['competency_score'],
+            ]);
+
+            $review->update([
+                'overall_score' => $review->computeOverallScore(),
+                'status' => 'completed',
+                'manager_submitted_at' => now(),
+            ]);
+
+            return RequestResponse::ok('Manager assessment submitted successfully.', $review->fresh());
+        });
+    }
+}

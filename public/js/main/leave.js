@@ -27,6 +27,16 @@ window.getLeave = async function (arg1 = 'pending', arg2 = 1) {
 
     try {
         const data = { page, status: normalizedStatus };
+
+        const departmentId = document.getElementById('leaveFilterDepartment')?.value;
+        const locationId = document.getElementById('leaveFilterLocation')?.value;
+        const leaveTypeId = document.getElementById('leaveFilterType')?.value;
+        const leavePeriodId = document.getElementById('leaveFilterPeriod')?.value;
+        if (departmentId) data.department_id = departmentId;
+        if (locationId) data.location_id = locationId;
+        if (leaveTypeId) data.leave_type_id = leaveTypeId;
+        if (leavePeriodId) data.leave_period_id = leavePeriodId;
+
         const leaveTable = await leaveService.fetch(data);
 
         const containerId = `#${normalizedStatus}Container`;

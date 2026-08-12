@@ -5,7 +5,6 @@
         <img class="dark-logo" src="{{ asset('media/krstlogo.png') }}" alt="{{ config('app.name') }}" style="width: 60px; height: auto;">
     </a>
 </div>
-
     <div class="main-sidebar" id="sidebar-scroll">
         <nav class="main-menu-container nav nav-pills flex-column sub-open">
             <div class="sidebar-left" id="sidebar-left"></div>
@@ -21,8 +20,10 @@
                     </a>
                 </li>
 
-                <li class="slide {{ request()->routeIs('myaccount.profile') ? 'active' : '' }}">
-                    <a href="{{ route('myaccount.profile', $currentBusiness->slug) }}" class="sidebar__menu-item">
+                {{-- Disabled for now - not ready for employees to use yet. --}}
+                <li class="slide">
+                    <a href="javascript:void(0)" class="sidebar__menu-item disabled" aria-disabled="true"
+                        style="opacity: .5; pointer-events: none; cursor: not-allowed;" tabindex="-1">
                         <div class="side-menu__icon"><i class="fa-solid fa-user"></i></div>
                         <span class="sidebar__menu-label">Profile Data</span>
                     </a>
@@ -44,6 +45,38 @@
                     </a>
                 </li>
 
+                <li class="slide {{ request()->routeIs('myaccount.delegations.index') ? 'active' : '' }}">
+                    <a href="{{ route('myaccount.delegations.index', $currentBusiness->slug) }}"
+                        class="sidebar__menu-item">
+                        <div class="side-menu__icon"><i class="fa-solid fa-people-arrows"></i></div>
+                        <span class="sidebar__menu-label">Cover Requests</span>
+                    </a>
+                </li>
+
+                <li class="slide {{ request()->routeIs('myaccount.my-team') ? 'active' : '' }}">
+                    <a href="{{ route('myaccount.my-team', $currentBusiness->slug) }}"
+                        class="sidebar__menu-item">
+                        <div class="side-menu__icon"><i class="fa-solid fa-sitemap"></i></div>
+                        <span class="sidebar__menu-label">My Team</span>
+                    </a>
+                </li>
+
+                <li class="slide {{ request()->routeIs('myaccount.leave.calendar') ? 'active' : '' }}">
+                    <a href="{{ route('myaccount.leave.calendar', $currentBusiness->slug) }}"
+                        class="sidebar__menu-item">
+                        <div class="side-menu__icon"><i class="fa-solid fa-calendar-days"></i></div>
+                        <span class="sidebar__menu-label">Leave Calendar</span>
+                    </a>
+                </li>
+
+                <li class="slide {{ request()->routeIs('myaccount.performance.*') ? 'active' : '' }}">
+                    <a href="{{ route('myaccount.performance.index', $currentBusiness->slug) }}"
+                        class="sidebar__menu-item">
+                        <div class="side-menu__icon"><i class="fa-solid fa-chart-line"></i></div>
+                        <span class="sidebar__menu-label">My Performance</span>
+                    </a>
+                </li>
+
                 <li class="slide {{ request()->routeIs('myaccount.attendances.clock-in-out.index') ? 'active' : '' }}">
                     <a href="{{ route('myaccount.attendances.clock-in-out.index', $currentBusiness->slug) }}"
                         class="sidebar__menu-item">
@@ -52,8 +85,8 @@
                     </a>
                 </li>
 
-                <li class="slide {{ request()->routeIs('myaccount.p9') ? 'active' : '' }}">
-                    <a href="{{ route('myaccount.p9', $currentBusiness->slug) }}" class="sidebar__menu-item">
+                <li class="slide {{ request()->routeIs('myaccount.p9.index') ? 'active' : '' }}">
+                    <a href="{{ route('myaccount.p9.index', $currentBusiness->slug) }}" class="sidebar__menu-item">
                         <div class="side-menu__icon"><i class="fa-solid fa-file-alt"></i></div>
                         <span class="sidebar__menu-label">P9 Forms</span>
                     </a>
@@ -80,6 +113,10 @@
                     <a href="{{ route('myaccount.notifications', $currentBusiness->slug) }}" class="sidebar__menu-item">
                         <div class="side-menu__icon"><i class="fa-solid fa-bell"></i></div>
                         <span class="sidebar__menu-label">Notifications</span>
+                        @php $unreadCount = auth()->user()?->unreadNotifications->count() ?? 0; @endphp
+                        @if ($unreadCount > 0)
+                            <span class="badge bg-danger rounded-pill ms-1">{{ $unreadCount > 99 ? '99+' : $unreadCount }}</span>
+                        @endif
                     </a>
                 </li>
             </ul>

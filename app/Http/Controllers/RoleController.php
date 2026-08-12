@@ -24,7 +24,7 @@ class RoleController extends Controller
     public function fetch(Request $request)
     {
         $query = Role::with('permissions')
-            ->where('name', '!=', 'applicant')
+            ->businessAssignable()
             ->orderBy('created_at', 'desc');
 
         if ($request->has('filter')) {
@@ -50,7 +50,7 @@ class RoleController extends Controller
         // Load the role with permissions
         $role = Role::with('permissions')
             ->where('name', $roleName)
-            ->where('name', '!=', 'applicant')
+            ->businessAssignable()
             ->firstOrFail();
 
         $businessSlug = session('active_business_slug') ?? $business;
@@ -92,9 +92,12 @@ class RoleController extends Controller
             'remove' => 'nullable|boolean',
         ]);
 
-        return $this->handleTransaction(function () use ($validatedData, $request) {
-            $role = Role::where('name', '!=', 'applicant')
-                ->findOrFail($validatedData['role_id']);
+        $role = Role::find($validatedData['role_id']);
+        if (!$role || in_array($role->name, Role::PLATFORM_ROLES, true) || $role->name === 'applicant') {
+            return RequestResponse::forbidden('That role cannot be assigned from within a business.');
+        }
+
+        return $this->handleTransaction(function () use ($validatedData, $request, $role) {
             $user = User::findOrFail($validatedData['user_id']);
 
             $businessSlug = session('active_business_slug');

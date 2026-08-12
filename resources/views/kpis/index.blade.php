@@ -2,7 +2,17 @@
     <div class="container py-5">
         <div class="row justify-content-center">
             <div class="col-lg-12">
-                <h4 class="fw-semibold text-dark mt-4 mb-4">Current KPIs <span id="kpiCount">0</span></h4>
+                <div class="d-flex justify-content-between align-items-center mt-4 mb-4">
+                    <h4 class="fw-semibold text-dark mb-0">Current KPIs <span id="kpiCount">0</span></h4>
+                    <div class="d-flex gap-2">
+                        <a href="{{ route('business.performance.kpis.create', $business->slug) }}" class="btn btn-primary btn-sm">
+                            <i class="bi bi-plus-circle me-1"></i> Create KPI
+                        </a>
+                        <a href="{{ route('business.performance.tasks.index', $business->slug) }}" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-card-checklist me-1"></i> Assign Tasks
+                        </a>
+                    </div>
+                </div>
                 <ul class="nav nav-tabs" id="kpiTabs" role="tablist">
                     <li class="nav-item">
                         <a class="nav-link active" id="business-tab" data-bs-toggle="tab" href="#business-kpis"

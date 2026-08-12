@@ -15,46 +15,49 @@
         </tr>
     </thead>
     <tbody>
-        @foreach ($applicants as $index => $applicant)
-<tr>
-    <td><input type="checkbox" name="applicant_ids[]" value="{{ $applicant->id }}"></td>
-    <td>{{ $applicants->firstItem() + $index }}</td>
-    <td>{{ optional($applicant->user)->name ?? $applicant->fullname ?? 'N/A' }}</td>
-    <td>{{ optional($applicant->user)->email ?? 'N/A' }}</td>
-    <td>{{ optional($applicant->user)->phone ?? $applicant->phone ?? 'N/A' }}</td>
-    <td>{{ $applicant->city ?? 'N/A' }}, {{ $applicant->country ?? 'N/A' }}</td>
-    <td>{{ ucfirst($applicant->experience_level ?? 'N/A') }}</td>
-    <td>{{ $applicant->current_job_title ?? 'N/A' }}</td>
-    <td>{{ $applicant->applications->count() }}</td>
-    <td>
-        @foreach ($applicant->applications as $application)
-            @foreach ($application->getMedia('applications') as $media)
-                <button class="btn btn-sm btn-primary"
-                    data-applicant-id="{{ $applicant->id }}"
-                    data-media-id="{{ $media->id }}"
-                    onclick="downloadDocument(this)">
-                    <i class="bi bi-download"></i> {{ $media->file_name }}
-                </button>
-            @endforeach
+        @foreach ($applicants as $index => $user)
+        <tr>
+            <td><input type="checkbox" name="applicant_ids[]" value="{{ $user->applicant?->id }}"></td>
+            <td>{{ $applicants->firstItem() + $index }}</td>
+            <td>{{ $user->name }}</td>
+            <td>{{ $user->email }}</td>
+            <td>{{ $user->phone ?? 'N/A' }}</td>
+            <td>{{ $user->applicant?->city ?? 'N/A' }}, {{ $user->applicant?->country ?? 'N/A' }}</td>
+            <td>{{ ucfirst($user->applicant?->experience_level ?? 'N/A') }}</td>
+            <td>{{ $user->applicant?->current_job_title ?? 'N/A' }}</td>
+            <td>{{ $user->applicant?->applications->count() ?? 0 }}</td>
+            <td>
+                @if ($user->applicant)
+                    @foreach ($user->applicant->applications as $application)
+                    @foreach ($application->getMedia('applications') as $media)
+                    <button class="btn btn-sm btn-primary" data-applicant-id="{{ $user->applicant->id }}"
+                        data-media-id="{{ $media->id }}" onclick="downloadDocument(this)">
+                        <i class="bi bi-download"></i> {{ $media->file_name }}
+                    </button>
+                    @endforeach
+                    @endforeach
+                @endif
+            </td>
+            <td>
+                @if ($user->applicant)
+                    <a href="{{ route('business.applicants.view', [$currentBusiness->slug, $user->applicant->id]) }}"
+                        class="btn btn-info btn-sm">
+                        <i class="bi bi-eye"></i> View
+                    </a>
+                    <button class="btn btn-warning btn-sm" data-job-applicant="{{ $user->applicant->id }}"
+                        onclick="editJobApplicant({{ $user->applicant->id }})">
+                        <i class="bi bi-pencil"></i> Edit
+                    </button>
+                    <button class="btn btn-danger btn-sm" data-job-applicant="{{ $user->applicant->id }}"
+                        onclick="deleteJobApplicant(this)">
+                        <i class="bi bi-trash"></i> Delete
+                    </button>
+                @else
+                    <span class="text-muted">No applicant profile</span>
+                @endif
+            </td>
+        </tr>
         @endforeach
-    </td>
-    <td>
-        <a href="{{ route('business.applicants.view', [$currentBusiness->slug, $applicant->id]) }}"
-            class="btn btn-info btn-sm">
-            <i class="bi bi-eye"></i> View
-        </a>
-        <button class="btn btn-warning btn-sm"
-            onclick="editJobApplicant({{ $applicant->id }})">
-            <i class="bi bi-pencil"></i> Edit
-        </button>
-        <button class="btn btn-danger btn-sm"
-            data-job-applicant="{{ $applicant->id }}"
-            onclick="deleteJobApplicant(this)">
-            <i class="bi bi-trash"></i> Delete
-        </button>
-    </td>
-</tr>
-@endforeach
     </tbody>
 </table>
 <div class="d-flex justify-content-between mt-3">

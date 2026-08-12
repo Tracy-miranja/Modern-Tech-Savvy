@@ -1,66 +1,94 @@
 <form id="warningForm">
-  @csrf
-  {{-- <input type="hidden" name="warning_id" value="{{ $warning->id ?? '' }}"> --}}
-  @if(isset($warning) && $warning->id)
-  <input type="hidden" name="warning_id" value="{{ $warning->id }}">
-@endif
+    @csrf
+    @if(isset($warning))
+    <input type="hidden" name="warning_id" value="{{ $warning->id }}">
+    @endif
+    <div class="row g-3">
+        <div class="col-6">
+            <label class="form-label fw-medium">Employee *</label>
+            <select name="employee_id" class="form-select" required>
+                <option value="" disabled {{ !isset($warning) ? 'selected' : '' }}>Select employee</option>
+                @foreach ($employees as $employee)
+                <option value="{{ $employee->id }}" {{ isset($warning) && $warning->employee_id == $employee->id ? 'selected' : '' }}>
+                    {{ $employee->full_name }}
+                </option>
+                @endforeach
+            </select>
+        </div>
+        <div class="col-6">
+            <label class="form-label fw-medium">Category</label>
+            <select name="category" class="form-select">
+                @foreach (\App\Models\Warning::CATEGORIES as $cat)
+                <option value="{{ $cat }}" {{ (isset($warning) ? $warning->category : 'misconduct') === $cat ? 'selected' : '' }}>
+                    {{ \App\Models\Warning::label($cat) }}
+                </option>
+                @endforeach
+            </select>
+        </div>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
-    <div>
-      <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">Employee *</label>
-      <select name="employee_id"
-        style="width:100%;border:1px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:13px;">
-        <option value="">Select employee</option>
-        @foreach($employees as $emp)
-          <option value="{{ $emp->id }}"
-            {{ isset($warning) && $warning->employee_id == $emp->id ? 'selected' : '' }}>
-            {{ $emp->user->name }}
-          </option>
-        @endforeach
-      </select>
+        <div class="col-12">
+            <label class="form-label fw-medium">Offence / Incident *</label>
+            <textarea name="offence" class="form-control" rows="3" required>{{ $warning->offence ?? '' }}</textarea>
+        </div>
+
+        <div class="col-6">
+            <label class="form-label fw-medium">Reported By</label>
+            <input type="text" name="reported_by_name" class="form-control" value="{{ $warning->reported_by_name ?? '' }}">
+        </div>
+        <div class="col-6">
+            <label class="form-label fw-medium">Reported On</label>
+            <input type="date" name="issue_date" class="form-control"
+                value="{{ isset($warning) ? $warning->issue_date->toDateString() : now()->toDateString() }}" required>
+        </div>
+
+        <div class="col-6">
+            <label class="form-label fw-medium">Stage</label>
+            <select name="stage" class="form-select">
+                @foreach (\App\Models\Warning::STAGES as $stage)
+                <option value="{{ $stage }}" {{ (isset($warning) ? $warning->stage : 'informal_action') === $stage ? 'selected' : '' }}>
+                    {{ \App\Models\Warning::label($stage) }}
+                </option>
+                @endforeach
+            </select>
+        </div>
+        <div class="col-6">
+            <label class="form-label fw-medium">Hearing Date</label>
+            <input type="date" name="hearing_date" class="form-control"
+                value="{{ isset($warning) && $warning->hearing_date ? $warning->hearing_date->toDateString() : '' }}">
+        </div>
+
+        <div class="col-6">
+            <label class="form-label fw-medium">Decision Outcome</label>
+            <select name="decision_outcome" class="form-select">
+                @foreach (\App\Models\Warning::DECISION_OUTCOMES as $outcome)
+                <option value="{{ $outcome }}" {{ (isset($warning) ? $warning->decision_outcome : 'pending') === $outcome ? 'selected' : '' }}>
+                    {{ $outcome === 'pending' ? '— Pending —' : \App\Models\Warning::label($outcome) }}
+                </option>
+                @endforeach
+            </select>
+        </div>
+        <div class="col-6">
+            <label class="form-label fw-medium">Appeal Status</label>
+            <select name="appeal_status" class="form-select">
+                <option value="">—</option>
+                @foreach (\App\Models\Warning::APPEAL_STATUSES as $status)
+                <option value="{{ $status }}" {{ isset($warning) && $warning->appeal_status === $status ? 'selected' : '' }}>
+                    {{ \App\Models\Warning::label($status) }}
+                </option>
+                @endforeach
+            </select>
+        </div>
+
+        <div class="col-12">
+            <label class="form-label fw-medium">Notes</label>
+            <textarea name="description" class="form-control" rows="3">{{ $warning->description ?? '' }}</textarea>
+        </div>
     </div>
-    <div>
-      <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">Issue Date *</label>
-      <input type="date" name="issue_date"
-        value="{{ isset($warning) ? \Carbon\Carbon::parse($warning->issue_date)->format('Y-m-d') : '' }}"
-        style="width:100%;border:1px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:13px;">
+
+    <div class="mt-4 d-flex justify-content-end gap-2">
+        <button type="button" class="btn btn-light" onclick="closeWarningModal()">Cancel</button>
+        <button type="button" class="btn btn-success" onclick="saveWarning(this)">
+            {{ isset($warning) ? 'Update Case' : 'Open Case' }}
+        </button>
     </div>
-  </div>
-
-  <div style="margin-bottom:16px;">
-    <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">Reason *</label>
-    <input type="text" name="reason"
-      value="{{ $warning->reason ?? '' }}"
-      placeholder="Brief reason for warning"
-      style="width:100%;border:1px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:13px;">
-  </div>
-
-  <div style="margin-bottom:16px;">
-    <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">Description</label>
-    <textarea name="description" rows="3"
-      placeholder="Additional details..."
-      style="width:100%;border:1px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:13px;resize:vertical;">{{ $warning->description ?? '' }}</textarea>
-  </div>
-
-  @if(isset($warning) && $warning->id)
-  <div style="margin-bottom:16px;">
-    <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">Status</label>
-    <select name="status"
-      style="width:100%;border:1px solid #e5e7eb;border-radius:8px;padding:9px 12px;font-size:13px;">
-      <option value="active"   {{ ($warning->status ?? '') === 'active'   ? 'selected' : '' }}>Active</option>
-      <option value="resolved" {{ ($warning->status ?? '') === 'resolved' ? 'selected' : '' }}>Resolved</option>
-    </select>
-  </div>
-  @endif
-
-  <div style="display:flex;justify-content:flex-end;gap:8px;padding-top:12px;border-top:1px solid #f3f4f6;margin-top:4px;">
-    <button type="button" onclick="closeWarningModal()"
-      style="background:#f3f4f6;border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer;">
-      Cancel
-    </button>
-    <button type="button" onclick="saveWarning(this)"
-      style="background:#10b981;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer;">
-      {{ isset($warning) && $warning->id ? 'Update Warning' : 'Issue Warning' }}
-    </button>
-  </div>
 </form>

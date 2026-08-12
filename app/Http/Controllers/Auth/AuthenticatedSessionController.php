@@ -252,6 +252,18 @@ class AuthenticatedSessionController extends Controller
 
     private function getRedirectUrlForRole($user)
     {
+        if ($user->hasRole('super-admin') || $user->hasRole('krest-admin')) {
+            // Land on krest's own dashboard, same as any other business
+            // user - the "Manage Clients" nav link (app-header.blade.php)
+            // is how they reach the Clients list/impersonation from there.
+            $business = \App\Models\Business::where('slug', 'krest')->first();
+            if ($business) {
+                session(['active_business_slug' => $business->slug]);
+                session(['active_role' => $user->hasRole('super-admin') ? 'super-admin' : 'krest-admin']);
+                return route('business.index', $business->slug);
+            }
+        }
+
         if ($user->hasRole('business-admin')) {
             // Check if business exists to avoid null slug error
             $business = $user->business;
@@ -265,10 +277,14 @@ class AuthenticatedSessionController extends Controller
             session(['active_role' => 'business-admin']);
             return route('business.index', $business->slug);
         } elseif ($user->hasRole('business-hr')) {
+            // business-hr's permission set (PermissionSeeder) deliberately
+            // excludes access.dashboard ("aligned with restricted-hr") -
+            // sending them to business.index would 403 them on their own
+            // landing page. access.employees is guaranteed, so land there.
             $business = $user->employee->business;
             session(['active_business_slug' => $business->slug]);
             session(['active_role' => 'business-hr']);
-            return route('business.index', $business->slug);
+            return route('business.employees.index', $business->slug);
         } elseif ($user->hasRole('business-finance')) {
             $business = $user->employee->business;
             session(['active_business_slug' => $business->slug]);
@@ -279,6 +295,25 @@ class AuthenticatedSessionController extends Controller
             session(['active_business_slug' => $business->slug]);
             session(['active_role' => 'business-employee']);
             return route('myaccount.index', $business->slug);
+        } elseif ($user->hasRole('restricted-hr')) {
+            // Same access.dashboard exclusion as business-hr.
+            $business = $user->employee->business;
+            session(['active_business_slug' => $business->slug]);
+            session(['active_role' => 'restricted-hr']);
+            return route('business.employees.index', $business->slug);
+        } elseif ($user->hasRole('head-of-department') || $user->hasRole('chief-of-staff')) {
+            // No branch existed for these roles at all - they'd fall
+            // through to route('login') below and bounce right back,
+            // same dead-end super-admin/krest-admin had before.
+            // EnsureCorrectRole's restrictedRoutes list for these two
+            // roles blocks almost everything (including
+            // business.employees.index, despite them holding the
+            // access.employees permission) - business.leave.index is one
+            // of the few pages actually left reachable, so land there.
+            $business = $user->employee->business;
+            session(['active_business_slug' => $business->slug]);
+            session(['active_role' => $user->hasRole('head-of-department') ? 'head-of-department' : 'chief-of-staff']);
+            return route('business.leave.index', $business->slug);
         }
 
         return route('login');

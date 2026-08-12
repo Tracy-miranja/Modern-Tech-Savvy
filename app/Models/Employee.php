@@ -21,6 +21,10 @@ class Employee extends Model implements HasMedia
         'user_id',
         'employee_code',
         'department_id',
+        'team_id',
+        'manager_id',
+        'manager_override',
+        'organogram_role_id',
         'business_id',
         'location_id',
         'gender',
@@ -53,6 +57,7 @@ class Employee extends Model implements HasMedia
         'passport_issue_date' => 'date',
         'passport_expiry_date' => 'date',
         'is_exempt_from_payroll' => 'boolean',
+        'manager_override' => 'boolean',
         'kra_employee_status' => 'string',
         'status' => Status::class,
          'is_overtime_eligible' => 'boolean',
@@ -64,6 +69,10 @@ class Employee extends Model implements HasMedia
     public function leaveEntitlements()
     {
         return $this->hasMany(LeaveEntitlement::class, 'employee_id');
+    }
+    public function contractActions()
+    {
+        return $this->hasMany(EmployeeContractAction::class, 'employee_id');
     }
     public function user()
     {
@@ -109,6 +118,217 @@ class Employee extends Model implements HasMedia
     {
         return $this->hasOne(EmploymentDetail::class);
     }
+
+    /* ----------------
+       Organogram / reporting line
+    -----------------*/
+    public function manager()
+    {
+        return $this->belongsTo(Employee::class, 'manager_id');
+    }
+
+    public function directReports()
+    {
+        return $this->hasMany(Employee::class, 'manager_id');
+    }
+
+    /**
+     * All employees anywhere below this one in the reporting chain
+     * (direct + indirect reports), walked breadth-first.
+     */
+    public function allReports(): \Illuminate\Support\Collection
+    {
+        $all = collect();
+        $frontier = collect([$this->id]);
+
+        while ($frontier->isNotEmpty()) {
+            $children = Employee::whereIn('manager_id', $frontier)->get();
+            if ($children->isEmpty()) {
+                break;
+            }
+            $all = $all->merge($children);
+            $frontier = $children->pluck('id');
+        }
+
+        return $all->unique('id')->values();
+    }
+
+    /**
+     * True if $employee is this employee's manager, or any manager above that
+     * (i.e. $employee sits somewhere above $this in the reporting chain).
+     */
+    public function reportsTo(Employee $employee): bool
+    {
+        $current = $this->manager;
+
+        while ($current) {
+            if ($current->id === $employee->id) {
+                return true;
+            }
+            $current = $current->manager;
+        }
+
+        return false;
+    }
+
+    /**
+     * The ordered chain of managers above this employee - direct manager
+     * first, then their manager, and so on. This is the authoritative
+     * approval chain for things like leave requests: level 1 is index 0,
+     * level 2 is index 1, etc. Stops at 50 hops as a safety net against a
+     * pathological cycle slipping past wouldCreateCycle().
+     */
+    public function managerChain(): \Illuminate\Support\Collection
+    {
+        $chain = collect();
+        $current = $this->manager;
+        $seen = [];
+
+        while ($current && !in_array($current->id, $seen, true) && $chain->count() < 50) {
+            $chain->push($current);
+            $seen[] = $current->id;
+            $current = $current->manager;
+        }
+
+        return $chain;
+    }
+
+    /**
+     * True if setting manager_id = $managerId on this employee would create a
+     * cycle (i.e. $managerId is this employee or already reports to them).
+     */
+    public function wouldCreateCycle(int $managerId): bool
+    {
+        if ($managerId === $this->id) {
+            return true;
+        }
+
+        $candidate = Employee::find($managerId);
+
+        return $candidate && $candidate->reportsTo($this);
+    }
+
+    /* ----------------
+       Organization structure template (main organogram)
+    -----------------*/
+    public function organogramRole()
+    {
+        return $this->belongsTo(OrganogramRole::class);
+    }
+
+    public function team()
+    {
+        return $this->belongsTo(Team::class);
+    }
+
+    /**
+     * Positions this employee personally holds (i.e. they're the assigned
+     * manager/head for one or more departments or teams under some role).
+     */
+    public function organogramPositions()
+    {
+        return $this->hasMany(OrganogramPosition::class);
+    }
+
+    /**
+     * Who this employee should report to by default, per the org-structure
+     * template: their own role's reports_to_role_id points at a target
+     * role, and whoever holds a Position for that target role covering
+     * this employee's team (preferred) or department is the manager.
+     * Null if this employee has no role, their role is the top of the
+     * chain (reports_to_role_id is null), or nobody currently holds the
+     * target role's position over their team/department.
+     */
+    public function computeTemplateManagerId(): ?int
+    {
+        if (!$this->organogram_role_id || !$this->department_id) {
+            return null;
+        }
+
+        $role = $this->organogramRole ?? OrganogramRole::find($this->organogram_role_id);
+        $targetRoleId = $role?->reports_to_role_id;
+        if (!$targetRoleId) {
+            return null;
+        }
+
+        $candidatePositions = OrganogramPosition::where('business_id', $this->business_id)
+            ->where('organogram_role_id', $targetRoleId)
+            ->where('employee_id', '!=', $this->id)
+            ->with(['departments:id', 'teams:id'])
+            ->get();
+
+        $teamMatch = $candidatePositions->first(fn (OrganogramPosition $p) => $p->coversEmployeeViaTeam($this));
+        if ($teamMatch) {
+            return $teamMatch->employee_id;
+        }
+
+        $departmentMatch = $candidatePositions
+            ->filter(fn (OrganogramPosition $p) => $p->coversEmployee($this))
+            ->sortBy('id')
+            ->first();
+
+        return $departmentMatch?->employee_id;
+    }
+
+    /**
+     * Grants the Spatie permission role mapped to each organogram
+     * position this employee currently holds (OrganogramRole.spatie_role_name).
+     * Deliberately additive only - it never removes a Spatie role, since
+     * there's no reliable way to know whether a given role was granted
+     * via a position or independently by an admin, and silently revoking
+     * access would be far more dangerous than leaving an extra grant in
+     * place. Call after assigning this employee to a new position.
+     */
+    public function syncSpatieRoleFromPositions(): void
+    {
+        if (!$this->user) {
+            return;
+        }
+
+        $spatieRoleNames = $this->organogramPositions()
+            ->with('role:id,spatie_role_name')
+            ->get()
+            ->pluck('role.spatie_role_name')
+            ->filter()
+            ->unique();
+
+        foreach ($spatieRoleNames as $roleName) {
+            if (!$this->user->hasRole($roleName)) {
+                $this->user->assignRole($roleName);
+            }
+        }
+    }
+
+    /**
+     * Recomputes and persists manager_id from the template - a no-op if this
+     * employee has a manual override (manager_override = true), which is
+     * exactly what lets HR move one employee onto a different line without
+     * affecting anyone else in the department.
+     */
+    public function syncManagerFromTemplate(): void
+    {
+        if ($this->manager_override) {
+            return;
+        }
+
+        $templateManagerId = $this->computeTemplateManagerId();
+
+        // The role graph itself can't cycle (enforced by
+        // OrganogramRole::wouldCreateCycle()), but the resolved manager
+        // could still sit below this employee via an unrelated manual
+        // override - fall back to no manager rather than writing a cycle
+        // that would make both employees silently vanish from the tree
+        // (OrganogramController::fetch() only walks down from roots).
+        if ($templateManagerId !== null && $this->wouldCreateCycle((int) $templateManagerId)) {
+            $templateManagerId = null;
+        }
+
+        if ((int) $this->manager_id !== (int) $templateManagerId) {
+            $this->manager_id = $templateManagerId;
+            $this->save();
+        }
+    }
+
     public function paymentDetails()
     {
         return $this->hasOne(EmployeePaymentDetail::class);
@@ -245,22 +465,59 @@ public function assignedDepartmentIds(): array
     }
 }
 
+/**
+ * Every department this employee should be considered part of for
+ * org-structure purposes: their single primary department_id (whichever
+ * source it resolves from, see getDepartmentIdAttribute) plus any extra
+ * departments assigned via the employee_departments pivot - so a
+ * position covering department X also picks up an employee whose
+ * primary department is elsewhere but who is additionally assigned to X.
+ */
+public function allDepartmentIds(): array
+{
+    $ids = $this->assignedDepartmentIds();
+    if ($this->department_id) {
+        $ids[] = (int) $this->department_id;
+    }
+
+    return array_values(array_unique($ids));
+}
+
+/**
+ * Query-level equivalent of allDepartmentIds() - matches the primary
+ * department_id column, its employment_details fallback (for rows where
+ * the employees.department_id column itself is null), or membership in
+ * the employee_departments pivot.
+ */
+public function scopeInDepartment($query, int $departmentId)
+{
+    return $query->where(function ($q) use ($departmentId) {
+        $q->where('department_id', $departmentId)
+            ->orWhereHas('departments', fn ($dq) => $dq->where('departments.id', $departmentId))
+            ->orWhere(function ($q2) use ($departmentId) {
+                $q2->whereNull('department_id')
+                    ->whereHas('employmentDetails', fn ($eq) => $eq->where('department_id', $departmentId));
+            });
+    });
+}
+
+
     public function getEmploymentDateAttribute($value)
     {
-        return $value ?? $this->employmentDetail->employment_date ?? null;
+        return $value ?? optional($this->employmentDetails)->employment_date ?? null;
     }
     public function getDepartmentIdAttribute($value)
     {
-        return $value ?? $this->employmentDetail->department_id ?? null;
+        return $value ?? optional($this->employmentDetails)->department_id ?? null;
     }
     public function getJobCategoryIdAttribute($value)
     {
-        return $value ?? $this->employmentDetail->job_category_id ?? null;
+        return $value ?? optional($this->employmentDetails)->job_category_id ?? null;
     }
-   public function employmentDetail()
-    {
-        return $this->hasOne(\App\Models\EmploymentDetail::class);
-    }
+//    public function employmentDetail()
+//     {
+//         return $this->hasOne(\App\Models\EmploymentDetail::class);
+//     }
 
 
 }

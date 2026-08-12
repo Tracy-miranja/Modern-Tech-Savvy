@@ -66,6 +66,73 @@ class User extends Authenticatable implements HasMedia, MustVerifyEmail
     {
         return $this->hasOne(Employee::class);
     }
+
+    /**
+     * Every business this user OWNS (business-admin) - business() above
+     * only ever returns the first one, which silently breaks for anyone
+     * who owns more than one (see the Add Business feature).
+     */
+    public function businesses()
+    {
+        return $this->hasMany(Business::class, 'user_id');
+    }
+
+    /**
+     * Every Employee record this user holds, one per business they're
+     * actually employed at (HR, department head, etc. can legitimately
+     * work at more than one business under the same account/email).
+     */
+    public function employees()
+    {
+        return $this->hasMany(Employee::class, 'user_id');
+    }
+
+    /**
+     * Businesses this user can switch into via the "Switch Business"
+     * dropdown: the union of businesses they own and businesses where
+     * they hold an Employee record, deduplicated. Deliberately distinct
+     * from krest-admin's Clients impersonation (ClientController) - that
+     * lets a platform operator step into ANY client business; this only
+     * ever surfaces businesses the user's own account is legitimately
+     * attached to (as owner or as an employee).
+     */
+    public function switchableBusinesses()
+    {
+        $ownedIds = $this->businesses()->pluck('id');
+        $employedBusinessIds = $this->employees()->pluck('business_id');
+
+        return Business::whereIn('id', $ownedIds->merge($employedBusinessIds)->unique())
+            ->orderBy('company_name')
+            ->get();
+    }
+
+    /**
+     * The Employee record scoped to the CURRENTLY ACTIVE business
+     * (session('active_business_slug')), not just whichever one
+     * employee() (a plain hasOne - first match, no ordering) happens to
+     * return. Without this, a user with employee records at two
+     * businesses would see the wrong one's data on every page that reads
+     * auth()->user()->employee directly, regardless of which business
+     * they'd switched into. Falls back to employee() when there's no
+     * active business context or no match (e.g. a platform admin account
+     * with no employee record at all - callers must still handle null).
+     */
+    public function activeEmployee(): ?Employee
+    {
+        $slug = session('active_business_slug');
+
+        if ($slug) {
+            $match = $this->employees()
+                ->whereHas('business', fn ($q) => $q->where('slug', $slug))
+                ->first();
+
+            if ($match) {
+                return $match;
+            }
+        }
+
+        return $this->employee;
+    }
     public function applicant()
     {
         return $this->hasOne(Applicant::class);
@@ -109,7 +176,7 @@ class User extends Authenticatable implements HasMedia, MustVerifyEmail
 
     public function requiresTwoFactorAuthentication(): bool
     {
-        return $this->hasAnyRole(['business-admin', 'business-hr', 'business-finance']);
+        return $this->hasAnyRole(['business-admin', 'business-hr', 'business-finance', 'super-admin', 'krest-admin']);
     }
 
     public function generateTwoFactorCode(): void

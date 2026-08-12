@@ -53,7 +53,7 @@
                             data-id="{{ $entitlement->id }}"
                             data-slug="{{ $slug }}"
                             onclick="viewLeaveEntitlements(this)">
-                        <i class="bi bi-eye"></i> 
+                        <i class="bi bi-eye"></i>
                     </button>
 
                     <button type="button"
@@ -62,7 +62,7 @@
                             data-id="{{ $entitlement->id }}"
                             data-slug="{{ $slug }}"
                             onclick="editLeaveEntitlements(this)">
-                        <i class="bi bi-pencil-square me-1"></i> 
+                        <i class="bi bi-pencil-square me-1"></i>
                     </button>
 
                     <button
@@ -72,7 +72,16 @@
                     data-slug="{{ $slug }}"
                     data-delete-url="{{ route('business.leave-entitlements.delete', ['business' => $currentBusiness->slug]) }}"
                     onclick="deleteLeaveEntitlements(this)">
-                    <i class="bi bi-trash me-1"></i> 
+                    <i class="bi bi-trash me-1"></i>
+                    </button>
+
+                    <button type="button"
+                            class="btn btn-outline-primary btn-sm"
+                            title="Adjust (add or remove days with a reason)"
+                            data-slug="{{ $slug }}"
+                            data-employee="{{ $entitlement->employee->user->name ?? 'N/A' }}"
+                            onclick="openAdjustEntitlementModal(this)">
+                        <i class="bi bi-sliders me-1"></i> Adjust
                     </button>
             </td>
             </tr>
@@ -83,3 +92,33 @@
         @endforelse
     </tbody>
 </table>
+
+<!-- Adjust Entitlement Modal -->
+<div class="modal fade" id="adjustEntitlementModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Adjust Entitlement - <span id="adjustEntitlementEmployeeName"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="adjustEntitlementForm">
+                    <input type="hidden" name="slug" id="adjustEntitlementSlug">
+                    <div class="mb-3">
+                        <label class="form-label">Adjustment (days)</label>
+                        <input type="number" step="0.5" name="adjustment_days" class="form-control" required>
+                        <small class="text-muted">Positive to grant extra days, negative to claw back. Cumulative with any previous adjustment.</small>
+                    </div>
+                    <div class="mb-1">
+                        <label class="form-label">Reason</label>
+                        <textarea name="reason" class="form-control" rows="3" required placeholder="e.g. data-entry correction, goodwill grant for extra project work..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="submitAdjustEntitlementBtn">Save</button>
+            </div>
+        </div>
+    </div>
+</div>

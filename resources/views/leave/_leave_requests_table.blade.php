@@ -391,7 +391,7 @@
             </div>
         </div>
 
-        @if (in_array($activeRole, ['head-of-department','business-hr','business-admin','business-head', 'chief-of-staff'], true))
+        @if (in_array($activeRole, ['head-of-department','business-hr','business-admin', 'chief-of-staff'], true))
             <a href="{{ url('/dashboard') }}" class="btn btn-outline-secondary btn-sm ms-2">
                 <i class="fa-solid fa-arrow-left"></i> Back
             </a>
@@ -636,27 +636,41 @@
         }
     }
 
-    // Export Functions
-    window.exportLeaveRequests_{{ $status }} = async function(format) {
+    window.exportLeaveRequests_{{ $status }} = async function (format) {
         const filteredData = [];
 
+        // Convert any HTML string into plain text
+        const stripHtml = (val) => {
+            const div = document.createElement('div');
+            div.innerHTML = (val ?? '').toString();
+            return (div.textContent || div.innerText || '').trim();
+        };
+
+        // Get visible cell text from the actual row (best for badges/buttons)
+        const cellText = (row, index0) => {
+            const td = row?.querySelector(`td:nth-child(${index0 + 1})`);
+            return (td ? td.innerText : '').trim();
+        };
+
         if (dataTable_{{ $status }}) {
-            dataTable_{{ $status }}.rows({ search: 'applied' }).every(function() {
-                const row  = this.node();
-                const data = this.data();
+            dataTable_{{ $status }}.rows({ search: 'applied' }).every(function () {
+                const row = this.node();
+                const data = this.data(); // may contain HTML
+
                 filteredData.push({
-                    ref:        data[0],
-                    employee:   data[1],
-                    leave_type: data[2],
-                    start_date: data[3],
-                    days:       data[4],
-                    end_date:   data[5],
-                    status:     $(row).find('td:eq(7)').text().trim()
+                    ref:        stripHtml(data[0]),
+                    employee:   stripHtml(data[1]),
+                    leave_type: stripHtml(data[2]),
+                    start_date: stripHtml(data[3]),
+                    days:       stripHtml(data[4]),
+                    end_date:   stripHtml(data[5]),
+                    // status column is the 8th column (index 7)
+                    status:     cellText(row, 7),
                 });
             });
         }
 
-        const getVal = id => {
+        const getVal = (id) => {
             const el = document.getElementById(id);
             return el ? el.value : '';
         };
@@ -686,19 +700,50 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': @json(csrf_token())
+                        'Accept': 'application/octet-stream',
+                        'X-CSRF-TOKEN': @json(csrf_token()),
+                        'X-Requested-With': 'XMLHttpRequest',
                     },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify(payload),
                 }
             );
 
-            if (!response.ok) throw new Error('Export failed');
+            const contentType = (response.headers.get('content-type') || '').toLowerCase();
+
+            // If server returned HTML, it's not a file; likely login redirect, 419, or 500 page.
+            if (contentType.includes('text/html')) {
+                const html = await response.text().catch(() => '');
+                console.error('Export returned HTML instead of file:', html);
+                throw new Error('Export failed: server returned HTML (auth/CSRF/500). Check logs.');
+            }
+
+            // If server returned JSON, it is an error response
+            if (contentType.includes('application/json')) {
+                const json = await response.json().catch(() => ({}));
+                console.error('Export JSON error:', json);
+                throw new Error(json?.message || 'Export failed (JSON error).');
+            }
+
+            if (!response.ok) {
+                const t = await response.text().catch(() => '');
+                console.error('Export failed:', response.status, t);
+                throw new Error('Export failed: ' + response.status);
+            }
 
             const blob = await response.blob();
-            const url  = window.URL.createObjectURL(blob);
-            const a    = document.createElement('a');
-            a.href     = url;
-            a.download = `leave_requests_{{ $status }}_${new Date().getTime()}.${format === 'excel' ? 'xlsx' : 'pdf'}`;
+
+            // Basic sanity check
+            if (!blob || blob.size < 50) {
+                throw new Error('Export failed: empty or invalid file generated.');
+            }
+
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+
+            const ext = (format === 'excel') ? 'xlsx' : 'pdf';
+            a.download = `leave_requests_{{ $status }}_${new Date().getTime()}.${ext}`;
+
             document.body.appendChild(a);
             a.click();
             window.URL.revokeObjectURL(url);
@@ -708,12 +753,14 @@
                 Swal.fire('Success', 'Export completed successfully', 'success');
             }
         } catch (error) {
+            console.error(error);
             if (typeof Swal !== 'undefined') {
-                Swal.fire('Error', 'Failed to export data', 'error');
+                Swal.fire('Error', error?.message || 'Failed to export data', 'error');
             } else {
-                alert('Failed to export data');
+                alert(error?.message || 'Failed to export data');
             }
         }
     };
 })();
 </script>
+

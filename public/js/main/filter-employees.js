@@ -41,10 +41,15 @@ window.getAllEmployeesList = async function (filters = {}) {
 };
 
 
-window.getLeaveEntitlementsByPeriod = async function (leavePeriodId) {
+window.getLeaveEntitlementsByPeriod = async function (leavePeriodIdOrPayload) {
     try {
         const businessSlug = getCurrentBusinessSlug();
         const url = `/business/${businessSlug}/leave-entitlements/by-period`;
+
+        // Accept either a raw id/slug scalar or a { leave_period_id, leave_period_slug } payload.
+        const payload = (leavePeriodIdOrPayload && typeof leavePeriodIdOrPayload === 'object')
+            ? leavePeriodIdOrPayload
+            : { leave_period_id: leavePeriodIdOrPayload };
 
         const response = await fetch(url, {
             method: 'POST',
@@ -53,7 +58,7 @@ window.getLeaveEntitlementsByPeriod = async function (leavePeriodId) {
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
                 'Accept': 'application/json'
             },
-            body: JSON.stringify({ leave_period_id: leavePeriodId })
+            body: JSON.stringify(payload)
         });
 
         if (!response.ok) {

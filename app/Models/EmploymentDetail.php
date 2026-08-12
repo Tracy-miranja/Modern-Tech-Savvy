@@ -26,6 +26,9 @@ class EmploymentDetail extends Model
     ];
 
     protected $casts = [
+        'employment_date' => 'date',
+        'probation_end_date' => 'date',
+        'retirement_date' => 'date',
         'contract_end_date' => 'date',
         'employment_term' => 'string',
         'status' => 'string',

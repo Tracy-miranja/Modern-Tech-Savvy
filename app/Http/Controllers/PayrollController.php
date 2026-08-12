@@ -106,7 +106,8 @@ class PayrollController extends Controller
         $employees = $this->getFilteredEmployees($request, $business);
         $warnings = $this->checkMissingData($employees);
         $options = $this->parseOptions($request);
-        $nonExemptedEmployees = $employees->filter(fn($e) => !array_key_exists($e->id, $options['exempted_employees']));
+        // $nonExemptedEmployees = $employees->filter(fn($e) => !array_key_exists($e->id, $options['exempted_employees']));
+        $nonExemptedEmployees = $employees->filter(fn($e) => !$e->is_exempt_from_payroll && !array_key_exists($e->id, $options['exempted_employees']));
         $daysInMonth = $request->working_days;
 
         $years = range(date('Y') + 5, date('Y'));
@@ -263,7 +264,7 @@ class PayrollController extends Controller
     }
 
     public function fetchEmployeesForSettings(Request $request)
-     {
+    {
         $business = Business::findBySlug(session('active_business_slug'));
         if (!$business) return RequestResponse::badRequest('Business not found.');
 
@@ -276,9 +277,9 @@ class PayrollController extends Controller
             'employeeAllowances.allowance',
             'employeeDeductions.deduction',
             'reliefs' => fn($q) => $q->whereNotNull('relief_id'),
-           'overtimes' => fn($q) => $q->whereYear('date', $year)
-                            ->whereMonth('date', $month)
-                            ->where('status', 'approved'),
+            'overtimes' => fn($q) => $q->whereYear('date', $year)
+                ->whereMonth('date', $month)
+                ->where('status', 'approved'),
             'loans.repayments',
             'advances',
         ]);
@@ -332,27 +333,27 @@ class PayrollController extends Controller
                 return $sourceData;
             };
 
-         $mapOvertime = function ($settingsData, $employeeOvertimes) use ($employee, $hasSettings) {
-    $sourceData = $employeeOvertimes->mapWithKeys(function ($overtime) use ($employee) {
-        return [$overtime->id => [
-            'user_id'       => $employee->user_id,
-            'employee_code' => $employee->employee_code,
-            'name'          => $employee->user?->name ?? 'N/A',
-            'item_name'     => "Overtime on {$overtime->date?->format('Y-m-d')} ({$overtime->overtime_hours} hrs)",
-            'item_id'       => $overtime->id,
-            'amount'        => floatval($overtime->overtime_hours ?? 0), // hours — used in calculation
-            'total_pay'     => floatval($overtime->total_pay ?? 0),      // hours × multiplier — for display
-            'rate'          => floatval($overtime->rate ?? 0),
-            'is_active'     => $overtime->status === 'approved',         // only approved are active by default
-        ]];
-    })->all();
+            $mapOvertime = function ($settingsData, $employeeOvertimes) use ($employee, $hasSettings) {
+                $sourceData = $employeeOvertimes->mapWithKeys(function ($overtime) use ($employee) {
+                    return [$overtime->id => [
+                        'user_id'       => $employee->user_id,
+                        'employee_code' => $employee->employee_code,
+                        'name'          => $employee->user?->name ?? 'N/A',
+                        'item_name'     => "Overtime on {$overtime->date?->format('Y-m-d')} ({$overtime->overtime_hours} hrs)",
+                        'item_id'       => $overtime->id,
+                        'amount'        => floatval($overtime->overtime_hours ?? 0), // hours — used in calculation
+                        'total_pay'     => floatval($overtime->total_pay ?? 0),      // hours × multiplier — for display
+                        'rate'          => floatval($overtime->rate ?? 0),
+                        'is_active'     => $overtime->status === 'approved',         // only approved are active by default
+                    ]];
+                })->all();
 
-    return $hasSettings && $settingsData
-        ? array_merge($sourceData, array_map(function ($item) {
-            return array_merge($item, ['amount' => floatval($item['amount'] ?? 0)]);
-        }, $settingsData))
-        : $sourceData;
-};
+                return $hasSettings && $settingsData
+                    ? array_merge($sourceData, array_map(function ($item) {
+                        return array_merge($item, ['amount' => floatval($item['amount'] ?? 0)]);
+                    }, $settingsData))
+                    : $sourceData;
+            };
 
             $mapLoansAdvances = function ($settingsData, $employeeData, $type) use ($employee, $hasSettings) {
                 $sourceData = $employeeData->mapWithKeys(function ($item) use ($employee, $type) {
@@ -541,6 +542,10 @@ class PayrollController extends Controller
         }
 
         return $this->handleTransaction(function () use ($business, $payrollData, $year, $month, $businessId, $locationId, $options) {
+            $taxCurrency = match (strtoupper(trim($business->country ?? 'KENYA'))) {
+                'UGANDA', 'UG' => 'UGX',
+                default        => 'KES',
+            };
             $payroll = Payroll::where('payrun_year', $year)
                 ->where('payrun_month', $month)
                 ->where('business_id', $businessId)
@@ -552,7 +557,8 @@ class PayrollController extends Controller
                     'payroll_type' => 'monthly',
                     'status' => 'open',
                     'staff' => count($payrollData),
-                    'currency' => $business->currency ?? 'KES',
+                    'currency' => $taxCurrency,
+                    // 'currency' => $business->currency ?? 'KES',
                 ]);
             } else {
                 $payroll = Payroll::create([
@@ -563,7 +569,8 @@ class PayrollController extends Controller
                     'payroll_type' => 'monthly',
                     'status' => 'open',
                     'staff' => count($payrollData),
-                    'currency' => $business->currency ?? 'KES',
+                    'currency' => $taxCurrency,
+                    // 'currency' => $business->currency ?? 'KES',
                 ]);
             }
 
@@ -636,6 +643,8 @@ class PayrollController extends Controller
 
                 $this->updateLoanAndAdvance($data, $year, $month, $options);
             }
+
+            \App\Services\ThirdRuleService::recalculateAndSave($payroll);
 
             session()->forget('payroll_preview_data');
 
@@ -905,7 +914,13 @@ class PayrollController extends Controller
         $employees = $this->getFilteredEmployees($request, $business);
         $options = $this->parseOptions($request);
 
+        // $nonExemptedEmployees = $employees->filter(function ($e) use ($options) {
+        //     return !isset($options['exempted_employees'][$e->id]) || $options['exempted_employees'][$e->id] != 1;
+        // });
         $nonExemptedEmployees = $employees->filter(function ($e) use ($options) {
+            if ($e->is_exempt_from_payroll) {
+                return false;
+            }
             return !isset($options['exempted_employees'][$e->id]) || $options['exempted_employees'][$e->id] != 1;
         });
 
@@ -1173,17 +1188,17 @@ class PayrollController extends Controller
 
                     $proratedBasicSalary = $hourlyPayData['regular_pay'];
                     $actualHourlyRate = floatval($paymentDetail->hourly_rate ?? 0);
-                   $overtimePay = $toTax(
-    $this->calculateOvertime(
-        $employeeId,
-        $year,
-        $month,
-        $settings,
-        $options,
-        $proratedBasicSalary,
-        $actualHourlyRate      // pass hourly_rate directly
-    )
-);
+                    $overtimePay = $toTax(
+                        $this->calculateOvertime(
+                            $employeeId,
+                            $year,
+                            $month,
+                            $settings,
+                            $options,
+                            $proratedBasicSalary,
+                            $actualHourlyRate      // pass hourly_rate directly
+                        )
+                    );
                     $proratedBasicSalary = $toTax($proratedBasicSalary);
                     $overtimePay         = $toTax($overtimePay);
 
@@ -1197,15 +1212,15 @@ class PayrollController extends Controller
 
                     $allowances = [];
 
-                  $allowances['hourly_breakdown'] = [
-    'name'           => 'Hourly Pay Breakdown',
-    'hours_worked'   => $hourlyPayData['hours_worked'],
-    'hourly_rate'    => $hourlyPayData['hourly_rate'],
-    'overtime_hours' => $hourlyPayData['overtime_hours'] ?? 0,
-    'overtime_rate'  => $hourlyPayData['overtime_rate'] ?? 1.5,
-    'regular_pay'    => $hourlyPayData['regular_pay'],
-    'overtime_pay'   => $overtimePay,  // now the real money value
-];
+                    $allowances['hourly_breakdown'] = [
+                        'name'           => 'Hourly Pay Breakdown',
+                        'hours_worked'   => $hourlyPayData['hours_worked'],
+                        'hourly_rate'    => $hourlyPayData['hourly_rate'],
+                        'overtime_hours' => $hourlyPayData['overtime_hours'] ?? 0,
+                        'overtime_rate'  => $hourlyPayData['overtime_rate'] ?? 1.5,
+                        'regular_pay'    => $hourlyPayData['regular_pay'],
+                        'overtime_pay'   => $overtimePay,  // now the real money value
+                    ];
 
                     $attendanceSummary = $calculator->getAttendanceSummary(
                         $employee,
@@ -1237,7 +1252,7 @@ class PayrollController extends Controller
                         $allowances
                     ));
 
-                    $grossPayBeforeAbsenteeism = $proratedBasicSalary + $overtimePay + $totalTaxableAllowances + $totalNonTaxableAllowances;
+                    $grossPayBeforeAbsenteeism = $proratedBasicSalary + $overtimePay + $totalTaxableAllowances;
                 } catch (\Exception $e) {
                     Log::error("Hourly pay calculation failed", [
                         'employee_id' => $employeeId,
@@ -1302,14 +1317,18 @@ class PayrollController extends Controller
 
                 // grossPay is CASH only — employer pension (non-cash) is never included here.
                 // $taxableGross (computed later) adds the taxable excess for PAYE purposes only.
-                $grossPayBeforeAbsenteeism = $proratedBasicSalary + $totalTaxableAllowances + $totalNonTaxableAllowances + $overtimePay;
+                $grossPayBeforeAbsenteeism = $proratedBasicSalary + $totalTaxableAllowances + $overtimePay;
             }
 
             // ========== COMMON CALCULATION (both salary and hourly) ==========
             $grossPay = max(0, $grossPayBeforeAbsenteeism - $absenteeismCharge);
 
+            // $grossPay already excludes non-taxable allowances (see above), so it can
+            // be used directly as the base for statutory deductions and taxable income.
+            $statutoryBase = $grossPay;
+
             $country = strtoupper(trim($business->country));
-            $statutoryDeductions = $this->getStatutoryDeductions($country, $business->id, $grossPay, $proratedBasicSalary, $employeeId, null);
+            $statutoryDeductions = $this->getStatutoryDeductions($country, $business->id, $statutoryBase, $proratedBasicSalary, $employeeId, null);
 
             $nssfEmployee = $statutoryDeductions['nssf']['employee'] ?? 0;
             $nssfEmployer = $statutoryDeductions['nssf']['employer'] ?? 0;
@@ -1325,7 +1344,8 @@ class PayrollController extends Controller
                 $housingLevy = 0;
                 $helb = 0;
 
-                $taxableIncome = max(0, $grossPay);
+                // $taxableIncome = max(0, $grossPay);
+                $taxableIncome = max(0, $statutoryBase);
 
                 $reliefs = [];
                 $totalReliefs = 0;
@@ -1532,7 +1552,8 @@ class PayrollController extends Controller
                 // $taxableGross is used ONLY for PAYE calculation (includes non-cash taxable excess).
                 // SHIF and Housing Levy use $grossPay (cash only) — unaffected.
                 // Net pay uses $grossPay directly — no need to subtract the excess back out.
-                $taxableGross = $grossPay + $employerPensionTaxable;
+                // $taxableGross = $grossPay + $employerPensionTaxable;
+                $taxableGross = $statutoryBase + $employerPensionTaxable;
 
                 // ── STEP 5: KRA retirement relief ──────────────────────────────
                 //
@@ -1551,7 +1572,8 @@ class PayrollController extends Controller
                 //   Total retirement relief = Bucket A only
 
                 // Bucket A: NSSF + employee pension, cap 30k
-                $bucketA = min($nssfTotal + $employeePension, 30000);
+                // Bucket A: NSSF + employee pension, cap 30k
+                $bucketA = min($nssfEmployee + $employeePension, 30000);
 
                 // Bucket B: 0 — employer exempt portion never entered gross pay
                 $bucketB = 0;
@@ -1645,17 +1667,29 @@ class PayrollController extends Controller
                 $totalReliefs = 0;
 
                 foreach ($reliefs as $reliefSlug => $reliefData) {
-                    // Handle manually injected entries (e.g. mortgage from employee_payroll_details)
-                    // These have no Relief model in DB — amount is already set correctly for display.
-                    // is_pre_tax = true means it was deducted in taxable income — skip totalReliefs.
                     if (!empty($reliefData['is_pre_tax']) || ($reliefSlug === 'mortgage-interest-relief' && isset($reliefData['_from_db']) && !$reliefData['_from_db'])) {
-                        // amount already set — just skip adding to totalReliefs
                         continue;
                     }
 
                     $reliefModel = Relief::where('business_id', $business->id)
                         ->where('slug', $reliefSlug)->first();
-                    if (!$reliefModel) continue;
+
+                    // Statutory reliefs (personal relief, disability relief) are KRA-mandated
+                    // and must apply even if the business hasn't configured a Relief record.
+                    if (!$reliefModel) {
+                        if ($reliefSlug === 'personal-relief') {
+                            $computedRelief = 2400;
+                        } elseif ($reliefSlug === 'disabled-person-relief') {
+                            $computedRelief = 25000;
+                        } else {
+                            continue; // genuinely business-defined relief with no matching model — skip
+                        }
+
+                        $reliefs[$reliefSlug]['amount'] = $computedRelief;
+                        $reliefs[$reliefSlug]['display_amount'] = $computedRelief;
+                        $totalReliefs += $computedRelief;
+                        continue;
+                    }
 
                     $amount             = floatval($reliefData['amount']);
                     $computationMethod  = $reliefModel->computation_method;
@@ -1722,7 +1756,9 @@ class PayrollController extends Controller
             // ========== NET PAY ==========
             if ($country === 'UGANDA' || $country === 'UG') {
                 $totalDeductions = $nssfEmployee + $paye + $totalCustomDeductions + $loanRepayment + $advanceRecovery + $absenteeismCharge;
-                $netPay = floor(max(0, $grossPay - $totalDeductions));
+                // Non-taxable allowances were excluded from $grossPay — add them back
+                // here so they still reach the employee's take-home pay.
+                $netPay = floor(max(0, $grossPay - $totalDeductions + $totalNonTaxableAllowances));
 
                 Log::debug("Uganda Net Pay Calculation", [
                     'gross_pay' => $grossPay,
@@ -1751,15 +1787,18 @@ class PayrollController extends Controller
                 // Net pay uses $grossPay (pure cash gross — never inflated by employer pension).
                 // No need to subtract any non-cash pension amount here.
                 $afterTaxDeductions = $totalCustomDeductions + $loanRepayment + $advanceRecovery + $absenteeismCharge;
+                // Non-taxable allowances were excluded from $grossPay — add them back
+                // here so they still reach the employee's take-home pay.
                 $netPay = floor(max(
                     0,
                     $grossPay
-                        - $nssfTotal               // NSSF employee share (cash) — formula returns employee-only amount
+                        - $nssfEmployee               // NSSF employee share (cash) — formula returns employee-only amount
                         - $shif                    // SHIF (cash)
                         - $housingLevy             // Housing Levy (cash)
                         - $helb                    // HELB (cash)
                         - $paye                    // PAYE after reliefs (calculated on $taxableGross)
                         - $afterTaxDeductions      // pension, sacco, loans, advances, absenteeism
+                        + $totalNonTaxableAllowances
                 ));
                 $totalDeductions = $nssfEmployee + $shif + $housingLevy + $helb + $paye + $afterTaxDeductions;
 
@@ -1794,7 +1833,7 @@ class PayrollController extends Controller
                 'overtime' => $overtimePay,
                 'allowances' => $allowances,
                 'shif' => $shif,
-                'nssf' => $nssfTotal,
+                'nssf' => $nssfEmployee,
                 'nssf_employee' => $nssfEmployee,
                 'nssf_employer' => $nssfEmployer,
                 'paye' => $paye,
@@ -1922,13 +1961,11 @@ class PayrollController extends Controller
     {
         switch ($slug) {
             case 'nssf':
-                if ($grossPay <= 9000) {
-                    return 540;
-                } else {
-                    $tier1 = 540;
-                    $tier2 = min($grossPay - 9000, 29000) * 0.06;
-                    return min($tier1 + $tier2, 6480);
-                }
+                $tier1Base = min($grossPay, 9000);
+                $tier2Base = min(max($grossPay - 9000, 0), 99000); // Tier II band: 9,001–108,000
+                $employeeShare = round(($tier1Base + $tier2Base) * 0.06, 2);
+                $employeeShare = min($employeeShare, 6480); // hard cap at max pensionable salary
+                return $employeeShare * 2;
             case 'shif':
                 return max(300, $grossPay * 0.0275);
             case 'housing-levy':
@@ -1956,48 +1993,48 @@ class PayrollController extends Controller
         }
     }
 
-  protected function calculateOvertime($employeeId, $year, $month, $settings, $options, $basicSalary, $hourlyRate = null)
-{
-    // If hourlyRate is explicitly passed (hourly employees), use it directly.
-    // Otherwise derive it from basicSalary / 173 (salary employees).
-    $hourlyRate = $hourlyRate ?? ($basicSalary > 0 ? ($basicSalary / 173) : 0);
+    protected function calculateOvertime($employeeId, $year, $month, $settings, $options, $basicSalary, $hourlyRate = null)
+    {
+        // If hourlyRate is explicitly passed (hourly employees), use it directly.
+        // Otherwise derive it from basicSalary / 173 (salary employees).
+        $hourlyRate = $hourlyRate ?? ($basicSalary > 0 ? ($basicSalary / 173) : 0);
 
-    $totalOvertimePay = 0;
+        $totalOvertimePay = 0;
 
-    if (!is_null($settings) && !empty($settings['overtime'])) {
-        foreach ($settings['overtime'] as $item) {
-            if (!$item['is_active']) continue;
+        if (!is_null($settings) && !empty($settings['overtime'])) {
+            foreach ($settings['overtime'] as $item) {
+                if (!$item['is_active']) continue;
 
-            $overtime = Overtime::find($item['item_id']);
-            if (!$overtime) continue;
+                $overtime = Overtime::find($item['item_id']);
+                if (!$overtime) continue;
+
+                $totalOvertimePay += floatval($overtime->total_pay ?? 0) * $hourlyRate;
+            }
+
+            return $totalOvertimePay;
+        }
+
+        if ($options['pay_overtime']['apply'] === 'none') {
+            return 0;
+        }
+
+        $overtimes = Overtime::where('employee_id', $employeeId)
+            ->whereYear('date', $year)
+            ->whereMonth('date', $month)
+            ->where('status', 'approved')
+            ->get();
+
+        foreach ($overtimes as $overtime) {
+            $shouldPay = $overtime->to_be_paid
+                || isset($options['pay_overtime']['specific'][$overtime->id]);
+
+            if (!$shouldPay) continue;
 
             $totalOvertimePay += floatval($overtime->total_pay ?? 0) * $hourlyRate;
         }
 
         return $totalOvertimePay;
     }
-
-    if ($options['pay_overtime']['apply'] === 'none') {
-        return 0;
-    }
-
-    $overtimes = Overtime::where('employee_id', $employeeId)
-        ->whereYear('date', $year)
-        ->whereMonth('date', $month)
-        ->where('status', 'approved')
-        ->get();
-
-    foreach ($overtimes as $overtime) {
-        $shouldPay = $overtime->to_be_paid
-            || isset($options['pay_overtime']['specific'][$overtime->id]);
-
-        if (!$shouldPay) continue;
-
-        $totalOvertimePay += floatval($overtime->total_pay ?? 0) * $hourlyRate;
-    }
-
-    return $totalOvertimePay;
-}
 
     protected function calculateAdvanceRecovery($employeeId, $year, $month, $settings, $options)
     {
@@ -3233,6 +3270,7 @@ class PayrollController extends Controller
             'totalReliefs' => 0.00,
             'totalPayAfterTax' => 0.00,
             'totalDeductionsAfterTax' => 0.00,
+            'totalBenefits' => 0.00,
             'totalNetPay' => 0.00,
             'totalAbsenteeismCharge' => 0.00,
             'totalPayeBeforeReliefs' => 0.00,
@@ -3248,7 +3286,11 @@ class PayrollController extends Controller
             $totals['totalBasicSalary'] += (float) ($ep->basic_salary ?? 0);
             $totals['totalGrossPay'] += (float) ($ep->gross_pay ?? 0);
             $totals['totalOvertime'] += (float) ($overtime['amount'] ?? 0);
-            $totals['totalAllowances'] += (float) array_sum(array_map(fn($a) => $a['amount'] ?? 0, $allowances));
+            // $totals['totalAllowances'] += (float) array_sum(array_map(fn($a) => $a['amount'] ?? 0, $allowances));
+            $totals['totalAllowances'] += (float) array_sum(array_map(
+                fn($a) => (is_array($a) && ($a['is_taxable'] ?? false) && !($a['is_employer_contribution'] ?? false)) ? floatval($a['amount'] ?? 0) : 0,
+                $allowances
+            ));
             $totals['totalShif'] += (float) ($ep->shif ?? ($deductions['shif'] ?? 0));
             $totals['totalNssf'] += (float) ($ep->nssf ?? ($deductions['nssf'] ?? 0));
             $totals['totalPaye'] += (float) ($ep->paye ?? ($deductions['paye'] ?? 0));
@@ -3274,6 +3316,10 @@ class PayrollController extends Controller
                 return !in_array($name, ['shif', 'nssf', 'paye', 'housing levy', 'helb', 'loan repayment', 'advance recovery', 'absenteeism charge']);
             });
             $totals['totalCustomDeductions'] += (float) array_sum(array_map(fn($d) => $d['amount'] ?? 0.0, $customDeductions));
+            $totals['totalBenefits'] += (float) array_sum(array_map(
+                fn($a) => (is_array($a) && !($a['is_taxable'] ?? false) && !($a['is_employer_contribution'] ?? false)) ? floatval($a['amount'] ?? 0) : 0,
+                $allowances
+            ));
 
             $absenteeism = array_filter($deductions, fn($d) => is_array($d) && stripos($d['name'] ?? '', 'Absenteeism Charge') !== false);
             $totals['totalAbsenteeismCharge'] += (float) array_sum(array_map(fn($d) => $d['amount'] ?? 0.0, $absenteeism));

@@ -5,6 +5,36 @@ import LocationsService from "/js/client/LocationsService.js";
 const requestClient = new RequestClient();
 const locationsService = new LocationsService(requestClient);
 
+// Populates the "Country" select from the same Nager.Date country list the
+// Holidays import modal uses, so a location's country matches exactly what
+// public-holiday scoping (Location::resolvedCountry()) expects. `root` must
+// be the actual container the form was injected into.
+window.initLocationCountryUI = async function (root) {
+    root = root || document;
+    const select = root.querySelector('#country');
+    if (!select) return;
+
+    const url = select.dataset.countriesUrl;
+    const selected = select.dataset.selected || '';
+    if (!url) return;
+
+    try {
+        const response = await requestClient.get(url);
+        const countries = response.data?.countries || [];
+
+        select.innerHTML = '<option value="">Business default</option>' + countries
+            .map(c => `<option value="${c.name}" ${c.name === selected ? 'selected' : ''}>${c.name}</option>`)
+            .join('');
+    } catch (error) {
+        console.error('Error loading countries:', error);
+        select.innerHTML = `<option value="${selected}">${selected || 'Could not load countries'}</option>`;
+    }
+};
+
+document.addEventListener('DOMContentLoaded', function () {
+    window.initLocationCountryUI(document);
+});
+
 window.getLocations = async function (page = 1) {
     try {
         let data = { page: page };
@@ -147,6 +177,7 @@ window.saveLocation = async function (btn) {
             $("#name").val("");
             $("#company_size").val("");
             $("#address").val("");
+            $("#country").val("");
 
             $("#card-header").text("Add New Location");
             setTimeout(() => {
@@ -163,6 +194,7 @@ window.saveLocation = async function (btn) {
             $("#name").val("");
             $("#company_size").val("");
             $("#address").val("");
+            $("#country").val("");
 
             $("#card-header").text("Add New Location");
             setTimeout(() => {
@@ -185,6 +217,7 @@ window.editLocation = async function (btn) {
     try {
         const form = await locationsService.edit(data);
         $('#locationsFormContainer').html(form);
+        window.initLocationCountryUI(document.getElementById('locationsFormContainer'));
 
         setTimeout(() => {
             $("#submitButton").html('<i class="bi bi-check-circle"></i> Update Location');

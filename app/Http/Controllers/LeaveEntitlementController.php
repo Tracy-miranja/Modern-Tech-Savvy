@@ -12,12 +12,10 @@ use App\Models\LeaveEntitlement;
 use App\Traits\HandleTransactions;
 use Illuminate\Support\Facades\Log;
 use App\Models\Employee;
+use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\LeavePolicy;
 use App\Models\LeaveType;
-use App\Models\LeaveRequest;
-
 use Illuminate\Support\Facades\Schema;
-
 
 class LeaveEntitlementController extends Controller
 {
@@ -65,7 +63,6 @@ class LeaveEntitlementController extends Controller
                 return RequestResponse::badRequest('Leave period id or slug is required.', 422);
             }
 
-            $business = Business::findBySlug(session('active_business_slug'));
             $leavePeriod = LeavePeriod::where('business_id', $business->id)
                 ->when(!empty($validated['leave_period_id']), fn ($q) => $q->where('id', $validated['leave_period_id']))
                 ->when(!empty($validated['leave_period_slug']), fn ($q) => $q->where('slug', $validated['leave_period_slug']))
@@ -105,7 +102,7 @@ class LeaveEntitlementController extends Controller
 
             foreach ($employeeIds as $employeeId) {
                 // load user for name (avoid N+1 for name access)
-                $employee = Employee::with(['department', 'jobCategory', 'employmentDetail', 'user'])->find($employeeId);
+                $employee = Employee::with(['department', 'jobCategory', 'employmentDetails', 'user'])->find($employeeId);
                 if (!$employee) {
                     $errors[] = "Employee {$employeeId} not found.";
                     $skipped++;
@@ -194,10 +191,20 @@ class LeaveEntitlementController extends Controller
                         // Calculate carryover
                         $carryover = $policyService->calculateCarryover($employee, $leaveType, $leavePeriod, $policy);
 
-                        // Check if this leave type should accrue
+                        // Check if this leave type should accrue.
+                        // allowance_accruable and the policy's own
+                        // accrual_frequency/accrual_amount are set
+                        // independently in the leave type form - a policy
+                        // with a real accrual_amount configured but the
+                        // separate allowance_accruable toggle left off was
+                        // silently front-loading the FULL entitlement
+                        // immediately instead of accruing it, which reads
+                        // as "accrual isn't working" even though the rate
+                        // was configured correctly. A positive accrual
+                        // amount is a clear enough signal on its own.
                         $isAccruable = !Schema::hasColumn('leave_types', 'allowance_accruable')
                             ? true
-                            : (bool) $leaveType->allowance_accruable;
+                            : ((bool) $leaveType->allowance_accruable || (float) ($policy->accrual_amount ?? 0) > 0);
 
                         // Prepare entitlement used for accrual calculation (transient)
                         $calcEntitlement = new LeaveEntitlement([
@@ -283,7 +290,6 @@ class LeaveEntitlementController extends Controller
         });
     }
 
-
     /**
      * Fetch entitlements table for a given leave period (scoped to active business).
      * Optional filter: location_id. If omitted, no location filter is applied.
@@ -292,54 +298,19 @@ class LeaveEntitlementController extends Controller
     {
         $validated = $request->validate([
             'leave_period_slug' => 'nullable|exists:leave_periods,slug',
-            'leave_period_id' => 'nullable|exists:leave_periods,id',
+            'leave_period_id'   => 'nullable|exists:leave_periods,id',
             'location_id'       => 'nullable|integer|exists:locations,id',
         ]);
+
         if (empty($validated['leave_period_slug']) && empty($validated['leave_period_id'])) {
             return RequestResponse::badRequest('Leave period id or slug is required.', 422);
         }
+
         $business = Business::findBySlug(session('active_business_slug'));
         $leavePeriod = LeavePeriod::where('business_id', $business->id)
-        ->when(!empty($validated['leave_period_slug']), fn($q)=>$q->where('slug', $validated['leave_period_slug']))
-        ->when(!empty($validated['leave_period_id']), fn($q)=>$q->where('id', $validated['leave_period_id']))
-        ->first();
-        if (!$leavePeriod) return RequestResponse::badRequest('Leave period not found.', 404);
-
-        $query = LeaveEntitlement::where('business_id', $business->id)
-            ->where('leave_period_id', $leavePeriod->id);
-
-        // Optional location filter (only apply if provided)
-        if (!empty($validated['location_id'])) {
-            $locationId = (int)$validated['location_id'];
-            $query->whereHas('employee', function ($q) use ($locationId) {
-                $q->where('location_id', $locationId);
-            });
-        }
-
-        $leaveEntitlements = $query->with(['employee.user', 'leaveType', 'leavePeriod'])->get();
-
-        $leaveEntitlementsTable = view('leave._leave_entitlements_table', compact('leaveEntitlements'))->render();
-
-        return RequestResponse::ok('Leave entitlements fetched successfully.', $leaveEntitlementsTable);
-    }
-
-        public function getByPeriod(Request $request)
-    {
-        $validated = $request->validate([
-            'leave_period_slug' => 'required_without:leave_period_id',
-        'leave_period_id' => 'required_without:leave_period_slug',
-            'location_id'       => 'nullable|integer|exists:locations,id',
-        ]);
-
-        $business = Business::findBySlug(session('active_business_slug'));
-        if (!$business) {
-            return RequestResponse::badRequest('Business not found.', 404);
-        }
-
-        $leavePeriod = LeavePeriod::where('slug', $request->leave_period_slug)
-        ->orWhere('id', $request->leave_period_id)
-        ->first();
-
+            ->when(!empty($validated['leave_period_slug']), fn ($q) => $q->where('slug', $validated['leave_period_slug']))
+            ->when(!empty($validated['leave_period_id']), fn ($q) => $q->where('id', $validated['leave_period_id']))
+            ->first();
 
         if (!$leavePeriod) {
             return RequestResponse::badRequest('Leave period not found.', 404);
@@ -348,19 +319,50 @@ class LeaveEntitlementController extends Controller
         $query = LeaveEntitlement::where('business_id', $business->id)
             ->where('leave_period_id', $leavePeriod->id);
 
+        // Optional location filter (only apply if provided)
         if (!empty($validated['location_id'])) {
-            $locationId = (int)$validated['location_id'];
+            $locationId = (int) $validated['location_id'];
             $query->whereHas('employee', function ($q) use ($locationId) {
                 $q->where('location_id', $locationId);
             });
         }
 
         $leaveEntitlements = $query->with(['employee.user', 'leaveType', 'leavePeriod'])->get();
+
         $leaveEntitlementsTable = view('leave._leave_entitlements_table', compact('leaveEntitlements'))->render();
 
         return RequestResponse::ok('Leave entitlements fetched successfully.', $leaveEntitlementsTable);
     }
 
+    /**
+     * Raw JSON entitlements for a leave period - used by the "Set Entitlements"
+     * form to badge already-entitled employees as the period selection changes.
+     */
+    public function getByPeriod(Request $request)
+    {
+        $validated = $request->validate([
+            'leave_period_id' => 'required|integer|exists:leave_periods,id',
+        ]);
+
+        $business = Business::findBySlug(session('active_business_slug'));
+        if (!$business) {
+            return RequestResponse::badRequest('Business not found.', 404);
+        }
+
+        $leavePeriod = LeavePeriod::where('id', $validated['leave_period_id'])
+            ->where('business_id', $business->id)
+            ->first();
+
+        if (!$leavePeriod) {
+            return RequestResponse::badRequest('Leave period not found.', 404);
+        }
+
+        $entitlements = LeaveEntitlement::where('business_id', $business->id)
+            ->where('leave_period_id', $leavePeriod->id)
+            ->get(['id', 'employee_id', 'leave_type_id', 'leave_period_id', 'entitled_days', 'accrued_days', 'carryover_days', 'total_days', 'days_taken', 'days_remaining']);
+
+        return RequestResponse::ok('Leave entitlements fetched successfully.', $entitlements);
+    }
 
     public function show(Request $request)
     {
@@ -392,7 +394,6 @@ class LeaveEntitlementController extends Controller
         return view('leave._leave_entitlement_details', compact('entitlement'));
     }
 
-
     /**
      * Fetch a leave entitlement for editing by slug.
      */
@@ -423,17 +424,16 @@ class LeaveEntitlementController extends Controller
 
         if (!$entitlement) return RequestResponse::badRequest('Leave entitlement not found.', 404);
 
-        // returns EDIT FORM modal (new partial below)
         return view('leave._leave_entitlement_edit', compact('entitlement'));
     }
 
     public function update(Request $request)
     {
         $data = $request->validate([
-            'slug'          => 'required|string',
-            'entitled_days' => 'required|numeric|min:0',
-            'accrued_days'  => 'nullable|numeric|min:0',
-            'days_taken'    => 'required|numeric|min:0',
+            'slug'           => 'required|string',
+            'entitled_days'  => 'required|numeric|min:0',
+            'accrued_days'   => 'nullable|numeric|min:0',
+            'carryover_days' => 'nullable|numeric|min:0',
         ]);
 
         $decoded = base64_decode(strtr($data['slug'], '-_', '+/'));
@@ -450,26 +450,253 @@ class LeaveEntitlementController extends Controller
             'leave_period_id'=> (int)$leave_period_id,
         ])->firstOrFail();
 
-        // assign
-        $entitlement->entitled_days = (float)$data['entitled_days'];
-        $entitlement->accrued_days  = isset($data['accrued_days']) ? (float)$data['accrued_days'] : (float)$entitlement->accrued_days;
-        $entitlement->days_taken    = (float)$data['days_taken'];
+        // assign the grant-facing fields; days_taken/days_pending are
+        // NEVER manually settable - they are always derived fresh from
+        // live LeaveRequest data by recalculateTotals() below, which is
+        // also what actually computes total_days/days_remaining (adjustment_days
+        // is a separate correction layer - see applyAdjustment() - and isn't
+        // touched by this raw-numbers overwrite).
+        $entitlement->entitled_days   = (float)$data['entitled_days'];
+        $entitlement->accrued_days    = isset($data['accrued_days']) ? (float)$data['accrued_days'] : (float)$entitlement->accrued_days;
+        $entitlement->carryover_days  = isset($data['carryover_days']) ? (float)$data['carryover_days'] : (float)$entitlement->carryover_days;
 
-        // recompute
-        $entitlement->total_days     = (float)$entitlement->entitled_days + (float)$entitlement->accrued_days;
-        $entitlement->days_remaining = max(0.0, $entitlement->total_days - $entitlement->days_taken);
-
-        // optional hard guard: prevent taken > total (comment out if you allow negative balance)
-        if ($entitlement->days_taken > $entitlement->total_days) {
-            return RequestResponse::badRequest('Days taken cannot exceed total entitlement.', 422);
+        // For a non-accruable entitlement that has already been through the
+        // accrual pipeline (last_accrued_at set), recalculateTotals() reads
+        // accrued_days (which the pipeline mirrors to entitled_days) as the
+        // usable pool, not entitled_days directly - so editing entitled_days
+        // alone here would silently have no visible effect on the balance.
+        // Keep the mirror in sync so a manual correction actually takes
+        // effect, exactly like the pipeline itself does.
+        $leaveType = $entitlement->leaveType;
+        $isAccruable = (bool) ($leaveType->allowance_accruable ?? false);
+        if ($entitlement->last_accrued_at !== null && !$isAccruable && !isset($data['accrued_days'])) {
+            $entitlement->accrued_days = $entitlement->entitled_days;
         }
 
-        $entitlement->save();
+        $entitlement->recalculateTotals();
 
         return response()->json([
             'message' => 'Entitlement updated successfully.',
             'entitlement' => $entitlement->fresh(['employee.user','leaveType','leavePeriod']),
         ]);
+    }
+
+    /**
+     * Applies an incremental correction to an entitlement (+/- days with a
+     * required reason) instead of overwriting every field - a data-entry fix
+     * or a goodwill grant stays visible and distinct from the policy-driven
+     * entitled_days. Cumulative: calling this twice adds both deltas.
+     */
+    public function adjust(Request $request)
+    {
+        $data = $request->validate([
+            'slug' => 'required|string',
+            'adjustment_days' => 'required|numeric',
+            'reason' => 'required|string|max:1000',
+        ]);
+
+        if ((float) $data['adjustment_days'] === 0.0) {
+            return RequestResponse::badRequest('Adjustment must be a non-zero number of days.', 422);
+        }
+
+        $decoded = base64_decode(strtr($data['slug'], '-_', '+/'));
+        if (!$decoded || substr_count($decoded, ':') !== 3) {
+            return RequestResponse::badRequest('Invalid entitlement slug.', 422);
+        }
+
+        [$business_id, $employee_id, $leave_type_id, $leave_period_id] = explode(':', $decoded);
+
+        $business = Business::findBySlug(session('active_business_slug'));
+        if (!$business || (int) $business_id !== (int) $business->id) {
+            return RequestResponse::badRequest('Invalid business for this entitlement.', 403);
+        }
+
+        $entitlement = LeaveEntitlement::where([
+            'business_id' => (int) $business_id,
+            'employee_id' => (int) $employee_id,
+            'leave_type_id' => (int) $leave_type_id,
+            'leave_period_id' => (int) $leave_period_id,
+        ])->firstOrFail();
+
+        $entitlement->applyAdjustment((float) $data['adjustment_days'], $data['reason']);
+
+        return RequestResponse::ok('Entitlement adjusted successfully.', $entitlement->fresh(['employee.user', 'leaveType', 'leavePeriod']));
+    }
+
+    /**
+     * Rolls unused balances from one leave period into another for every
+     * matching entitlement, capped by each policy's max_carryover_days
+     * (LeavePolicyService::computeCarryover(), already correctly implemented
+     * but never previously called anywhere). Only updates entitlements that
+     * already exist in the destination period - it doesn't create new ones,
+     * since that requires full policy resolution best left to the normal
+     * "Set Entitlements" flow. Employees skipped for that reason are
+     * reported back so HR can create them first if needed.
+     */
+    public function processCarryover(Request $request, LeavePolicyService $policyService)
+    {
+        $validated = $request->validate([
+            'from_period_id' => 'required|integer|exists:leave_periods,id',
+            'to_period_id' => 'required|integer|different:from_period_id|exists:leave_periods,id',
+        ]);
+
+        return $this->handleTransaction(function () use ($validated, $policyService) {
+            $business = Business::findBySlug(session('active_business_slug'));
+            if (!$business) {
+                return RequestResponse::badRequest('Business not found.', 404);
+            }
+
+            $fromPeriod = LeavePeriod::where('business_id', $business->id)->find($validated['from_period_id']);
+            $toPeriod = LeavePeriod::where('business_id', $business->id)->find($validated['to_period_id']);
+            if (!$fromPeriod || !$toPeriod) {
+                return RequestResponse::badRequest('One or both leave periods were not found for this business.', 404);
+            }
+
+            $sourceEntitlements = LeaveEntitlement::where('business_id', $business->id)
+                ->where('leave_period_id', $fromPeriod->id)
+                ->with('employee')
+                ->get();
+
+            $carried = 0;
+            $skippedNoDestination = [];
+            $skippedNoPolicy = [];
+
+            foreach ($sourceEntitlements as $source) {
+                $remaining = $source->getRemainingDays();
+                if ($remaining <= 0) {
+                    continue;
+                }
+
+                $policy = $source->employee
+                    ? $policyService->resolvePolicy($source->leave_type_id, $source->employee, $toPeriod->start_date)
+                    : null;
+
+                if (!$policy) {
+                    $skippedNoPolicy[] = $source->employee_id;
+                    continue;
+                }
+
+                $destination = LeaveEntitlement::where('business_id', $business->id)
+                    ->where('employee_id', $source->employee_id)
+                    ->where('leave_type_id', $source->leave_type_id)
+                    ->where('leave_period_id', $toPeriod->id)
+                    ->first();
+
+                if (!$destination) {
+                    // Carrying over shouldn't require HR to have already
+                    // run "Set Entitlements" for every employee in the
+                    // destination period first - create the baseline row
+                    // (entitled/accrued per the destination period's own
+                    // policy) the same way autoEntitleAll() would, then
+                    // apply this explicit carryover on top of it.
+                    $destination = $policyService->createOrUpdateEntitlement(
+                        $source->employee,
+                        $source->leaveType,
+                        $toPeriod,
+                        $policy
+                    );
+
+                    if (!$destination) {
+                        $skippedNoDestination[] = $source->employee_id;
+                        continue;
+                    }
+                }
+
+                $carryoverDays = $policyService->computeCarryover($policy, $remaining);
+                if ($carryoverDays <= 0) {
+                    continue;
+                }
+
+                $destination->carryover_days = $carryoverDays;
+                $destination->calculateRemainingDays();
+                $carried++;
+            }
+
+            $message = "Carried over balances for {$carried} entitlement(s).";
+            if ($skippedNoDestination) {
+                $message .= ' ' . count($skippedNoDestination) . ' skipped (no entitlement exists yet in the destination period).';
+            }
+            if ($skippedNoPolicy) {
+                $message .= ' ' . count($skippedNoPolicy) . ' skipped (no applicable policy found).';
+            }
+
+            return RequestResponse::ok($message, [
+                'carried' => $carried,
+                'skipped_no_destination' => array_values(array_unique($skippedNoDestination)),
+                'skipped_no_policy' => array_values(array_unique($skippedNoPolicy)),
+            ]);
+        });
+    }
+
+    /**
+     * Landscape PDF report of leave entitlements for a period, pivoted so each
+     * row is one employee and each column is a leave type showing their
+     * remaining days - optionally narrowed by department, leave type(s), and/or
+     * specific employees.
+     */
+    public function exportPdf(Request $request, Business $business)
+    {
+        $validated = $request->validate([
+            'leave_period_id' => 'required|integer|exists:leave_periods,id',
+            'department_id'   => 'nullable|integer|exists:departments,id',
+            'leave_type_ids'  => 'nullable|array',
+            'leave_type_ids.*' => 'integer|exists:leave_types,id',
+            'employee_ids'    => 'nullable|array',
+            'employee_ids.*'  => 'integer|exists:employees,id',
+        ]);
+
+        $leavePeriod = LeavePeriod::where('business_id', $business->id)->find($validated['leave_period_id']);
+        if (!$leavePeriod) {
+            return RequestResponse::badRequest('Leave period not found for this business.', 404);
+        }
+
+        $query = LeaveEntitlement::where('business_id', $business->id)
+            ->where('leave_period_id', $leavePeriod->id)
+            // Guards against orphaned entitlement rows whose employee_id no
+            // longer resolves to a real Employee (e.g. the employee was later
+            // deleted) - without this, an unfiltered export can 500 trying to
+            // read ->user off a null employee, while filtering by specific
+            // employee ids naturally excludes them anyway.
+            ->whereHas('employee');
+
+        if (!empty($validated['department_id'])) {
+            $departmentId = (int) $validated['department_id'];
+            $query->whereHas('employee', fn ($q) => $q->where('department_id', $departmentId));
+        }
+
+        if (!empty($validated['leave_type_ids'])) {
+            $query->whereIn('leave_type_id', $validated['leave_type_ids']);
+        }
+
+        if (!empty($validated['employee_ids'])) {
+            $query->whereIn('employee_id', $validated['employee_ids']);
+        }
+
+        $entitlements = $query->with(['employee.user', 'employee.department', 'leaveType'])->get();
+
+        $leaveTypeNames = $entitlements->pluck('leaveType.name')->filter()->unique()->sort()->values();
+
+        $rows = $entitlements->groupBy('employee_id')->map(function ($employeeEntitlements) use ($leaveTypeNames) {
+            $employee = $employeeEntitlements->first()->employee;
+            $remainingByType = [];
+            foreach ($leaveTypeNames as $typeName) {
+                $match = $employeeEntitlements->first(fn ($e) => optional($e->leaveType)->name === $typeName);
+                $remainingByType[$typeName] = $match ? (float) $match->days_remaining : null;
+            }
+            return [
+                'employee' => $employee,
+                'remaining' => $remainingByType,
+            ];
+        })->sortBy(fn ($row) => optional(optional($row['employee'])->user)->name)->values();
+
+        $pdf = Pdf::loadView('leave.reports.entitlements_pdf', [
+            'business' => $business,
+            'leavePeriod' => $leavePeriod,
+            'leaveTypeNames' => $leaveTypeNames,
+            'rows' => $rows,
+        ])->setPaper('a4', 'landscape');
+
+        return $pdf->download("leave_entitlements_{$business->slug}_{$leavePeriod->slug}.pdf");
     }
 
     /**
@@ -515,11 +742,19 @@ class LeaveEntitlementController extends Controller
         });
     }
 
-   public function autoEntitleForPeriod(Request $request, LeavePolicyService $policyService)
+    /**
+     * Bulk-creates (or, with force=true, re-creates) entitlements for every
+     * active employee x every active leave type in a period, via
+     * LeavePolicyService::createOrUpdateEntitlement() - a policy-driven
+     * alternative to store()'s explicit employee/leave-type selection, for
+     * "just entitle everyone per policy" use. Not currently wired to a
+     * route.
+     */
+    public function autoEntitleAll(Request $request, LeavePolicyService $policyService)
     {
         $validated = $request->validate([
             'leave_period_id' => 'required|exists:leave_periods,id',
-            'force' => 'nullable|boolean', // Re-create even if exists
+            'force' => 'nullable|boolean',
         ]);
 
         return $this->handleTransaction(function () use ($validated, $policyService) {
@@ -542,20 +777,17 @@ class LeaveEntitlementController extends Controller
             $skipped = 0;
             $errors = [];
 
-            // Get all active employees
             $employees = Employee::where('business_id', $business->id)
-                ->where('is_active', true)
+                ->when(Schema::hasColumn('employees', 'is_active'), fn ($q) => $q->where('is_active', true))
                 ->get();
 
-            // Get all active leave types
             $leaveTypes = LeaveType::where('business_id', $business->id)
-                ->where('is_active', true)
+                ->when(Schema::hasColumn('leave_types', 'is_active'), fn ($q) => $q->where('is_active', true))
                 ->get();
 
             foreach ($employees as $employee) {
                 foreach ($leaveTypes as $leaveType) {
                     try {
-                        // Check if already exists
                         $exists = LeaveEntitlement::where([
                             'business_id' => $business->id,
                             'employee_id' => $employee->id,
@@ -568,7 +800,6 @@ class LeaveEntitlementController extends Controller
                             continue;
                         }
 
-                        // Resolve policy
                         $policy = $policyService->resolvePolicy(
                             $leaveType->id,
                             $employee,
@@ -580,7 +811,6 @@ class LeaveEntitlementController extends Controller
                             continue;
                         }
 
-                        // Create or update entitlement with full policy enforcement
                         $entitlement = $policyService->createOrUpdateEntitlement(
                             $employee,
                             $leaveType,
@@ -593,7 +823,6 @@ class LeaveEntitlementController extends Controller
                         } else {
                             $skipped++;
                         }
-
                     } catch (\Exception $e) {
                         $errors[] = "Employee {$employee->id}, Leave Type {$leaveType->id}: {$e->getMessage()}";
                         Log::error("Entitlement error: {$e->getMessage()}", [
@@ -636,7 +865,7 @@ class LeaveEntitlementController extends Controller
                 return RequestResponse::badRequest('Leave period not found.', 404);
             }
 
-            $asOfDate = isset($validated['as_of_date']) 
+            $asOfDate = isset($validated['as_of_date'])
                 ? Carbon::parse($validated['as_of_date'])
                 : now();
 
@@ -648,5 +877,4 @@ class LeaveEntitlementController extends Controller
             ]);
         });
     }
-
 }

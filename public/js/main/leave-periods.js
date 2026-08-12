@@ -1,9 +1,25 @@
 import { btn_loader } from "/js/client/config.js";
 import RequestClient from "/js/client/RequestClient.js";
 import LeavePeriodsService from "/js/client/LeavePeriodsService.js";
+import LeaveEntitlementsService from "/js/client/LeaveEntitlementsService.js";
 
 const requestClient = new RequestClient();
 const leavePeriodsService = new LeavePeriodsService(requestClient);
+const leaveEntitlementsService = new LeaveEntitlementsService(requestClient);
+
+window.processCarryover = async function (btn) {
+    const $btn = $(btn);
+    const form = document.getElementById("processCarryoverForm");
+    if (!form.checkValidity()) { form.reportValidity(); return; }
+
+    btn_loader($btn, true);
+    try {
+        const data = Object.fromEntries(new FormData(form).entries());
+        await leaveEntitlementsService.processCarryover(data);
+    } finally {
+        btn_loader($btn, false);
+    }
+};
 
 // Base URL for leave-periods routes (adjust for business prefix)
 const baseUrl = window.location.pathname.match(/\/business\/[^\/]+/)?.[0] || '';
@@ -29,16 +45,18 @@ window.saveLeavePeriods = async function (btn) {
     btn_loader(btn, true);
 
     const form = document.getElementById("leavePeriodsForm");
-    const formData = new FormData(form);
+    let formData = new FormData(form);
+    const isUpdate = formData.has('leave_period_slug');
 
     try {
-        if (formData.has('leave_period_slug') && formData.get('leave_period_slug').trim()) {
+        if (isUpdate) {
             await leavePeriodsService.update(formData);
+            await window.cancelEditLeavePeriod();
         } else {
             await leavePeriodsService.save(formData);
+            form.reset();
         }
         getLeavePeriods();
-        form.reset();
     } catch (err) {
         console.error(err);
         Swal.fire('Error', err?.message || 'Failed to save leave period.', 'error');
@@ -46,80 +64,54 @@ window.saveLeavePeriods = async function (btn) {
         btn_loader(btn, false);
     }
 };
-
-// ---------------------------
-// EDIT LEAVE PERIOD (Prefill)
-// ---------------------------
-window.editLeavePeriods = async function (btn) {
+window.editLeavePeriod = async function (btn) {
     btn = $(btn);
-    const leavePeriodId = btn.data("id");
-    if (!leavePeriodId) return Swal.fire('Error', 'Leave period ID missing.', 'error');
+
+    const slug = btn.data("slug");
+    const data = { leave_period_slug: slug };
 
     try {
-        // Build the full URL for JSON fetch
-        const url = `${baseUrl}/leave-periods/${leavePeriodId}/json`;
-        const data = await requestClient.get(url);
-
-        const form = document.getElementById("leavePeriodsForm");
-
-        // Prefill form fields
-        form.elements['name'].value = data.name || '';
-        form.elements['start_date'].value = data.start_date || '';
-        form.elements['end_date'].value = data.end_date || '';
-        form.elements['accept_applications'].checked = !!data.accept_applications;
-        form.elements['can_accrue'].checked = !!data.can_accrue;
-        form.elements['restrict_applications_within_dates'].checked = !!data.restrict_applications_within_dates;
-        form.elements['autocreate'].checked = !!data.autocreate;
-
-        // Hidden field for slug (needed for update)
-        let slugInput = form.querySelector('input[name="leave_period_slug"]');
-        if (!slugInput) {
-            slugInput = document.createElement('input');
-            slugInput.type = 'hidden';
-            slugInput.name = 'leave_period_slug';
-            form.appendChild(slugInput);
-        }
-        slugInput.value = data.slug;
-
-        // Scroll to form
-        form.scrollIntoView({ behavior: 'smooth' });
-
+        const form = await leavePeriodsService.edit(data);
+        $('#leavePeriodsFormContainer').html(form);
+        window.scrollTo({ top: $('#leavePeriodsFormContainer').offset().top - 80, behavior: 'smooth' });
     } catch (err) {
-        console.error('Edit leave period error:', err);
-        Swal.fire('Error', 'Failed to load leave period for editing.', 'error');
+        console.error(err);
+        Swal.fire('Error', 'Failed to load the leave period for editing.', 'error');
     }
 };
 
-// ---------------------------
-// VIEW LEAVE PERIOD DETAILS
-// ---------------------------
-window.viewLeavePeriods = async function (btn) {
+window.cancelEditLeavePeriod = async function () {
+    try {
+        const form = await leavePeriodsService.create();
+        $('#leavePeriodsFormContainer').html(form);
+    } catch (err) {
+        console.error(err);
+    }
+};
+
+window.viewLeavePeriod = async function (btn) {
     btn = $(btn);
-    const leavePeriodId = btn.data("id");
-    if (!leavePeriodId) return Swal.fire('Error', 'Leave period ID missing.', 'error');
+
+    const id = btn.data("id");
+    const data = { id: id };
 
     try {
-        // Build the full URL for details
-        const url = `${baseUrl}/leave-periods/${leavePeriodId}/details`;
-        const response = await requestClient.get(url);
-
-        // The response should contain HTML
-        $('#leavePeriodsDetailsContent').html(response.data || response);
-        $('#leavePeriodsDetailsModal').modal('show');
-
+        const details = await leavePeriodsService.show(data);
+        $('#leavePeriodDetailsContent').html(details);
+        const modalEl = document.getElementById('leavePeriodDetailsModal');
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
     } catch (err) {
-        console.error('View leave period error:', err);
+        console.error(err);
         Swal.fire('Error', 'Failed to load leave period details.', 'error');
     }
 };
 
-// Delete leave period
-window.deleteLeavePeriods = async function (btn) {
+window.deleteLeavePeriod = async function (btn) {
     btn = $(btn);
     btn_loader(btn, true);
 
-    const slug = btn.data("leave-period-slug");
-    if (!slug) return Swal.fire('Error', 'Leave period slug missing.', 'error');
+    const slug = btn.data("slug");
+    const data = { leave_period_slug: slug };
 
     Swal.fire({
         title: "Are you sure?",

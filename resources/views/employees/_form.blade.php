@@ -251,6 +251,18 @@
                         </select>
                     </div>
                     <div class="col-md-4">
+                        <select name="organogram_role_id" id="organogram_role_id" class="form-select border-primary">
+                            <option value="">Select Organogram Role (optional)</option>
+                            @foreach (($organogramRoles ?? []) as $organogramRole)
+                            <option value="{{ $organogramRole->id }}"
+                                {{ isset($employee) && $employee->organogram_role_id == $organogramRole->id ? 'selected' : '' }}>
+                                {{ $organogramRole->name }}
+                            </option>
+                            @endforeach
+                        </select>
+                        <small class="text-muted">Used with department to compute this employee's default manager in the organogram.</small>
+                    </div>
+                    <div class="col-md-4">
                         <select name="employment_term" id="employment_term" class="form-select border-primary" required>
                             <option value="">Select Contract Type</option>
                             <option value="permanent"
@@ -353,11 +365,12 @@
             <div class="mb-3">
                 <h6 class="text-muted fw-semibold mb-2">Payroll Exemption</h6>
                 <div class="form-check">
-                    <input type="checkbox" name="is_exempt_from_payroll" id="is_exempt_from_payroll"
-                        class="form-check-input"
-                        {{ isset($employee) && $employee->is_exempt_from_payroll ? 'checked' : '' }} value="1">
-                    <label class="form-check-label" for="is_exempt_from_payroll">Exempt from Payroll</label>
-                </div>
+    <input type="hidden" name="is_exempt_from_payroll" value="0">
+    <input type="checkbox" name="is_exempt_from_payroll" id="is_exempt_from_payroll"
+        class="form-check-input"
+        {{ isset($employee) && $employee->is_exempt_from_payroll ? 'checked' : '' }} value="1">
+    <label class="form-check-label" for="is_exempt_from_payroll">Exempt from Payroll</label>
+</div>
             </div>
             <!-- PWD Tax Exemption -->
 <div class="mb-3">

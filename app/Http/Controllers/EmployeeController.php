@@ -26,6 +26,8 @@ use Maatwebsite\Excel\Events\AfterSheet;
 use App\Models\EmployeeContractAction;
 use App\Notifications\ContractReminderNotification;
 use App\Notifications\TerminationNotification;
+use App\Notifications\SuspensionNotification;
+use App\Notifications\ReinstatementNotification;
 use Illuminate\Support\Facades\Notification;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Traits\HandleTransactions;
@@ -120,10 +122,32 @@ class EmployeeController extends Controller
         try {
             DB::beginTransaction();
 
-            $business = Business::findBySlug($businessSlug);
-            if (!$business) {
-                return RequestResponse::badRequest('Business not found.');
-            }
+    // DataTables pagination params
+    $start  = $request->input('start', 0);
+    $length = $request->input('length', 10);
+
+    $recordsTotal    = Employee::where('business_id', $business->id)->count();
+    $recordsFiltered = $query->count();
+
+    $employees = $query->skip($start)->take($length)->get();
+
+    $data = $employees->map(function ($employee) use ($business) {
+        return [
+            'id' => $employee->id,
+            'name' => $employee->user->name,
+            'employee_code' => $employee->employee_code,
+            'department' => $employee->department ? $employee->department->name : 'N/A',
+            'job_category' => optional($employee->employmentDetails)->jobCategory ? $employee->employmentDetails->jobCategory->name : 'N/A',
+            'location' => $employee->location ? $employee->location->name : $employee->business->company_name,
+            'basic_salary' => number_format((float) (optional($employee->paymentDetails)->basic_salary ?? 0), 2) . ' ' . (optional($employee->paymentDetails)->currency ?? 'N/A'),
+            'actions' => '<div class="btn-group">' .
+                '<button class="btn btn-sm btn-outline-primary" onclick="viewEmployee(' . $employee->id . ')"><i class="fa fa-eye"></i> View</button>' .
+                '<button class="btn btn-sm btn-outline-warning" onclick="editEmployee(' . $employee->id . ')"><i class="fa fa-edit"></i> Edit</button>' .
+                '<a href="' . route('business.performance.employee', ['business' => $business->slug, 'employee' => $employee->id]) . '" class="btn btn-sm btn-outline-info"><i class="fa fa-chart-line"></i> Performance</a>' .
+                '<button class="btn btn-sm btn-outline-danger" onclick="deleteEmployee(' . $employee->id . ')"><i class="fa fa-trash"></i> Delete</button>' .
+                '</div>'
+        ];
+    });
 
             $employee = Employee::where('business_id', $business->id)->findOrFail($employeeId);
 
@@ -353,14 +377,32 @@ class EmployeeController extends Controller
 
     public function store(Request $request)
     {
+        $business = Business::findBySlug(session('active_business_slug'));
+        if (!$business) {
+            return RequestResponse::badRequest('Business not found.');
+        }
+
+        // Identity fields (employee_code/national_id/tax_no/nhif_no/nssf_no/
+        // passport_no) are unique per business, not across the whole
+        // system - the same real person can legitimately be an employee at
+        // more than one business under the same account (see the email
+        // reuse handling below), so their national ID/tax PIN must be
+        // allowed to repeat across businesses, just not within one.
+        $uniquePerBusiness = fn (string $column) => \Illuminate\Validation\Rule::unique('employees', $column)
+            ->where(fn ($q) => $q->where('business_id', $business->id));
+
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email',
+            // No unique:users,email here - an email already belonging to a
+            // User is handled below (reuse the existing account for a
+            // second business) rather than rejected outright.
+            'email' => 'required|email',
             'gender' => 'required|string|max:20',
-            'employee_code' => 'required|string|unique:employees,employee_code|max:50',
+            'employee_code' => ['required', 'string', 'max:50', $uniquePerBusiness('employee_code')],
             'department_id' => 'nullable|exists:departments,id',
             'job_category_id' => 'nullable|exists:job_categories,id',
+            'organogram_role_id' => 'nullable|exists:organogram_roles,id',
             'location_id' => 'nullable|exists:locations,id',
             // 'basic_salary' => 'required|numeric|min:0',
             'payment_type' => 'required|in:salary,hourly',
@@ -374,13 +416,13 @@ class EmployeeController extends Controller
             'bank_code' => 'nullable|string|max:50',
             'bank_branch' => 'nullable|string|max:255',
             'bank_branch_code' => 'nullable|string|max:50',
-            'national_id' => 'nullable|string|unique:employees,national_id|max:255',
-            'tax_no' => 'nullable|string|max:20',
+            'national_id' => ['nullable', 'string', 'max:255', $uniquePerBusiness('national_id')],
+            'tax_no' => ['nullable', 'string', 'max:20', $uniquePerBusiness('tax_no')],
             'date_of_birth' => 'required|date|before:today',
             'marital_status' => 'required|in:single,married,divorced,widowed',
-            'nhif_no' => 'nullable|string|max:20',
-            'nssf_no' => 'nullable|string|max:20',
-            'passport_no' => 'nullable|string|max:255',
+            'nhif_no' => ['nullable', 'string', 'max:20', $uniquePerBusiness('nhif_no')],
+            'nssf_no' => ['nullable', 'string', 'max:20', $uniquePerBusiness('nssf_no')],
+            'passport_no' => ['nullable', 'string', 'max:255', $uniquePerBusiness('passport_no')],
             'passport_issue_date' => 'nullable|date|before:today',
             'passport_expiry_date' => 'nullable|date|after:passport_issue_date',
             'place_of_birth' => 'nullable|string|max:255',
@@ -411,31 +453,53 @@ class EmployeeController extends Controller
             'pwd_exemption_limit'       => 'nullable|numeric|min:0|max:150000',
         ]);
 
-        $business = Business::findBySlug(session('active_business_slug'));
+        // An email already belonging to a User is reused rather than
+        // rejected - the same real person can legitimately be an employee
+        // at more than one business under one account (mirrors
+        // PlatformAdminController::store()'s krest-admin-grant pattern).
+        // Guard against the one thing that must still be blocked: being
+        // added as an employee TWICE at the SAME business.
+        $existingUser = User::where('email', $validated['email'])->first();
+        if ($existingUser) {
+            $alreadyEmployeeHere = Employee::where('user_id', $existingUser->id)
+                ->where('business_id', $business->id)
+                ->exists();
+            if ($alreadyEmployeeHere) {
+                return RequestResponse::badRequest('This email already belongs to an employee at this business.');
+            }
+        }
+        $isNewUser = !$existingUser;
 
         try {
             DB::beginTransaction();
 
-            $user = User::create([
+            $user = $existingUser ?: User::create([
                 'name' => trim("{$validated['first_name']} {$validated['last_name']}"),
                 'email' => $validated['email'],
                 'phone' => $validated['phone'],
                 'password' => null,
             ]);
 
-            $token = Password::createToken($user);
-            $user->sendPasswordResetNotification($token);
-
-            $user->notify(new WelcomeEmployeeNotification($user, $token));
-
-            $role = Role::where('name', 'business-employee')
-                ->where('business_id', $business->id)
-                ->first();
-            if ($role) {
-                $user->assignRole($role);
+            if ($isNewUser) {
+                $token = Password::createToken($user);
+                $user->sendPasswordResetNotification($token);
+                $user->notify(new WelcomeEmployeeNotification($user, $token));
             } else {
-                Log::warning('business-employee role not found for business.', ['business_id' => $business->id]);
+                // Existing account - no password reset, just a plain
+                // notice that they've been added here too.
+                $user->notify(new WelcomeEmployeeNotification($user, null, $business->company_name));
             }
+
+            // 'business-employee' is a global role (not per-business) -
+            // most roles in this table have a null business_id, but a
+            // handful of legacy rows (from before multi-tenancy) were
+            // pinned to business_id=1 (krest). Filtering by business_id
+            // here meant every OTHER business's new employees silently
+            // got no role at all, since no matching row existed for them.
+            // firstOrCreate is a self-healing fallback in case the role
+            // row is ever missing entirely.
+            $role = Role::firstOrCreate(['name' => 'business-employee', 'guard_name' => 'web']);
+            $user->assignRole($role);
 
             $employee = Employee::create([
                 'user_id' => $user->id,
@@ -443,6 +507,7 @@ class EmployeeController extends Controller
                 'employee_code' => $validated['employee_code'],
                 'department_id' => $validated['department_id'] ?? null,
                 'job_category_id' => $validated['job_category_id'] ?? null,
+                'organogram_role_id' => $validated['organogram_role_id'] ?? null,
                 'location_id' => $validated['location_id'] ?? null,
                 'national_id' => $validated['national_id'] ?? null,
                 'marital_status' => $validated['marital_status'] ?? null,
@@ -571,6 +636,9 @@ class EmployeeController extends Controller
             DB::commit();
             Log::debug('Employee created successfully.', ['employee_id' => $employee->id]);
 
+            // Populate this employee's default reporting line from the org-structure template.
+            $employee->fresh()->syncManagerFromTemplate();
+
             return RequestResponse::created('Employee created successfully.', $employee->id);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -587,8 +655,9 @@ class EmployeeController extends Controller
             $departments = Department::where('business_id', $business->id)->get();
             $locations = Location::where('business_id', $business->id)->get();
             $jobCategories = JobCategory::where('business_id', $business->id)->get();
+            $organogramRoles = \App\Models\OrganogramRole::where('business_id', $business->id)->orderBy('level')->get();
 
-            $form = view('employees._form', compact('employee', 'departments', 'locations', 'jobCategories', 'business'))->render();
+            $form = view('employees._form', compact('employee', 'departments', 'locations', 'jobCategories', 'organogramRoles', 'business'))->render();
             return response()->json([
                 'message' => 'Form loaded successfully.',
                 'data' => $form
@@ -604,15 +673,28 @@ class EmployeeController extends Controller
 
     public function update(Request $request, $id)
     {
+        // Same business_id/employee_code/national_id/tax_no/nhif_no/nssf_no/
+        // passport_no scoping as store() - two DIFFERENT businesses can
+        // legitimately reuse the same employee_code/national_id, so
+        // uniqueness must only ever be checked within the ONE business this
+        // employee actually belongs to, never across all of them. ignore($id)
+        // excludes the row being edited itself, same as the old inline
+        // "unique:employees,column,{id},id" rules did.
+        $employee = Employee::findOrFail($id);
+        $uniquePerBusiness = fn (string $column) => \Illuminate\Validation\Rule::unique('employees', $column)
+            ->where(fn ($q) => $q->where('business_id', $employee->business_id))
+            ->ignore($id);
+
         $validated = $request->validate([
             'employee_id' => 'required|exists:employees,id',
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email,' . ($request->employee_id ? Employee::find($request->employee_id)->user_id : null),
             'gender' => 'required|string|max:20',
-            'employee_code' => 'required|string|unique:employees,employee_code,' . $id . ',id|max:50',
+            'employee_code' => ['required', 'string', 'max:50', $uniquePerBusiness('employee_code')],
             'department_id' => 'nullable|exists:departments,id',
             'job_category_id' => 'nullable|exists:job_categories,id',
+            'organogram_role_id' => 'nullable|exists:organogram_roles,id',
             'location_id' => 'nullable|exists:locations,id',
             'payment_type' => 'required|in:salary,hourly',
             'basic_salary' => 'required_if:payment_type,salary|nullable|numeric|min:0',
@@ -626,13 +708,13 @@ class EmployeeController extends Controller
             'bank_code' => 'nullable|string|max:50',
             'bank_branch' => 'nullable|string|max:255',
             'bank_branch_code' => 'nullable|string|max:50',
-            'national_id' => 'nullable|string|unique:employees,national_id,' . $id . ',id|max:255',
-            'tax_no' => 'nullable|string|max:20',
+            'national_id' => ['nullable', 'string', 'max:255', $uniquePerBusiness('national_id')],
+            'tax_no' => ['nullable', 'string', 'max:20', $uniquePerBusiness('tax_no')],
             'date_of_birth' => 'required|date|before:today',
             'marital_status' => 'required|in:single,married,divorced,widowed',
-            'nhif_no' => 'nullable|string|max:20',
-            'nssf_no' => 'nullable|string|max:20',
-            'passport_no' => 'nullable|string|max:255',
+            'nhif_no' => ['nullable', 'string', 'max:20', $uniquePerBusiness('nhif_no')],
+            'nssf_no' => ['nullable', 'string', 'max:20', $uniquePerBusiness('nssf_no')],
+            'passport_no' => ['nullable', 'string', 'max:255', $uniquePerBusiness('passport_no')],
             'passport_issue_date' => 'nullable|date|before:today',
             'passport_expiry_date' => 'nullable|date|after:passport_issue_date',
             'place_of_birth' => 'nullable|string|max:255',
@@ -676,6 +758,7 @@ class EmployeeController extends Controller
                 'employee_code' => $validated['employee_code'],
                 'department_id' => $validated['department_id'] ?? null,
                 'job_category_id' => $validated['job_category_id'] ?? null,
+                'organogram_role_id' => $validated['organogram_role_id'] ?? null,
                 'location_id' => $validated['location_id'] ?? null,
                 'national_id' => $validated['national_id'] ?? null,
                 'tax_no' => $validated['tax_no'] ?? null,
@@ -807,6 +890,9 @@ class EmployeeController extends Controller
             DB::commit();
             Log::info('Employee update transaction committed.', ['employee_id' => $id]);
 
+            // Re-sync this employee's default reporting line (no-op if manually overridden).
+            $employee->fresh()->syncManagerFromTemplate();
+
             return RequestResponse::ok('Employee updated successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
@@ -863,6 +949,7 @@ class EmployeeController extends Controller
                 'employmentDetails',
                 'jobCategory',
                 'spouse',
+                'contractActions' => fn ($q) => $q->where('status', 'active')->latest('action_date'),
             ])->findOrFail($request->employee_id);
 
             $view = view('employees._view', compact('employee'))->render();
@@ -907,8 +994,8 @@ class EmployeeController extends Controller
                     }
                 },
             ],
-            'jobCategories' => 'array|nullable',
-            'jobCategories.*' => [
+            'job_categories' => 'array|nullable',
+            'job_categories.*' => [
                 function ($attribute, $value, $fail) {
                     if ($value !== 'all' && !JobCategory::where('slug', $value)->exists()) {
                         $fail("The selected job category '$value' is invalid.");
@@ -939,8 +1026,8 @@ class EmployeeController extends Controller
                 });
             }
 
-            if (!empty($validatedData['jobCategories']) && !in_array('all', $validatedData['jobCategories'])) {
-                $jobCategoryIds = JobCategory::whereIn('slug', $validatedData['jobCategories'])->pluck('id');
+            if (!empty($validatedData['job_categories']) && !in_array('all', $validatedData['job_categories'])) {
+                $jobCategoryIds = JobCategory::whereIn('slug', $validatedData['job_categories'])->pluck('id');
                 $query->whereHas('employmentDetails', function ($q) use ($jobCategoryIds) {
                     $q->whereIn('job_category_id', $jobCategoryIds);
                 });
@@ -1089,6 +1176,12 @@ class EmployeeController extends Controller
         $errors = [];
         $successful = 0;
 
+        // Same per-business scoping as store()/update() - employee_code/
+        // national_id/tax_no/nhif_no/nssf_no/passport_no only need to be
+        // unique WITHIN this business, never across all of them.
+        $uniquePerBusiness = fn (string $column) => \Illuminate\Validation\Rule::unique('employees', $column)
+            ->where(fn ($q) => $q->where('business_id', $business->id));
+
         $departments = $business->departments()->pluck('id', 'name')->toArray();
         $locations = $business->locations()->pluck('id', 'name')->toArray();
         $locations[$business->company_name] = null; // Add main business as a location (nullable ID)
@@ -1114,12 +1207,9 @@ class EmployeeController extends Controller
 
             $headers = array_shift($records);
             Log::info('Headers extracted.', ['headers' => $headers]);
-          $records = array_map(function ($row) use ($headers) {
-    return array_combine($headers, array_map(function ($value) {
-        $trimmed = trim((string) $value);
-        return $trimmed === '' ? null : $trimmed;
-    }, $row));
-}, $records);
+            $records = array_map(function ($row) use ($headers) {
+                return array_combine($headers, array_map('trim', $row));
+            }, $records);
             Log::info('Rows mapped.', ['record_count' => count($records)]);
 
             foreach ($records as $index => $row) {
@@ -1127,10 +1217,13 @@ class EmployeeController extends Controller
                     $validator = Validator::make($row, [
                         'first_name' => 'required|string|max:255',
                         'last_name' => 'required|string|max:255',
-                        'email' => 'required|email|unique:users,email|max:255',
+                        // No unique:users,email - an email already belonging
+                        // to a User is reused (new Employee row at this
+                        // business) rather than rejected, same as store().
+                        'email' => 'required|email|max:255',
                         'phone' => 'required|string|max:20',
                         'gender' => 'required|string|max:20',
-                        'employee_code' => 'required|string|unique:employees,employee_code|max:50',
+                        'employee_code' => ['required', 'string', 'max:50', $uniquePerBusiness('employee_code')],
                         'department' => 'nullable|string|exists:departments,name',
                         'job_category' => 'nullable|string|exists:job_categories,name',
                         'location' => 'nullable|string|in:' . implode(',', array_keys($locations)),
@@ -1143,13 +1236,13 @@ class EmployeeController extends Controller
                         'bank_code' => 'nullable|string|max:50',
                         'bank_branch' => 'nullable|string|max:255',
                         'bank_branch_code' => 'nullable|string|max:50',
-                        'national_id' => 'nullable|string|unique:employees,national_id|max:255',
-                        'tax_no' => 'nullable|string|max:20',
+                        'national_id' => ['nullable', 'string', 'max:255', $uniquePerBusiness('national_id')],
+                        'tax_no' => ['nullable', 'string', 'max:20', $uniquePerBusiness('tax_no')],
                         'date_of_birth' => 'nullable|date|before:today',
                         'marital_status' => 'nullable|string|in:single,married,divorced,widowed',
-                        'nhif_no' => 'nullable|string|max:20',
-                        'nssf_no' => 'nullable|string|max:20',
-                        'passport_no' => 'nullable|string|max:255',
+                        'nhif_no' => ['nullable', 'string', 'max:20', $uniquePerBusiness('nhif_no')],
+                        'nssf_no' => ['nullable', 'string', 'max:20', $uniquePerBusiness('nssf_no')],
+                        'passport_no' => ['nullable', 'string', 'max:255', $uniquePerBusiness('passport_no')],
                         'passport_issue_date' => 'nullable|date|before:today',
                         'passport_expiry_date' => 'nullable|date|after:passport_issue_date',
                         'place_of_birth' => 'nullable|string|max:255',
@@ -1191,27 +1284,37 @@ class EmployeeController extends Controller
                         continue;
                     }
 
-                    $user = User::create([
+                    // Same existing-user reuse as store(): an email already
+                    // belonging to a User is added as an employee at THIS
+                    // business rather than rejected, unless they're already
+                    // an employee here too.
+                    $existingUser = User::where('email', $row['email'])->first();
+                    if ($existingUser && Employee::where('user_id', $existingUser->id)->where('business_id', $business->id)->exists()) {
+                        $errors[] = "Row " . ($index + 2) . ": {$row['email']} already belongs to an employee at this business.";
+                        continue;
+                    }
+                    $isNewUser = !$existingUser;
+
+                    $user = $existingUser ?: User::create([
                         'name' => trim("{$row['first_name']} {$row['last_name']}"),
                         'email' => $row['email'],
                         'phone' => $row['phone'],
                         'password' => null,
                     ]);
 
-                    $token = Password::createToken($user);
-                    $user->sendPasswordResetNotification($token);
-
-                    $user->notify(new WelcomeEmployeeNotification($user, $token));
-
-                    $role = Role::where('name', 'business-employee')
-                        ->where('business_id', $business->id)
-                        ->first();
-                    if ($role) {
-                        $user->assignRole($role);
+                    if ($isNewUser) {
+                        $token = Password::createToken($user);
+                        $user->sendPasswordResetNotification($token);
+                        $user->notify(new WelcomeEmployeeNotification($user, $token));
                     } else {
-                        Log::warning('business-employee role not found for business.', ['business_id' => $business->id]);
-                        $errors[] = "Row " . ($index + 2) . ": business-employee role not found.";
+                        $user->notify(new WelcomeEmployeeNotification($user, null, $business->company_name));
                     }
+
+                    // See EmployeeController::store() for why this isn't
+                    // filtered by business_id - 'business-employee' is a
+                    // global role, not per-business.
+                    $role = Role::firstOrCreate(['name' => 'business-employee', 'guard_name' => 'web']);
+                    $user->assignRole($role);
 
                     $employee = $business->employees()->create([
                         'user_id' => $user->id,
@@ -1220,11 +1323,11 @@ class EmployeeController extends Controller
                         'job_category_id' => $jobCategoryId,
                         'location_id' => $locationId,
                         'national_id' => $row['national_id'] ?? null,
-                        'marital_status' => $row['marital_status'],
+                        'marital_status' => $row['marital_status'] ?? null,
                         'nhif_no' => $row['nhif_no'] ?? null,
                         'nssf_no' => $row['nssf_no'] ?? null,
                         'tax_no' => $row['tax_no'] ?? null,
-                        'date_of_birth' => $row['date_of_birth'],
+                        'date_of_birth' => $row['date_of_birth'] ?? null,
                         'gender' => $row['gender'],
                         'phone' => $row['phone'],
                         'alternate_phone' => $row['alternate_phone'] ?? null,
@@ -1234,7 +1337,7 @@ class EmployeeController extends Controller
                         'place_of_birth' => $row['place_of_birth'] ?? null,
                         'place_of_issue' => $row['place_of_issue'] ?? null,
                         'address' => $row['address'] ?? null,
-                        'permanent_address' => $row['permanent_address'],
+                        'permanent_address' => $row['permanent_address'] ?? null,
                         'blood_group' => $row['blood_group'] ?? null,
                         'is_exempt_from_payroll' => $row['is_exempt_from_payroll'] ?? false,
                         'resident_status' => $row['resident_status'] ?? null,
@@ -1273,32 +1376,46 @@ class EmployeeController extends Controller
             }
 
             DB::commit();
-Log::info('Import process completed.', ['successful' => $successful, 'errors' => count($errors)]);
+            Log::info('Import process completed.', ['successful' => $successful, 'errors' => count($errors)]);
 
-if ($successful > 0 && count($errors) === 0) {
-    return response()->json([
-        'success' => true,
-        'message' => "All {$successful} employee(s) imported successfully.",
-        'successful' => $successful,
-        'errors' => [],
-    ], 200);
-}
+            $responseData = [
+                'successful' => $successful,
+                'errors' => $errors,
+            ];
 
-if ($successful > 0 && count($errors) > 0) {
-    return response()->json([
-        'success' => true,
-        'message' => "{$successful} employee(s) imported. " . count($errors) . " row(s) had errors.",
-        'successful' => $successful,
-        'errors' => $errors,
-    ], 200);
-}
+            if ($successful > 0 && count($errors) === 0) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'All employees imported successfully.',
+                    'successful' => $successful,
+                    'errors' => [],
+                ], 200);
+            }
 
-return response()->json([
-    'success' => false,
-    'message' => 'Import failed. No employees were added.',
-    'successful' => 0,
-    'errors' => $errors,
-], 200);
+            if ($successful > 0 && count($errors) > 0) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Some employees were imported, but there were errors.',
+                    'successful' => $successful,
+                    'errors' => $errors,
+                ], 200);
+            }
+
+            if ($successful === 0 && count($errors) > 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Import failed. No employees were added.',
+                    'successful' => 0,
+                    'errors' => $errors,
+                ], 400);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'No employees were added. Please check the file format or data.',
+                'successful' => 0,
+                'errors' => [],
+            ], 400);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Failed to import employees.', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
@@ -1455,13 +1572,9 @@ return response()->json([
                         ]);
 
                         // Set column widths for readability
-                        $columns = [];
-for ($i = 'A'; $i <= 'AR'; $i++) {
-    $columns[] = $i;
-}
-foreach ($columns as $col) {
-    $sheet->getColumnDimension($col)->setWidth(15);
-}
+                        foreach (range('A', 'AR') as $col) {
+                            $sheet->getColumnDimension($col)->setWidth(15);
+                        }
                         $sheet->getColumnDimension('C')->setWidth(25); // Email
                         $sheet->getColumnDimension('M')->setWidth(20); // Account Name
                         $sheet->getColumnDimension('V')->setWidth(25); // Permanent Address
@@ -1752,13 +1865,9 @@ foreach ($columns as $col) {
                                 ],
                             ]);
 
-                           $cols = [];
-for ($i = 'A'; $i <= $highestColumn; $i++) {
-    $cols[] = $i;
-}
-foreach ($cols as $col) {
-    $sheet->getColumnDimension($col)->setAutoSize(true);
-}
+                            foreach (range('A', $highestColumn) as $col) {
+                                $sheet->getColumnDimension($col)->setAutoSize(true);
+                            }
                         }
                     ];
                 }
@@ -1892,7 +2001,7 @@ foreach ($cols as $col) {
 
     public function contracts(Request $request)
     {
-        $page = 'Contracts Management';
+        $page = 'Information Management';
         $business = Business::findBySlug(session('active_business_slug'));
         if (!$business) {
             return redirect()->back()->with('error', 'Business not found.');
@@ -1963,7 +2072,7 @@ foreach ($cols as $col) {
                         'status' => ucfirst($action->status),
                         'issued_by' => optional($action->issuedBy)->name ?? 'N/A',
                         'actions' => '<div class="btn-group">' .
-                            ($action->action_type === 'termination' ?
+                            (in_array($action->action_type, ['termination', 'suspension'], true) ?
                                 '<button class="btn btn-sm btn-outline-warning" onclick="editContractAction(' . $action->id . ')"><i class="fa fa-edit"></i> Edit</button>' .
                                 '<button class="btn btn-sm btn-outline-danger" onclick="deleteContractAction(' . $action->id . ')"><i class="fa fa-trash"></i> Delete</button>'
                                 : '') .
@@ -2003,11 +2112,11 @@ foreach ($cols as $col) {
             'employee_ids' => 'required_without:employee_id|array',
             'employee_ids.*' => 'exists:employees,id',
             'employee_id' => 'required_without:employee_ids|exists:employees,id',
-            'action_type' => 'required|in:termination,reminder',
+            'action_type' => 'required|in:termination,reminder,suspension',
             'reason' => 'required|string|max:255',
             'description' => 'nullable|string|max:1000',
             'action_date' => 'required|date',
-            'reminder_type' => 'required|in:contract,license',
+            'reminder_type' => 'required_if:action_type,reminder|in:contract,license',
         ]);
 
         return $this->handleTransaction(function () use ($validated) {
@@ -2026,12 +2135,13 @@ foreach ($cols as $col) {
                     continue;
                 }
 
+                $targetStatus = $validated['action_type'] === 'termination' ? 'terminated' : 'suspended';
                 if (
-                    $validated['action_type'] === 'termination' &&
+                    in_array($validated['action_type'], ['termination', 'suspension'], true) &&
                     $employee->employmentDetails &&
-                    $employee->employmentDetails->status === 'terminated'
+                    $employee->employmentDetails->status === $targetStatus
                 ) {
-                    \Log::warning('Attempted to terminate already terminated employee.', ['employee_id' => $employeeId]);
+                    \Log::warning('Attempted to ' . $validated['action_type'] . ' an employee already in that status.', ['employee_id' => $employeeId]);
                     continue;
                 }
 
@@ -2042,7 +2152,7 @@ foreach ($cols as $col) {
                     'reason' => $validated['reason'],
                     'description' => $validated['description'],
                     'action_date' => $validated['action_date'],
-                    'status' => $validated['action_type'] === 'termination' ? 'active' : 'sent',
+                    'status' => in_array($validated['action_type'], ['termination', 'suspension'], true) ? 'active' : 'sent',
                     'issued_by_id' => auth()->id(),
                 ]);
 
@@ -2087,6 +2197,19 @@ foreach ($cols as $col) {
                         \Log::info('Termination action completed.', ['employee_id' => $employeeId]);
                     } catch (\Exception $e) {
                         \Log::error('Failed to send termination notification: ' . $e->getMessage(), [
+                            'employee_id' => $employeeId,
+                        ]);
+                        continue;
+                    }
+                } elseif ($validated['action_type'] === 'suspension') {
+                    $employee->employmentDetails()->update(['status' => 'suspended']);
+                    $employee->update(['is_exempt_from_payroll' => true]);
+
+                    try {
+                        Notification::send($employee->user, new SuspensionNotification($contractAction));
+                        \Log::info('Suspension action completed.', ['employee_id' => $employeeId]);
+                    } catch (\Exception $e) {
+                        \Log::error('Failed to send suspension notification: ' . $e->getMessage(), [
                             'employee_id' => $employeeId,
                         ]);
                         continue;
@@ -2150,8 +2273,8 @@ foreach ($cols as $col) {
 
         try {
             $contractAction = EmployeeContractAction::findOrFail($id);
-            if ($contractAction->action_type !== 'termination') {
-                return RequestResponse::badRequest('Only termination actions can be updated.');
+            if (!in_array($contractAction->action_type, ['termination', 'suspension'], true)) {
+                return RequestResponse::badRequest('Only termination or suspension actions can be updated.');
             }
 
             DB::beginTransaction();
@@ -2165,13 +2288,19 @@ foreach ($cols as $col) {
             ]);
 
             $employee = Employee::findOrFail($validated['employee_id']);
-            $newStatus = $validated['status'] === 'active' ? 'terminated' : 'active';
-            $isExempt = $validated['status'] === 'active' ? true : false;
+            $inEffectStatus = $contractAction->action_type === 'termination' ? 'terminated' : 'suspended';
+            $newStatus = $validated['status'] === 'active' ? $inEffectStatus : 'active';
+            $isExempt = $validated['status'] === 'active';
             $employee->employmentDetails()->update(['status' => $newStatus]);
             $employee->update(['is_exempt_from_payroll' => $isExempt]);
 
             if ($validated['status'] === 'active') {
-                Notification::send($employee->user, new TerminationNotification($contractAction));
+                $notification = $contractAction->action_type === 'termination'
+                    ? new TerminationNotification($contractAction)
+                    : new SuspensionNotification($contractAction);
+                Notification::send($employee->user, $notification);
+            } else {
+                Notification::send($employee->user, new ReinstatementNotification($contractAction));
             }
 
             DB::commit();
@@ -2188,8 +2317,8 @@ foreach ($cols as $col) {
     {
         try {
             $contractAction = EmployeeContractAction::findOrFail($id);
-            if ($contractAction->action_type !== 'termination') {
-                return RequestResponse::badRequest('Only termination actions can be deleted.');
+            if (!in_array($contractAction->action_type, ['termination', 'suspension'], true)) {
+                return RequestResponse::badRequest('Only termination or suspension actions can be deleted.');
             }
 
             DB::beginTransaction();

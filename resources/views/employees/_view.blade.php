@@ -485,15 +485,154 @@
 
                 <!-- Actions Tab -->
                 <div class="tab-pane fade" id="actions" role="tabpanel" aria-labelledby="actions-tab">
+                    @php $employmentStatus = optional($employee->employmentDetails)->status; @endphp
                     <div class="d-flex flex-wrap gap-2">
-                        <button class="btn btn-warning btn-sm flex-grow-1 flex-md-grow-0">Warn Employee</button>
-                        <button class="btn btn-primary btn-sm flex-grow-1 flex-md-grow-0">Send Welcome Email</button>
-                        <button class="btn btn-info btn-sm flex-grow-1 flex-md-grow-0">Request Leave</button>
-                        <button class="btn btn-danger btn-sm flex-grow-1 flex-md-grow-0">Suspend</button>
-                        <button class="btn btn-dark btn-sm flex-grow-1 flex-md-grow-0">Delete</button>
-                        <button class="btn btn-secondary btn-sm flex-grow-1 flex-md-grow-0">Login as Employee</button>
+                        <button type="button" class="btn btn-warning btn-sm flex-grow-1 flex-md-grow-0"
+                                onclick="openWarnEmployeeModal({{ $employee->id }})">Warn Employee</button>
+                        <a href="{{ route('business.leave.create', $currentBusiness->slug) }}"
+                           class="btn btn-info btn-sm flex-grow-1 flex-md-grow-0">Request Leave</a>
+
+                        @php $activeContractAction = $employee->contractActions->first(); @endphp
+                        @if ($employmentStatus === 'suspended' && $activeContractAction)
+                            <button type="button" class="btn btn-success btn-sm flex-grow-1 flex-md-grow-0"
+                                    onclick="openReinstateModal({{ $activeContractAction->id }}, {{ $employee->id }})">Reinstate (Lift Suspension)</button>
+                        @elseif ($employmentStatus === 'terminated' && $activeContractAction)
+                            <button type="button" class="btn btn-success btn-sm flex-grow-1 flex-md-grow-0"
+                                    onclick="openReinstateModal({{ $activeContractAction->id }}, {{ $employee->id }})">Reinstate (Reverse Termination)</button>
+                        @else
+                            <button type="button" class="btn btn-danger btn-sm flex-grow-1 flex-md-grow-0"
+                                    onclick="openContractActionModal({{ $employee->id }}, 'suspension')">Suspend</button>
+                            <button type="button" class="btn btn-dark btn-sm flex-grow-1 flex-md-grow-0"
+                                    onclick="openContractActionModal({{ $employee->id }}, 'termination')">Terminate</button>
+                        @endif
                     </div>
+                    <p class="text-muted small mt-2 mb-0">
+                        "Delete", "Login as Employee", and "Send Welcome Email" aren't wired up yet.
+                    </p>
+                    @if ($employmentStatus === 'suspended')
+                        <p class="text-danger small mt-2 mb-0">This employee is currently suspended.</p>
+                    @elseif ($employmentStatus === 'terminated')
+                        <p class="text-danger small mt-2 mb-0">This employee is terminated.</p>
+                    @endif
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Suspend / Terminate Modal -->
+<div class="modal fade" id="contractActionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="contractActionModalTitle">Suspend Employee</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="contractActionForm">
+                    <input type="hidden" name="employee_id">
+                    <input type="hidden" name="action_type">
+                    <div class="mb-3">
+                        <label class="form-label">Reason</label>
+                        <input type="text" name="reason" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description (optional)</label>
+                        <textarea name="description" class="form-control" rows="2"></textarea>
+                    </div>
+                    <div class="mb-1">
+                        <label class="form-label">Effective Date</label>
+                        <input type="date" name="action_date" class="form-control" value="{{ now()->toDateString() }}" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="submitContractActionBtn">Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reinstate Modal -->
+<div class="modal fade" id="reinstateModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Reinstate Employee</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="reinstateForm">
+                    <input type="hidden" name="employee_id">
+                    <input type="hidden" name="contract_action_id">
+                    <input type="hidden" name="status" value="reversed">
+                    <div class="mb-3">
+                        <label class="form-label">Reason</label>
+                        <input type="text" name="reason" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes (optional)</label>
+                        <textarea name="description" class="form-control" rows="2"></textarea>
+                    </div>
+                    <div class="mb-1">
+                        <label class="form-label">Effective Date</label>
+                        <input type="date" name="action_date" class="form-control" value="{{ now()->toDateString() }}" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="submitReinstateBtn">Reinstate</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Warn Employee Modal -->
+<div class="modal fade" id="warnEmployeeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Issue Disciplinary Case</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="warnEmployeeForm">
+                    <input type="hidden" name="employee_id">
+                    <div class="mb-3">
+                        <label class="form-label">Case Type</label>
+                        <select name="case_type" class="form-select">
+                            <option value="verbal_warning">Verbal Warning</option>
+                            <option value="written_warning" selected>Written Warning</option>
+                            <option value="final_warning">Final Warning</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Severity</label>
+                        <select name="severity" class="form-select">
+                            <option value="low">Low</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="high">High</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Reason</label>
+                        <input type="text" name="reason" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description (optional)</label>
+                        <textarea name="description" class="form-control" rows="2"></textarea>
+                    </div>
+                    <div class="mb-1">
+                        <label class="form-label">Issue Date</label>
+                        <input type="date" name="issue_date" class="form-control" value="{{ now()->toDateString() }}" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" id="submitWarnEmployeeBtn">Issue</button>
             </div>
         </div>
     </div>
@@ -576,4 +715,92 @@
     $('#viewEmployeeModal').on('hidden.bs.modal', function() {
         $('#viewEmployeeContainer').html('');
     });
+
+    (function () {
+        const csrf = document.querySelector('meta[name="csrf-token"]').content;
+        const contractActionStoreUrl = @json(route('contracts.store'));
+        const contractActionUpdateUrlTemplate = @json(route('contracts.update', ['id' => '__ID__']));
+        const warningStoreUrl = @json(route('warning.store'));
+
+        async function postJson(url, data) {
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
+                body: JSON.stringify(data),
+            });
+            const payload = await resp.json();
+            if (!resp.ok) throw new Error(payload.message || 'Request failed.');
+            return payload;
+        }
+
+        window.openContractActionModal = function (employeeId, actionType) {
+            const form = document.getElementById('contractActionForm');
+            form.reset();
+            form.querySelector('[name=employee_id]').value = employeeId;
+            form.querySelector('[name=action_type]').value = actionType;
+            document.getElementById('contractActionModalTitle').textContent =
+                actionType === 'termination' ? 'Terminate Employee' : 'Suspend Employee';
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('contractActionModal')).show();
+        };
+
+        document.getElementById('submitContractActionBtn').addEventListener('click', async function () {
+            const form = document.getElementById('contractActionForm');
+            if (!form.checkValidity()) { form.reportValidity(); return; }
+            const data = Object.fromEntries(new FormData(form).entries());
+            try {
+                await postJson(contractActionStoreUrl, data);
+                toastr.success('Action recorded successfully.');
+                bootstrap.Modal.getInstance(document.getElementById('contractActionModal')).hide();
+                if (typeof viewEmployee === 'function') viewEmployee(data.employee_id);
+            } catch (e) {
+                toastr.error(e.message);
+            }
+        });
+
+        window.openReinstateModal = function (contractActionId, employeeId) {
+            const form = document.getElementById('reinstateForm');
+            form.reset();
+            form.querySelector('[name=employee_id]').value = employeeId;
+            form.querySelector('[name=contract_action_id]').value = contractActionId;
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('reinstateModal')).show();
+        };
+
+        document.getElementById('submitReinstateBtn').addEventListener('click', async function () {
+            const form = document.getElementById('reinstateForm');
+            if (!form.checkValidity()) { form.reportValidity(); return; }
+            const data = Object.fromEntries(new FormData(form).entries());
+            const actionId = data.contract_action_id;
+            const employeeId = data.employee_id;
+            delete data.contract_action_id;
+            try {
+                const url = contractActionUpdateUrlTemplate.replace('__ID__', actionId);
+                await postJson(url, data);
+                toastr.success('Employee reinstated successfully.');
+                bootstrap.Modal.getInstance(document.getElementById('reinstateModal')).hide();
+                if (typeof viewEmployee === 'function') viewEmployee(employeeId);
+            } catch (e) {
+                toastr.error(e.message);
+            }
+        });
+
+        window.openWarnEmployeeModal = function (employeeId) {
+            const form = document.getElementById('warnEmployeeForm');
+            form.reset();
+            form.querySelector('[name=employee_id]').value = employeeId;
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('warnEmployeeModal')).show();
+        };
+
+        document.getElementById('submitWarnEmployeeBtn').addEventListener('click', async function () {
+            const form = document.getElementById('warnEmployeeForm');
+            if (!form.checkValidity()) { form.reportValidity(); return; }
+            const data = Object.fromEntries(new FormData(form).entries());
+            try {
+                await postJson(warningStoreUrl, data);
+                toastr.success('Disciplinary case issued successfully.');
+                bootstrap.Modal.getInstance(document.getElementById('warnEmployeeModal')).hide();
+            } catch (e) {
+                toastr.error(e.message);
+            }
+        });
+    })();
 </script>

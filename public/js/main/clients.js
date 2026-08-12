@@ -31,7 +31,7 @@ window.impersonateBusiness = async function (businessSlug) {
     try {
         const response = await businessesService.post(`/businesses/${window.currentBusinessSlug}/clients/${businessSlug}/impersonate`, {});
 
-
+        // response is already the data object, not wrapped in another layer
         if (response.redirect_url) {
             window.location.href = response.redirect_url;
         } else {
@@ -48,6 +48,31 @@ window.impersonateBusiness = async function (businessSlug) {
             icon: 'error',
             title: 'Error',
             text: error.response?.data?.message || 'Failed to impersonate business.',
+        });
+        return false;
+    }
+};
+
+window.switchBackToAdmin = async function () {
+    try {
+        const response = await businessesService.post(`/businesses/${window.currentBusinessSlug}/switch-back`, {});
+
+        if (response.redirect_url) {
+            window.location.href = response.redirect_url;
+        } else {
+            Swal.fire({
+                icon: 'success',
+                title: 'Success',
+                text: response.message || 'Switched back successfully.',
+            });
+        }
+        return true;
+    } catch (error) {
+        console.error('Switch back error:', error.response?.data);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: error.response?.data?.message || 'Failed to switch back.',
         });
         return false;
     }
@@ -81,7 +106,9 @@ window.submitRemarks = async function (businessSlug) {
     const url = `/businesses/${window.currentBusinessSlug}/clients/${businessSlug}/${action}`;
 
     try {
-        const response = await businessesService.post(url, formData);
+        // requestClient directly, not businessesService - its post()
+        // unwraps to response.data only and silently drops `message`.
+        const response = await requestClient.post(url, formData);
         Swal.fire({
             icon: 'success',
             title: 'Success',
@@ -93,7 +120,7 @@ window.submitRemarks = async function (businessSlug) {
         Swal.fire({
             icon: 'error',
             title: 'Error',
-            text: error.response?.data?.message || `Failed to ${action} business.`,
+            text: error.message || `Failed to ${action} business.`,
         });
     }
 };
@@ -105,7 +132,7 @@ window.assignModules = async function (btn, businessSlug) {
     const formData = new FormData(document.getElementById("modulesForm-" + businessSlug));
 
     try {
-        const response = await businessesService.post(`/businesses/${window.currentBusinessSlug}/clients/${businessSlug}/modules/assign`, formData);
+        const response = await requestClient.post(`/businesses/${window.currentBusinessSlug}/clients/${businessSlug}/modules/assign`, formData);
         Swal.fire({
             icon: 'success',
             title: 'Success',
@@ -116,7 +143,7 @@ window.assignModules = async function (btn, businessSlug) {
         Swal.fire({
             icon: 'error',
             title: 'Error',
-            text: error.response?.data?.message || 'Failed to assign modules.',
+            text: error.message || 'Failed to assign modules.',
         });
     } finally {
         btn_loader(btn, false);

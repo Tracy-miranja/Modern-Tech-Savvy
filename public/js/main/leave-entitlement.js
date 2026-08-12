@@ -5,68 +5,40 @@ import LeaveEntitlementsService from "/js/client/LeaveEntitlementsService.js";
 const requestClient = new RequestClient();
 const leaveEntitlementsService = new LeaveEntitlementsService(requestClient);
 
-// add this helper at the top (below the const leaves lines is fine)
-function currentLeavePeriodSlug() {
-  // try the active tab (index page)
-  const activeTab = document.querySelector('#myTab .nav-link.active');
-  if (activeTab?.dataset.leavePeriodSlug) return activeTab.dataset.leavePeriodSlug;
-
-  // fall back to the select (create page)
-  const sel = document.getElementById('leave_period_id');
-  return sel?.options[sel.selectedIndex]?.dataset.slug || null;
-}
-
-window.getLeaveEntitlementsByPeriod = async function (payload) {
-  // Allow old calls (numeric id) and new calls (object with id/slug)
-  const body = (payload && typeof payload === 'object')
-    ? payload
-    : { leave_period_id: payload };
-
-  return await requestClient.post('/leave-entitlements/get-by-period', body);
+window.toggleAllExportChecks = function (containerId, checked) {
+    document.querySelectorAll(`#${containerId} input[type="checkbox"]`).forEach(cb => { cb.checked = checked; });
 };
 
-// Make this GLOBAL because the tabs and other scripts call it
-window.getLeaveEntitlements = async function (page = 1, leavePeriodArg = null) {
+function checkedValues(containerId) {
+    return Array.from(document.querySelectorAll(`#${containerId} input[type="checkbox"]:checked`)).map(cb => cb.value);
+}
+
+window.downloadLeaveEntitlementsPdf = function () {
+    const leavePeriodId = document.getElementById('exportLeavePeriodId')?.value;
+    if (!leavePeriodId) {
+        Swal.fire('Error', 'Select a leave period first.', 'error');
+        return;
+    }
+
+    const departmentId = document.getElementById('exportDepartmentId')?.value;
+    const leaveTypeIds = checkedValues('exportLeaveTypeChecks');
+    const employeeIds = checkedValues('exportEmployeeChecks');
+
+    const params = new URLSearchParams();
+    params.set('leave_period_id', leavePeriodId);
+    if (departmentId) params.set('department_id', departmentId);
+    leaveTypeIds.forEach(id => params.append('leave_type_ids[]', id));
+    employeeIds.forEach(id => params.append('employee_ids[]', id));
+
+    window.location.href = `/business/${window.businessSlug}/leave-entitlements/export-pdf?${params.toString()}`;
+};
+
+window.getLeaveEntitlements = async function (page = 1, leave_period = null) {
   try {
-    // Accept either a slug string, a numeric id, or an object {leave_period_id, leave_period_slug}
-    let payload = { page };
-
-    if (leavePeriodArg && typeof leavePeriodArg === 'object') {
-      if (leavePeriodArg.leave_period_slug) payload.leave_period_slug = leavePeriodArg.leave_period_slug;
-      if (leavePeriodArg.leave_period_id)   payload.leave_period_id   = leavePeriodArg.leave_period_id;
-    } else if (typeof leavePeriodArg === 'string') {
-      // treat non-numeric string as slug
-      if (/^\d+$/.test(leavePeriodArg)) payload.leave_period_id = leavePeriodArg;
-      else payload.leave_period_slug = leavePeriodArg;
-    } else if (leavePeriodArg != null) {
-      // number passed
-      payload.leave_period_id = leavePeriodArg;
-    } else {
-      // no arg passed: try to infer from active tab first, then the select
-      const activeTab = document.querySelector('#myTab .nav-link.active');
-      if (activeTab?.dataset.leavePeriodSlug) {
-        payload.leave_period_slug = activeTab.dataset.leavePeriodSlug;
-      } else {
-        const sel = document.getElementById('leave_period_id');
-        if (sel) {
-          const id = sel.value || null;
-          const slug = sel.options[sel.selectedIndex]?.dataset.slug || null;
-          if (slug) payload.leave_period_slug = slug;
-          if (id)   payload.leave_period_id   = id;
-        }
-      }
-    }
-
-    const html = await leaveEntitlementsService.fetch(payload);
-    const container = document.getElementById('leaveEntitlementsContainer');
-    if (container) {
-      container.innerHTML = html;
-      // init DataTable only if the table exists in the returned HTML
-      const tableEl = document.querySelector('#leaveEntitlementsTable');
-      if (tableEl && typeof DataTable !== 'undefined') {
-        new DataTable('#leaveEntitlementsTable');
-      }
-    }
+    let data = { page: page, leave_period_slug: leave_period };
+    const leaveEntitlements = await leaveEntitlementsService.fetch(data);
+    $('#leaveEntitlementsContainer').html(leaveEntitlements);
+    new DataTable('#leaveEntitlementsTable');
   } catch (error) {
     console.error("Error loading entitlements table:", error);
   }
@@ -87,24 +59,62 @@ window.saveLeaveEntitlements = async function (btn) {
   const formEl = document.getElementById("leaveEntitlementsForm");
   const formData = new FormData(formEl);
 
-  const { id, slug } = currentLeavePeriodParts();
-  if (id && !formData.has('leave_period_id'))   formData.append('leave_period_id', id);
-  if (slug && !formData.has('leave_period_slug')) formData.append('leave_period_slug', slug);
-
   try {
-    if (formData.has('leave_period_slug') || formData.has('leave_period_id')) {
-      await leaveEntitlementsService.save(formData); // or update, depending on your flow
+    if (formData.has('leave_period_slug')) {
+      await leaveEntitlementsService.update(formData);
     } else {
-      toastr.error('Please select a leave period first.');
-      return;
+      await leaveEntitlementsService.save(formData);
     }
-    // refresh with the same period
-    getLeaveEntitlements(1, slug || null);
+
+    // This form only exists on the "Set Entitlements" page, which has no
+    // #leaveEntitlementsContainer to refresh (that's the separate list
+    // page) - redirect there instead so the just-saved entitlements are
+    // visible, rather than calling getLeaveEntitlements() with no period
+    // (which always fails validation and shows a confusing error toast
+    // right after the success toast above).
+    const redirectUrl = formEl.dataset.entitlementsIndexUrl;
+    if (redirectUrl) {
+      setTimeout(() => { window.location.href = redirectUrl; }, 1200);
+    }
   } finally {
     btn_loader($btn, false);
   }
 };
 
+
+// ADJUST (add/remove days with a required reason - cumulative, distinct
+// from the raw-overwrite Edit form)
+window.openAdjustEntitlementModal = function (btn) {
+    const $btn = $(btn);
+    document.getElementById('adjustEntitlementSlug').value = $btn.data('slug');
+    document.getElementById('adjustEntitlementEmployeeName').textContent = $btn.data('employee');
+    document.getElementById('adjustEntitlementForm').reset();
+    document.getElementById('adjustEntitlementSlug').value = $btn.data('slug');
+
+    const modalEl = document.getElementById('adjustEntitlementModal');
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+
+    document.getElementById('submitAdjustEntitlementBtn').onclick = async function () {
+        const form = document.getElementById('adjustEntitlementForm');
+        if (!form.checkValidity()) { form.reportValidity(); return; }
+        const $submitBtn = $(this);
+        btn_loader($submitBtn, true);
+
+        try {
+            const data = Object.fromEntries(new FormData(form).entries());
+            await leaveEntitlementsService.adjust(data);
+            bootstrap.Modal.getInstance(modalEl).hide();
+
+            const activeTab = document.querySelector('#myTab .nav-link.active');
+            const lpSlug = activeTab?.dataset.leavePeriodSlug;
+            if (typeof getLeaveEntitlements === 'function') getLeaveEntitlements(1, lpSlug);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            btn_loader($submitBtn, false);
+        }
+    };
+};
 
 // SHOW (details)
 window.viewLeaveEntitlements = async function (btn) {

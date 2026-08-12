@@ -407,3 +407,4 @@ document.addEventListener('DOMContentLoaded', () => {
         console.warn('Payroll filter form not found on page');
     }
 });
+

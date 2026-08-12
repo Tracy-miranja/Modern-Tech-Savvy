@@ -18,6 +18,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 
+
 class LeaveTypeController extends Controller
 {
     use HandleTransactions;
@@ -67,19 +68,24 @@ class LeaveTypeController extends Controller
             // governance/flow
             'allows_backdating'                 => 'required|boolean',
             'approval_levels'                   => 'required|integer|min:0',
+            'approval_chain'                    => 'nullable|array',
+            'approval_chain.*'                  => 'in:organogram,hr,department_head',
             'excluded_days'                     => 'nullable|array',
             'excluded_days.*'                   => 'in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
             'excluded_dates'                   => 'nullable|array',
             'excluded_dates.*'                 => 'date_format:Y-m-d',
             'is_stepwise'                       => 'required|boolean',
             'stepwise_rules'                    => 'nullable|array',
+            'exclude_public_holidays'           => 'nullable|boolean',
+            'exclude_non_working_days'          => 'nullable|boolean',
         ]);
 
         return $this->handleTransaction(function () use ($validated, $business) {
-        $rawExcludedDates = $validated['excluded_dates'] ?? null;
-        $normalizedExcludedDates = (is_array($rawExcludedDates) && count($rawExcludedDates))
-            ? array_values(array_unique($rawExcludedDates))
-            : null;
+            // The chain (when supplied) is the source of truth for how many
+            // levels there actually are - keeps the two fields from drifting.
+            $approvalChain = $validated['approval_chain'] ?? null;
+            $approvalLevels = $approvalChain ? count($approvalChain) : $validated['approval_levels'];
+
             $leaveType = $business->leaveTypes()->create([
                 'name'                => $validated['name'],
                 'description'         => $validated['description'] ?? null,
@@ -92,11 +98,14 @@ class LeaveTypeController extends Controller
                 'min_notice_days'     => $validated['min_notice_days'],
                 'is_active'           => true,
                 'allows_backdating'   => $validated['allows_backdating'],
-                'approval_levels'     => $validated['approval_levels'],
-                'excluded_days'  => $validated['excluded_days'] ?? null,
-                'excluded_dates' => $normalizedExcludedDates,
-                'is_stepwise'    => $validated['is_stepwise'],
-                'stepwise_rules' => $validated['stepwise_rules'] ?? null,
+                'approval_levels'     => $approvalLevels,
+                'approval_chain'      => $approvalChain,
+                'excluded_days'       => $validated['excluded_days'] ?? [],
+                'excluded_dates'      => array_values(array_unique($validated['excluded_dates'] ?? [])),
+                'is_stepwise'         => $validated['is_stepwise'],
+                'stepwise_rules'      => $validated['stepwise_rules'] ?? [],
+                'exclude_public_holidays' => $validated['exclude_public_holidays'] ?? true,
+                'exclude_non_working_days' => $validated['exclude_non_working_days'] ?? true,
             ]);
 
             $businessId = $business->id;
@@ -263,11 +272,15 @@ class LeaveTypeController extends Controller
         'min_notice_days'     => ['sometimes','nullable','integer','min:0'],
         'allows_backdating'   => ['sometimes','in:0,1,true,false'],
         'approval_levels'     => ['sometimes','nullable','integer','min:0'],
+        'approval_chain'      => ['sometimes','nullable','array'],
+        'approval_chain.*'    => ['in:organogram,hr,department_head'],
         'is_stepwise'         => ['sometimes','in:0,1,true,false'],
         'excluded_days'       => ['sometimes','array'],
         'excluded_days.*'     => ['in:monday,tuesday,wednesday,thursday,friday,saturday,sunday'],
-        'excluded_dates'      => ['nullable','array'],
-        'excluded_dates.*'    => ['nullable','date_format:Y-m-d'],
+        'excluded_dates'      => ['sometimes','array'],
+        'excluded_dates.*'    => ['date_format:Y-m-d'],
+        'exclude_public_holidays' => ['sometimes','in:0,1,true,false'],
+        'exclude_non_working_days' => ['sometimes','in:0,1,true,false'],
 
         // Policy bits
         'department'     => ['sometimes','filled','string'],
@@ -306,14 +319,16 @@ class LeaveTypeController extends Controller
         // Save LeaveType
         $leaveType->fill($data);
 
-        if ($request->exists('excluded_days')) {
-            $days = collect((array) $request->input('excluded_days', []))
-                ->map(fn ($d) => strtolower($d))
-                ->unique()
-                ->values()
-                ->all();
+        if (array_key_exists('approval_chain', $data)) {
+            // The chain is the source of truth for how many levels there
+            // are, when supplied - keeps the two fields from drifting.
+            $leaveType->approval_levels = count($data['approval_chain'] ?? []) ?: ($data['approval_levels'] ?? $leaveType->approval_levels);
+        }
 
-            $leaveType->excluded_days = !empty($days) ? $days : null;
+        if (array_key_exists('excluded_days', $data)) {
+            $leaveType->excluded_days = array_values(array_unique(
+                array_map('strtolower', $data['excluded_days'] ?? [])
+            ));
         }
 
 
@@ -378,18 +393,32 @@ class LeaveTypeController extends Controller
                 }
             }
 
-            // Baseline from any existing policy
-            $template = LeavePolicy::where('leave_type_id', $leaveType->id)->first();
+            $today = now()->toDateString();
 
-            $baseline = [
-                'prorated_for_new_employees'    => $template->prorated_for_new_employees ?? false,
-                'default_days'                  => $template->default_days ?? 0,
-                'accrual_frequency'             => $template->accrual_frequency ?? 'monthly',
-                'accrual_amount'                => $template->accrual_amount ?? 0,
-                'max_carryover_days'            => $template->max_carryover_days ?? 0,
-                'minimum_service_days_required' => $template->minimum_service_days_required ?? 0,
-                'effective_date'                => $template->effective_date ?? now()->toDateString(),
-                'end_date'                      => $template->end_date ?? null,
+            // Values that actually change what a policy computes. Editing
+            // any of these versions the policy (close the currently-open
+            // row, insert a new dated one) instead of overwriting it in
+            // place - resolvePolicy() already resolves "the policy as of
+            // date X" by effective_date/end_date, but the old write path
+            // used updateOrCreate() keyed on (leave_type, department,
+            // job_category, gender) only, with no effective_date in the
+            // key, so an edit silently rewrote history: a leave period
+            // already closed out (e.g. carryover computed against 2025)
+            // would start resolving to whatever the CURRENT values are the
+            // moment someone edited them for 2026, not what was actually in
+            // effect when 2025 ran.
+            $versionedFields = [
+                'prorated_for_new_employees', 'default_days', 'accrual_frequency',
+                'accrual_amount', 'max_carryover_days', 'minimum_service_days_required',
+            ];
+
+            $defaultBaseline = [
+                'prorated_for_new_employees'    => false,
+                'default_days'                  => 0,
+                'accrual_frequency'             => 'monthly',
+                'accrual_amount'                => 0,
+                'max_carryover_days'            => 0,
+                'minimum_service_days_required' => 0,
             ];
 
             // === UPSERT + SYNC ===
@@ -404,8 +433,64 @@ class LeaveTypeController extends Controller
                     ];
                     $targetKeys[] = $key;
 
+                    // The currently-open version for THIS exact scope (not
+                    // just any row for the leave type) - after versioning,
+                    // a scope can have several historical rows.
+                    $current = LeavePolicy::where($key)
+                        ->where(function ($q) use ($today) {
+                            $q->whereNull('end_date')->orWhereDate('end_date', '>=', $today);
+                        })
+                        ->orderByDesc('effective_date')
+                        ->first();
+
+                    $baseline = $current
+                        ? $current->only(array_merge($versionedFields, ['effective_date', 'end_date']))
+                        : array_merge($defaultBaseline, ['effective_date' => $today, 'end_date' => null]);
+
                     $attrs = array_merge($baseline, $policyFill);
-                    LeavePolicy::updateOrCreate($key, $attrs);
+
+                    if (!$current) {
+                        LeavePolicy::create(array_merge($key, $attrs));
+                        continue;
+                    }
+
+                    $valueChanged = collect($versionedFields)->contains(
+                        fn ($f) => array_key_exists($f, $policyFill) && (string) $current->{$f} !== (string) $attrs[$f]
+                    );
+
+                    if (!$valueChanged) {
+                        // Only the dept/job/gender scope changed (or nothing
+                        // did) - explicit date edits with no value change
+                        // are a deliberate correction, apply directly.
+                        if (array_key_exists('effective_date', $policyFill) || array_key_exists('end_date', $policyFill)) {
+                            $current->effective_date = $attrs['effective_date'];
+                            $current->end_date       = $attrs['end_date'];
+                            if ($current->isDirty()) {
+                                $current->save();
+                            }
+                        }
+                        continue;
+                    }
+
+                    $newEffectiveDate = $policyFill['effective_date'] ?? $today;
+
+                    if (\Carbon\Carbon::parse($newEffectiveDate)->lte(\Carbon\Carbon::parse($current->effective_date))) {
+                        // Can't open a new version before/on the existing
+                        // one's own start without an invalid window - this
+                        // is correcting historic data, not adding a new
+                        // period's rate, so update in place.
+                        $current->fill($attrs);
+                        $current->save();
+                        continue;
+                    }
+
+                    $current->end_date = \Carbon\Carbon::parse($newEffectiveDate)->subDay()->toDateString();
+                    $current->save();
+
+                    LeavePolicy::create(array_merge($key, $attrs, [
+                        'effective_date' => $newEffectiveDate,
+                        'end_date'       => $policyFill['end_date'] ?? null,
+                    ]));
                 }
             }
 
@@ -478,17 +563,23 @@ class LeaveTypeController extends Controller
 
 public function getRemainingDays(Request $request, Business $business)
 {
+    // Was reading $employeeId/$leaveTypeId here before either was ever
+    // assigned in this function - PHP treats that as null, so the
+    // !$leaveTypeId/!$employeeId guards below always tripped and this
+    // endpoint (used by the leave request form's live "days remaining"
+    // display) unconditionally returned 0, regardless of the real
+    // entitlement. Sourcing both from the request, like the sibling
+    // getRemainingDaysAjax() below already does, fixes that.
+    $business = Business::findBySlug(session('active_business_slug')) ?? $business;
+
+    $employeeId  = $request->input('employee_id', auth()->user()?->activeEmployee()?->id);
+    $leaveTypeId = $request->input('leave_type_id');
+
     Log::debug('getRemainingDays called', [
         'business_slug' => $business->slug,
         'payload'       => $request->all(),
         'user_id'       => optional(auth()->user())->id,
     ]);
-
-    $user = auth()->user();
-    $defaultEmployeeId = $user->employee?->id; // null-safe
-
-    $employeeId  = $request->input('employee_id', $defaultEmployeeId);
-    $leaveTypeId = $request->input('leave_type_id');
 
     if (!$leaveTypeId) {
         Log::warning('getRemainingDays: missing leave_type_id', [
@@ -549,7 +640,7 @@ public function getRemainingDaysAjax(Request $request)
         return response()->json(['remaining_days' => 0]);
     }
 
-    $defaultEmployeeId = $user->employee?->id;
+    $defaultEmployeeId = $user->activeEmployee()?->id;
 
     $employeeId  = $request->input('employee_id', $defaultEmployeeId);
     $leaveTypeId = $request->input('leave_type_id');

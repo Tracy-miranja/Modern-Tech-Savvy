@@ -65,7 +65,7 @@ class AllowanceController extends Controller
         ]);
 
        return $this->handleTransaction(
-    function () use ($validatedData) {
+    function () use ($request, $validatedData) {
         $business = Business::findBySlug(session('active_business_slug'));
         if (!$business) {
             return RequestResponse::badRequest('Business not found.');
@@ -88,7 +88,8 @@ class AllowanceController extends Controller
             'calculation_basis' => $validatedData['calculation_basis'],
             'amount'            => $amount,
             'rate'              => $rate,
-            'is_taxable'        => $validatedData['is_taxable'] ?? true,
+            // 'is_taxable'        => $validatedData['is_taxable'] ?? true,
+            'is_taxable'        => $request->boolean('is_taxable'),
             'applies_to'        => $validatedData['applies_to'],
             'business_id'       => $business->id,
         ]);
@@ -142,7 +143,7 @@ class AllowanceController extends Controller
 
         \Log::info('Validated data for update:', $validatedData);
 
-        return $this->handleTransaction(function () use ($validatedData, $id) {
+        return $this->handleTransaction(function () use ($request, $validatedData, $id) {
             $business = Business::findBySlug(session('active_business_slug'));
             if (!$business) {
                 return RequestResponse::badRequest('Business not found.');
@@ -164,7 +165,8 @@ class AllowanceController extends Controller
     'calculation_basis' => $validatedData['calculation_basis'],
     'amount' => $validatedData['type'] === 'fixed' && $validatedData['amount'] !== '' ? $validatedData['amount'] : null,
     'rate' => $validatedData['type'] === 'rate' && $validatedData['rate'] !== '' ? $validatedData['rate'] : null,
-    'is_taxable' => $validatedData['is_taxable'] ?? true,
+    // 'is_taxable' => $validatedData['is_taxable'] ?? true,
+    'is_taxable' => $request->boolean('is_taxable'),
     'applies_to' => $validatedData['applies_to'],
 ];
 

@@ -3,58 +3,37 @@
 
         <div class="col-md-4">
             <div class="card">
+                <div class="card-body" id="leavePeriodsFormContainer">
+                    @include('leave._leave_period_form')
+                </div>
+            </div>
+
+            <div class="card mt-3">
                 <div class="card-body">
-                    <form action="" method="POST" id="leavePeriodsForm">
-                        @csrf
-
-                        <div class="form-group mb-3">
-                            <label for="name">Name</label>
-                            <input type="text" name="name" id="name" placeholder="Leave Period Name" class="form-control" required>
+                    <h6 class="mb-2">Process Carryover</h6>
+                    <p class="text-muted small">Rolls each employee's unused balance from one period into the next, capped by that leave type's policy. Only updates entitlements that already exist in the destination period.</p>
+                    <form id="processCarryoverForm">
+                        <div class="mb-2">
+                            <label class="form-label">From Period</label>
+                            <select name="from_period_id" class="form-select" required>
+                                <option value="">Select period</option>
+                                @foreach ($leavePeriods as $period)
+                                    <option value="{{ $period->id }}">{{ $period->name }}</option>
+                                @endforeach
+                            </select>
                         </div>
-
-                        <div class="form-group mb-3">
-                            <label for="start_date">Start Date</label>
-                            <input type="date" name="start_date" id="start_date" placeholder="Start Date" class="form-control datepicker" required>
+                        <div class="mb-3">
+                            <label class="form-label">To Period</label>
+                            <select name="to_period_id" class="form-select" required>
+                                <option value="">Select period</option>
+                                @foreach ($leavePeriods as $period)
+                                    <option value="{{ $period->id }}">{{ $period->name }}</option>
+                                @endforeach
+                            </select>
                         </div>
-
-                        <div class="form-group mb-3">
-                            <label for="end_date">End Date</label>
-                            <input type="date" name="end_date" id="end_date" placeholder="End Date" class="form-control datepicker" required>
-                        </div>
-
-                        <div class="form-group mb-3">
-                            <div class="form-check">
-                                <input type="checkbox" class="form-check-input" id="accept_applications" name="accept_applications" checked value="1">
-                                <label class="form-check-label" for="accept_applications">Accept Applications</label>
-                            </div>
-                        </div>
-
-                        <div class="form-group mb-3">
-                            <div class="form-check">
-                                <input type="checkbox" class="form-check-input" id="can_accrue" name="can_accrue" checked value="1">
-                                <label class="form-check-label" for="can_accrue">Can Accrue</label>
-                            </div>
-                        </div>
-
-                        <div class="form-group mb-3">
-                            <div class="form-check">
-                                <input type="checkbox" class="form-check-input" id="restrict_applications_within_dates" name="restrict_applications_within_dates" value="1">
-                                <label class="form-check-label" for="restrict_applications_within_dates">Restrict Applications Within Dates</label>
-                            </div>
-                        </div>
-
-                        <div class="form-group mb-3">
-                            <div class="form-check">
-                                <input type="checkbox" class="form-check-input" id="autocreate" name="autocreate" value="1">
-                                <label class="form-check-label" for="autocreate">Autocreate Next Period</label>
-                            </div>
-                        </div>
-
-                        <div class="row">
-                            <div class="col-md-12">
-                                <button type="button" onclick="saveLeavePeriods(this)" class="btn btn-primary w-100"> <i class="bi bi-check-circle"></i> Save Leave Period </button>
-                            </div>
-                        </div>
+                        <button type="button" onclick="processCarryover(this)" class="btn btn-outline-primary w-100">
+                            <i class="bi bi-arrow-right-circle"></i> Process Carryover
+                        </button>
                     </form>
                 </div>
             </div>

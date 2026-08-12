@@ -26,20 +26,22 @@
                 @endif
             </td>
             <td>
-                @if (!$biz->verified)
-                <button class="btn btn-sm btn-success" onclick="verifyBusiness(this, '{{ $biz->slug }}')">
-                    Verify
-                </button>
-                @else
-                <button class="btn btn-sm btn-danger" onclick="deactivateBusiness(this, '{{ $biz->slug }}')">
-                    Deactivate
-                </button>
+                @if (auth()->user()->hasRole('super-admin'))
+                    @if (!$biz->verified)
+                    <button class="btn btn-sm btn-success" onclick="verifyBusiness(this, '{{ $biz->slug }}')">
+                        Verify
+                    </button>
+                    @else
+                    <button class="btn btn-sm btn-danger" onclick="deactivateBusiness(this, '{{ $biz->slug }}')">
+                        Deactivate
+                    </button>
+                    @endif
+                    <button class="btn btn-sm btn-primary" data-toggle="modal" data-target="#modulesModal-{{ $biz->slug }}">
+                        Assign Modules
+                    </button>
                 @endif
-                <button class="btn btn-sm btn-primary" data-toggle="modal" data-target="#modulesModal-{{ $biz->slug }}">
-                    Assign Modules
-                </button>
                 <button class="btn btn-sm btn-info" onclick="impersonateBusiness('{{ $biz->slug }}')">
-                    Impersonate
+                  Switch to Business
                 </button>
             </td>
         </tr>

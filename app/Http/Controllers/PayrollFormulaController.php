@@ -234,7 +234,7 @@ class PayrollFormulaController extends Controller
             'South Africa' => 'South Africa',
             'Ethiopia' => 'Ethiopia'
         ];
-        $form = view('payroll-formulas._form', compact('formula', 'countries'))->render();
+      $form = view('payroll-formulas._form', compact('formula', 'countries', 'business'))->render();
         return RequestResponse::ok('Payroll formula form loaded successfully.', $form);
     }
 
@@ -373,7 +373,7 @@ class PayrollFormulaController extends Controller
 
     //         // Restrict update for non-krest businesses
     //         if ($business->slug !== 'krest') {
-    //             return RequestResponse::forbidden('Onlykrest can update payroll formulas.');
+    //             return RequestResponse::forbidden('Only krest can update payroll formulas.');
     //         }
 
     //         $formula = PayrollFormula::where('id', $id)
@@ -435,7 +435,7 @@ class PayrollFormulaController extends Controller
                 return RequestResponse::badRequest('Business not found.');
             }
 
-            // Restrict delete for non-krestl businesses
+            // Restrict delete for non-krest businesses
             if ($business->slug !== 'krest') {
                 return RequestResponse::forbidden('Only krest can delete payroll formulas.');
             }
@@ -501,9 +501,10 @@ class PayrollFormulaController extends Controller
     {
         $index = $request->input('index', 0);
         $bracket = new PayrollFormulaBracket();
-        return response()->json([
-            'html' => view('payroll-formulas._bracket', compact('index', 'bracket'))->render()
-        ]);
+        // return response()->json([
+        //     'html' => view('payroll-formulas._bracket', compact('index', 'bracket'))->render()
+        // ]);
+         return view('payroll-formulas._bracket', compact('index', 'bracket'));
     }
 
     /**

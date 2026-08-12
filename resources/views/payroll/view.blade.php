@@ -160,6 +160,7 @@
                                 <th data-col="deductions">Deductions</th>
                                 <th data-col="advances">Advances</th>
                                 <th data-col="loans">Loans</th>
+                                <th data-col="benefits">Reimbursement</th>
                                 <th data-col="net_pay">Net Pay</th>
                                 <th data-col="bank_name">Bank Name</th>
                                 <th data-col="account_number">Account Number</th>
@@ -172,6 +173,8 @@
                             $deductions = json_decode($ep->deductions, true) ?? [];
                             $overtime   = json_decode($ep->overtime,   true) ?? ['amount' => 0];
                             $allowances = json_decode($ep->allowances, true) ?? [];
+                            $taxableAllowancesDisplay = array_filter($allowances, fn($a) => is_array($a) && ($a['is_taxable'] ?? false) && !($a['is_employer_contribution'] ?? false));
+$benefitsDisplay = array_filter($allowances, fn($a) => is_array($a) && !($a['is_taxable'] ?? false) && !($a['is_employer_contribution'] ?? false));
                             $reliefs    = json_decode($ep->reliefs,    true) ?? [];
 
                             $customDeductions = array_filter($deductions, fn($d) => !in_array($d['name'] ?? '', ['SHIF', 'NSSF', 'PAYE', 'Housing Levy', 'HELB', 'Loan Repayment', 'Advance Recovery', 'Absenteeism Charge']));
@@ -191,7 +194,9 @@
                                 <td class="col-pin-1">{{ $index + 1 }}</td>
                                 <td class="col-pin-2">{{ $ep->employee->user->name ?? 'N/A' }}</td>
                                 <td data-col="basic_salary">{{ number_format($ep->basic_salary ?? 0, 2) }}</td>
-                                <td data-col="allowances">{{ collect($allowances)->map(fn($a) => "{$a['name']} (" . number_format($a['amount'] ?? 0, 2) . ")")->implode(', ') ?: 'None' }}</td>
+                                <td data-col="allowances">{{ collect($taxableAllowancesDisplay)->map(fn($a) => "{$a['name']} (" . number_format($a['amount'] ?? 0, 2) . ")")->implode(', ') ?: 'None' }}</td>
+
+                                {{-- <td data-col="allowances">{{ collect($allowances)->map(fn($a) => "{$a['name']} (" . number_format($a['amount'] ?? 0, 2) . ")")->implode(', ') ?: 'None' }}</td> --}}
                                 <td data-col="overtime">{{ number_format($overtime['amount'] ?? 0, 2) }}</td>
                                 <td data-col="gross_pay">{{ number_format($ep->gross_pay ?? 0, 2) }}</td>
                                 <td data-col="shif">{{ number_format($ep->shif ?? ($deductions['shif'] ?? 0), 2) }}</td>
@@ -205,6 +210,7 @@
                                 <td data-col="deductions">{{ number_format($totalCustomDeductions, 2) }}</td>
                                 <td data-col="advances">{{ number_format($ep->advance_recovery ?? ($deductions['advance_recovery'] ?? 0), 2) }}</td>
                                 <td data-col="loans">{{ number_format($ep->loan_repayment ?? ($deductions['loan_repayment'] ?? 0), 2) }}</td>
+                                <td data-col="benefits">{{ collect($benefitsDisplay)->map(fn($a) => "{$a['name']} (" . number_format($a['amount'] ?? 0, 2) . ")")->implode(', ') ?: 'None' }}</td>
                                 <td data-col="net_pay">{{ number_format($ep->net_pay ?? 0, 2) }}</td>
                                 <td data-col="bank_name">{{ $ep->bank_name ?? 'N/A' }}</td>
                                 <td data-col="account_number">{{ $ep->account_number ?? 'N/A' }}</td>
@@ -240,7 +246,8 @@
                                 <td class="col-pin-1 fw-bold"></td>
                                 <td class="col-pin-2 fw-bold text-end">Totals:</td>
                                 <td data-col="basic_salary">{{ number_format($totals['totalBasicSalary'], 2) }}</td>
-                                <td data-col="allowances">{{ number_format($totals['totalAllowances'], 2) }}</td>
+                               <td data-col="allowances">{{ number_format($totals['totalAllowances'], 2) }}</td>
+
                                 <td data-col="overtime">{{ number_format($totals['totalOvertime'], 2) }}</td>
                                 <td data-col="gross_pay">{{ number_format($totals['totalGrossPay'], 2) }}</td>
                                 <td data-col="shif">{{ number_format($totals['totalShif'], 2) }}</td>
@@ -254,6 +261,7 @@
                                 <td data-col="deductions">{{ number_format($totals['totalCustomDeductions'], 2) }}</td>
                                 <td data-col="advances">{{ number_format($totals['totalAdvances'], 2) }}</td>
                                 <td data-col="loans">{{ number_format($totals['totalLoans'], 2) }}</td>
+                                <td data-col="benefits">{{ number_format($totals['totalBenefits'], 2) }}</td>
                                 <td data-col="net_pay">{{ number_format($totals['totalNetPay'], 2) }}</td>
                                 <td data-col="bank_name"></td>
                                 <td data-col="account_number"></td>
@@ -586,7 +594,9 @@
         /* ── Column Visibility ── */
         const colDefs = [
             { key: 'basic_salary',    label: 'Basic Salary',          default: true  },
+            // { key: 'allowances',      label: 'Allowances',            default: true  },
             { key: 'allowances',      label: 'Allowances',            default: true  },
+{ key: 'benefits',        label: 'Benefits',              default: true  },
             { key: 'overtime',        label: 'Overtime',              default: true  },
             { key: 'gross_pay',       label: 'Gross Pay',             default: true  },
             { key: 'shif',            label: 'SHIF',                  default: true  },
