@@ -1572,8 +1572,11 @@ class EmployeeController extends Controller
                         ]);
 
                         // Set column widths for readability
-                        foreach (range('A', 'AR') as $col) {
-                            $sheet->getColumnDimension($col)->setWidth(15);
+                        $startColIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString('A');
+                        $endColIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString('AR');
+                        for ($colIndex = $startColIndex; $colIndex <= $endColIndex; $colIndex++) {
+                            $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIndex);
+                            $sheet->getColumnDimension($colLetter)->setWidth(15);
                         }
                         $sheet->getColumnDimension('C')->setWidth(25); // Email
                         $sheet->getColumnDimension('M')->setWidth(20); // Account Name
@@ -1865,8 +1868,10 @@ class EmployeeController extends Controller
                                 ],
                             ]);
 
-                            foreach (range('A', $highestColumn) as $col) {
-                                $sheet->getColumnDimension($col)->setAutoSize(true);
+                              $endColIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn);
+                            for ($colIndex = 1; $colIndex <= $endColIndex; $colIndex++) {
+                                $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIndex);
+                                $sheet->getColumnDimension($colLetter)->setAutoSize(true);
                             }
                         }
                     ];
