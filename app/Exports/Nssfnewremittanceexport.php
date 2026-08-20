@@ -17,9 +17,20 @@ use PhpOffice\PhpSpreadsheet\Style\Border;
 /**
  * New NSSF Return/Remittance Format (post-2014 NSSF Act)
  * Columns: Payroll No, Surname, Other Names, ID No, KRA PIN, NSSF No, Gross Pay, Tier I Employee, Tier I Employer, Tier II Employee, Tier II Employer, Total
+ *
+ * Rates effective 1 February 2026 (Year 4 of the NSSF Act 2013 phased rollout):
+ *   Tier I  — Lower Earnings Limit (LEL): KES 9,000  — 6% each side, capped at KES 540
+ *   Tier II — Upper Earnings Limit (UEL): KES 108,000 — 6% each side on the band
+ *             (9,000 to 108,000), capped at KES 5,940
+ *   Combined max per side: KES 6,480 (total employee+employer: KES 12,960)
  */
 class NssfNewRemittanceExport implements FromCollection, WithHeadings, WithStyles, WithColumnWidths
 {
+    // NSSF Act 2013 — Year 4 rates, effective 1 Feb 2026
+    private const TIER1_LEL = 9000;
+    private const TIER2_UEL = 108000;
+    private const NSSF_RATE = 0.06;
+
     protected $payroll;
 
     public function __construct(Payroll $payroll)
@@ -53,15 +64,15 @@ class NssfNewRemittanceExport implements FromCollection, WithHeadings, WithStyle
 
             $grossPay = floatval($ep->gross_pay ?? 0);
 
-            // Tier I: on first KES 7,000 (old pensionable pay limit) — 6% each side, capped at 420
-            $tier1Base     = min($grossPay, 7000);
-            $tier1Employee = round($tier1Base * 0.06, 2);
-            $tier1Employer = round($tier1Base * 0.06, 2);
+            // Tier I: on first KES 9,000 (Lower Earnings Limit) — 6% each side, capped at 540
+            $tier1Base     = min($grossPay, self::TIER1_LEL);
+            $tier1Employee = round($tier1Base * self::NSSF_RATE, 2);
+            $tier1Employer = round($tier1Base * self::NSSF_RATE, 2);
 
-            // Tier II: on amount above 7,000 up to 36,000 — 6% each side
-            $tier2Base     = max(0, min($grossPay, 36000) - 7000);
-            $tier2Employee = round($tier2Base * 0.06, 2);
-            $tier2Employer = round($tier2Base * 0.06, 2);
+            // Tier II: on amount above 9,000 up to 108,000 (Upper Earnings Limit) — 6% each side, capped at 5,940
+            $tier2Base     = max(0, min($grossPay, self::TIER2_UEL) - self::TIER1_LEL);
+            $tier2Employee = round($tier2Base * self::NSSF_RATE, 2);
+            $tier2Employer = round($tier2Base * self::NSSF_RATE, 2);
 
             $totalContribution = $tier1Employee + $tier1Employer + $tier2Employee + $tier2Employer;
 
