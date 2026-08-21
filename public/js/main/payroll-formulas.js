@@ -90,12 +90,25 @@ window.deleteFormula = async function (btn) {
     });
 };
 
+// window.addBracket = async function () {
+//     const index = $('#brackets .bracket').length;
+//     try {
+//         const endpoint = `/business/${window.businessSlug}/payroll-formulas/bracket-template?index=${index}`;
+//         const response = await requestClient.get(endpoint);
+//         $('#brackets').append(response.html);
+//     } catch (error) {
+//         console.error('Error adding bracket:', error);
+//         Swal.fire('Error!', error.message || 'Failed to add bracket.', 'error');
+//     }
+// };
+
 window.addBracket = async function () {
     const index = $('#brackets .bracket').length;
     try {
         const endpoint = `/business/${window.businessSlug}/payroll-formulas/bracket-template?index=${index}`;
         const response = await requestClient.get(endpoint);
-        $('#brackets').append(response.html);
+        const html = typeof response === 'object' ? response.html : response;
+        $('#brackets').append(html);
     } catch (error) {
         console.error('Error adding bracket:', error);
         Swal.fire('Error!', error.message || 'Failed to add bracket.', 'error');
