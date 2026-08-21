@@ -251,7 +251,9 @@ class ApplicationController extends Controller
     {
         try {
             $validated = $request->validate([
-                'api_token' => 'required|string',
+                // 'api_token' => 'required|string',
+                'business_slug' => 'required|string|exists:businesses,slug',
+'api_token'      => 'required|string',
                 'jobId'     => ['required', 'exists:job_posts,slug'],
 
                 // Part 1
@@ -315,10 +317,19 @@ class ApplicationController extends Controller
             ]);
 
             // Authorize API token (krest)
-            $business = Business::where('slug', 'krest')->first();
-            if (!$business || !$business->api_token || !password_verify($validated['api_token'], $business->api_token)) {
-                return RequestResponse::unauthorized('Invalid or unauthorized API token.');
-            }
+            // $business = Business::where('slug', 'krest')->first();
+            // if (!$business || !$business->api_token || !password_verify($validated['api_token'], $business->api_token)) {
+            //     return RequestResponse::unauthorized('Invalid or unauthorized API token.');
+            // }
+
+            // Resolve business from the slug the client sent, then verify THEIR token
+$business = Business::where('slug', $validated['business_slug'])->first();
+if (!$business || !$business->api_token || !password_verify($validated['api_token'], $business->api_token)) {
+    return RequestResponse::unauthorized('Invalid or unauthorized API token.');
+}
+if (!$business->verified) {
+    return RequestResponse::unauthorized('This business is not yet verified.');
+}
 
             // Validate job post
             $jobPost = JobPost::where('slug', $validated['jobId'])

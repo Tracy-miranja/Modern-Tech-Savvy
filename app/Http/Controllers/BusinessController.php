@@ -452,9 +452,9 @@ class BusinessController extends Controller
             if ($business->user_id !== auth()->id()) {
                 return RequestResponse::badRequest('Business not found or unauthorized.');
             }
-            if ($businessSlug !== 'krest') {
-                return RequestResponse::badRequest('API token generation is restricted to krest.');
-            }
+            // if ($businessSlug !== 'krest') {
+            //     return RequestResponse::badRequest('API token generation is restricted to krest.');
+            // }
             do {
                 $apiToken = Str::random(60);
             } while (Business::where('api_token', Hash::make($apiToken))->exists());

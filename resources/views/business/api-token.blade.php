@@ -7,6 +7,12 @@
                         <h2 class="fw-bold mb-4">
                             Manage API Token for {{ $business->company_name }}
                         </h2>
+                        <div class="alert alert-info d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <strong>Business Slug (send this with every request):</strong>
+        <code>{{ $business->slug }}</code>
+    </div>
+</div>
 
                         <!-- Success Message -->
                         @if (session('message'))

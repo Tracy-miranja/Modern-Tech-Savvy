@@ -242,8 +242,9 @@
                     @endif
                 </div>
             </div>
-
-            @if($business->verified && $business->slug === 'krest')
+{{--
+            @if($business->verified && $business->slug === 'krest') --}}
+            @if($business->verified)
                 <p>API Token</p>
                 <div class="card shadow-sm">
                     <div class="card-body text-center">
