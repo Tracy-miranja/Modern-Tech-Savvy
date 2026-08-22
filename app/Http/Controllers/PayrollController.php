@@ -714,8 +714,8 @@ class PayrollController extends Controller
                 'reliefs', // Remove whereNotNull('relief_id')
                 'overtimes' => fn($q) => $q->whereYear('date', $request->year)->whereMonth('date', $request->month),
                 'advances' => fn($q) => $q->whereYear('date', $request->year)->whereMonth('date', $request->month),
-                'loans.repayments' => fn($q) => $q->where('start_date', '<=', Carbon::create($request->year, $request->month)->endOfMonth())
-                    ->where('end_date', '>=', Carbon::create($request->year, $request->month)->startOfMonth()),
+                'loans' => fn($q) => $q->where('start_date', '<=', Carbon::create($request->year, $request->month)->endOfMonth()),
+'loans.repayments',
                 'attendances' => fn($q) => $q->whereYear('date', $request->year)->whereMonth('date', $request->month),
             ]);
 

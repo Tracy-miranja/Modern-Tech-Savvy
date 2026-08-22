@@ -20,7 +20,7 @@
             <tr>
                 <td>{{ $key + 1 }}</td>
                 <td>{{ $loan->employee->employee_code ?? 'N/A' }}</td>
-                <td>{{ $loan->employee->name ?? 'N/A' }}</td>
+                <td>{{ $loan->employee->user->name ?? 'N/A' }}</td>
                 <td>{{ number_format($loan->amount, 2) }}</td>
                 <td>{{ number_format($loan->interest_rate, 2) }}</td>
                 <td>{{ $loan->term_months }}</td>
