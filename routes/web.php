@@ -10,6 +10,7 @@ use App\Http\Controllers\BusinessController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\ClientController;
+use App\Http\Controllers\PlatformAdminController;
 use App\Http\Controllers\RoleSwitchController;
 use App\Http\Controllers\EmployeeDashboardController;
 use App\Http\Controllers\PayrollFormulaController;
@@ -25,12 +26,40 @@ use App\Http\Controllers\SupportController;
 use App\Http\Controllers\LeavePeriodController;
 use App\Http\Controllers\LeaveTypeController;
 use App\Http\Controllers\LeaveRequestController;
+use App\Http\Controllers\LeaveEncashmentController;
 use App\Http\Controllers\LeaveEntitlementController;
-use App\Http\Controllers\AttendanceController;
+use App\Http\Controllers\LeaveReportController;
 use App\Http\Controllers\OrganogramController;
-use App\Http\Controllers\OvertimeController;
+use App\Http\Controllers\OrganizationStructureController;
+use App\Http\Controllers\LeaveDelegationController;
+use App\Http\Controllers\LeaveCalendarController;
+use App\Http\Controllers\PerformanceController;
+use App\Http\Controllers\PerformanceFeedbackController;
+use App\Http\Controllers\AttendanceController;
+use App\Http\Controllers\AttendanceReportController;
+use App\Http\Controllers\DisciplinaryReportController;
+use App\Http\Controllers\OffboardingController;
+use App\Http\Controllers\OffboardingReportController;
+use App\Http\Controllers\PerformanceReportController;
+use App\Http\Controllers\AssetController;
+use App\Http\Controllers\AssetReportController;
+use App\Http\Controllers\CourseCategoryController;
+use App\Http\Controllers\CourseMandateController;
+use App\Http\Controllers\LearningController;
+use App\Http\Controllers\LearningReportController;
+use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\ProjectMemberController;
+use App\Http\Controllers\ProjectReportController;
+use App\Http\Controllers\ProjectTaskCategoryController;
+use App\Http\Controllers\ProjectTaskController;
+use App\Http\Controllers\ProjectTaskStatusController;
+use App\Http\Controllers\ProjectTimeLogController;
+use App\Http\Controllers\AttendancePolicyController;
 use App\Http\Controllers\WorkScheduleController;
 use App\Http\Controllers\HolidayController;
+use App\Http\Controllers\MandatoryLeavePeriodController;
+use App\Http\Controllers\OvertimeController;
+use App\Http\Controllers\BusinessCurrencyController;
 
 use App\Models\Business;
 
@@ -47,23 +76,22 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
 
     Route::post('/switch-role', [RoleSwitchController::class, 'switchRole'])->name('switch.role');
     Route::get('/attendance/geocode', [AttendanceController::class, 'geocode'])->name('attendance.geocode');
-     //setup busines & modules
+    //setup busines & modules
     Route::name('setup.')->prefix('setup')->group(function () {
         Route::get('business', [BusinessController::class, 'create'])->name('business');
         Route::get('modules', [ModuleController::class, 'create'])->name('modules');
         Route::post('/attendance/settings', [AttendanceController::class, 'updateSettings'])->name('business.attendance.settings.update');
         Route::get('/attendance/geocode', [AttendanceController::class, 'geocode'])->name('attendance.geocode');
-
     });
 
-    Route::middleware(['ensure_role', 'role:business-admin|business-hr|business-finance|head-of-department'])
+    Route::middleware(['ensure_role', 'role_or_permission_or_impersonation:business-admin|business-hr|business-finance|head-of-department|restricted-hr|chief-of-staff|module.payroll-management.view'])
         ->name('location.')
         ->prefix('location/{location:slug}')
         ->group(function () {
             Route::get('/payroll/{id}/download-column/{column}/{format}', [PayrollController::class, 'downloadColumn'])->name('payroll.download_column');
         });
 
-    Route::middleware(['ensure_role', 'role:business-admin|business-hr|business-finance|head-of-department'])
+    Route::middleware(['ensure_role', 'role:business-admin|business-hr|business-finance|head-of-department|restricted-hr|chief-of-staff'])
         ->name('business.')
         ->prefix('business/{business:slug}')
         ->group(function () {
@@ -72,102 +100,117 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
             Route::post('/locations/{location}/coords', [AttendanceController::class, 'updateLocationCoords'])->name('business.locations.coords.update');
             Route::post('/employees/{employee}/mac', [AttendanceController::class, 'updateEmployeeMac'])->name('employees.mac.update');
             //Route::get('/attendance/geocode', [AttendanceController::class, 'geocode'])->name('attendance.geocode');
-            Route::get('/', [DashboardController::class, 'index'])->name('index');
-            Route::get('/clients', [ClientController::class, 'index'])->name('clients.index');
-            Route::get('/clients/{clientBusiness:slug}', [ClientController::class, 'view'])->name('clients.view');
+
             Route::get('/locations', [DashboardController::class, 'locations'])->name('locations.index');
             Route::get('/organization-setup', [BusinessController::class, 'setup'])->name('organization-setup');
+
+            // Organization Structure + Organogram: moved to their own sibling
+            // group after this one closes, gated by
+            // role_or_permission_or_impersonation instead of this group's
+            // fixed role: list - see "Organization Structure" further down.
             Route::get('/pay-schedule', [DashboardController::class, 'paySchedule'])->name('pay-schedule');
-            Route::prefix('/organogram')->name('organogram.')->group(function () {
-    Route::get('',                 [OrganogramController::class, 'index'])  ->name('index');
-    Route::get('/create',           [OrganogramController::class, 'create']) ->name('create');
-    Route::post('/',                [OrganogramController::class, 'store'])  ->name('store');
-    Route::get('/{position}/edit',  [OrganogramController::class, 'edit'])   ->name('edit');
-    Route::put('/{position}',       [OrganogramController::class, 'update']) ->name('update');
-    Route::delete('/{position}',    [OrganogramController::class, 'destroy'])->name('destroy');
-
-    // Optional tree JSON endpoint for frontend library
-   Route::get('/tree', [OrganogramController::class, 'treeJson'])
-    ->name('tree');
-
-});
 
             Route::get('/departments', [DashboardController::class, 'departments'])->name('departments.index');
 
     Route::post('roles/update-departments', [RoleController::class, 'updateDepartments'])->name('roles.update-departments');
-            Route::get('/employees', [DashboardController::class, 'employees'])->name('employees.index');
-            Route::get('/employees/import', [DashboardController::class, 'importEmployees'])->name('employees.import');
-            Route::get('/employees/warning', [DashboardController::class, 'warning'])->name('employees.warning');
-            Route::get('/employees/contracts', [DashboardController::class, 'contracts'])->name('employees.contracts');
+            // Performance Management (setup/cycles/objectives/reviews/
+            // reports/feedback + the tasks/kpis block further down) moved
+            // to its own sibling group after this one closes - see
+            // "Performance Management" further down.
+            // Employee Management (list/import/warnings/offboarding/contracts/
+            // career-events) moved to its own sibling group after this one
+            // closes - see "Employee Management" further down.
 
-            Route::get('/employees/download-csv-template', [EmployeeController::class, 'downloadCsvTemplate'])->name('employees.downloadCsvTemplate');
-            Route::get('/employees/download-xlsx-template', [EmployeeController::class, 'downloadXlsxTemplate'])->name('employees.downloadXlsxTemplate');
+            // Asset Management, Learning Management, Project Management -
+            // each moved to its own sibling group after this one closes
+            // (still individually gated by their own ensure_module:X inner
+            // middleware, unchanged) - see further down in this file.
 
+            // Disciplinary reports (GUIDE plan Phase 3 - shared preview/download pattern)
+            Route::get('/disciplinary/reports/cases/preview', [DisciplinaryReportController::class, 'casesPreview'])->name('disciplinary.reports.cases.preview');
+            Route::get('/disciplinary/reports/cases/download', [DisciplinaryReportController::class, 'casesDownload'])->name('disciplinary.reports.cases.download');
+            Route::get('/disciplinary/reports/{warning}/escalation-trail/preview', [DisciplinaryReportController::class, 'escalationTrailPreview'])->name('disciplinary.reports.escalation-trail.preview');
+            Route::get('/disciplinary/reports/{warning}/escalation-trail/download', [DisciplinaryReportController::class, 'escalationTrailDownload'])->name('disciplinary.reports.escalation-trail.download');
             Route::get('/job-categories', [DashboardController::class, 'jobCategories'])->name('job-categories.index');
             Route::get('/shifts', [DashboardController::class, 'shifts'])->name('shifts.index');
             Route::get('/roster', [DashboardController::class, 'roster'])->name('roster.index');
 
-            Route::get('/payroll-formulas', [DashboardController::class, 'payrollFormulas'])->name('payroll-formulas.index');
-            Route::get('/payroll-formulas/bracket-template', [PayrollFormulaController::class, 'bracketTemplate'])->name('payroll-formulas.bracket-template');
+            // Payroll Management (payroll-formulas/deductions/payroll/
+            // payslips/nssf-shif-nhif downloads/reliefs/allowances/advances/
+            // loans/pay-grades) moved to its own sibling group after this
+            // one closes - see "Payroll Management" further down.
 
-            Route::get('/deductions', [DashboardController::class, 'deductions'])->name('deductions');
+            // Leave routes (calendar, requests, types, periods, entitlements,
+            // reports, encashments) moved to their own sibling group after
+            // this one closes, gated by role_or_permission_or_impersonation
+            // instead of this group's fixed role: list - see "Leave area"
+            // further down in this file.
 
-            Route::get('/payroll', [DashboardController::class, 'payroll'])->name('payroll.index');
-            Route::get('/payroll/all', [DashboardController::class, 'payrollAll'])->name('payroll.all');
-             // variance report
-Route::get('/payroll/variance', [PayrollController::class, 'variancePage'])
-    ->name('payroll.variance');
-Route::get('/payroll/variance/download', [PayrollController::class, 'downloadVarianceReport'])
-    ->name('payroll.variance.download');
-Route::get('/payroll/variance/data', [PayrollController::class, 'varianceData'])
-    ->name('payroll.variance.data');
-
-            Route::get('/payroll/{id}', [DashboardController::class, 'viewPayroll'])->name('payroll.view');
-            Route::get('/payroll/{id}/download/{format}', [DashboardController::class, 'downloadPayroll'])->name('payroll.reports');
-            Route::get('/payroll/{id}/download-column/{column}/{format}', [DashboardController::class, 'downloadColumn'])->name('payroll.download_column');
-            Route::get('/payroll/{id}/print-all-payslips', [DashboardController::class, 'printAllPayslips'])->name('payroll.print_all_payslips');
-
-            Route::get('/payslips', [PayrollController::class, 'viewPayslips'])->name('payslips');
-            Route::get('/payroll/payslip/{employee_id}', [PayrollController::class, 'viewPayslip'])->name('payroll.payslip');
-
-            Route::get('/payroll/download-p9/{year}/{format}', [PayrollController::class, 'downloadP9'])->name('payroll.download_p9');
-            Route::get('/payroll/download-bank-advice/{year}/{month}/{format}', [PayrollController::class, 'downloadBankAdvice'])->name('payroll.download_bank_advice');
-            Route::get('/payroll/p9/{employeeId}/{year}/{format}', [PayrollController::class, 'downloadSingleP9'])->name('payroll.download_single_p9');
-
-            Route::post('/payroll/send-payslips', [PayrollController::class, 'sendPayslips'])->name('payroll.send_payslips');
-   Route::get('/payroll/{id}/master-roll',
-    [PayrollController::class, 'downloadMasterRoll'])
-    ->name('payroll.master-roll');
+            // Company-mandated leave days: moved below with the rest of Leave.
 
 
-            // Monthly Summary Downloads
-            Route::get('/download-nssf-summary', [PayrollController::class, 'downloadNssfMonthlySummary'])
-                ->name('download-nssf-summary');
+            // Recruitment/Onboarding (recruitment/applications/applicants)
+            // moved to its own sibling group after this one closes - see
+            // "Recruitment/Onboarding" further down.
 
-            Route::get('/download-shif-summary', [PayrollController::class, 'downloadShifMonthlySummary'])
-                ->name('download-shif-summary');
+            // Attendance (attendances/downloads/overtime/work-schedules/
+            // holidays/clock-in-out/reports) moved to its own sibling group
+            // after this one closes - see "Attendance" further down.
 
-            Route::get('/download-nhif-summary', [PayrollController::class, 'downloadNhifMonthlySummary'])
-                ->name('download-nhif-summary');
 
-                // ─── NSSF per-payroll format downloads ───────────────────────────────
-            // Handles: new_remittance | pre_2018 | old_format | schedule | grouped
-            Route::get('/payroll/nssf/download', [PayrollController::class, 'downloadNssf'])
-                ->name('payroll.nssf.download');
+            Route::get('profile', [ProfileController::class, 'edit'])->name('profile.index');
 
-            // ─── NSSF month-by-month summary (full year, xlsx + pdf) ─────────────
-            Route::get('/payroll/nssf/monthly-summary', [PayrollController::class, 'downloadNssfMonthlySummaryWithFormat'])
-                ->name('payroll.nssf.monthly_summary');
-            Route::get('reliefs', [DashboardController::class, 'reliefs'])->name('reliefs.index');
-            Route::get('employee-reliefs', [DashboardController::class, 'employeeReliefs'])->name('employee-reliefs.index');
+            // roles
+            Route::get('/roles', [RoleController::class, 'index'])->name('roles.index');
+            Route::get('/roles/{role}', [RoleController::class, 'show'])->name('roles.show');
+            // Custom-role modules/store/edit/update/destroy already exist as
+            // flat AJAX routes (routes/requests.php `roles.` group) - this
+            // app's established convention (business context resolved via
+            // session('active_business_slug') inside the controller, same
+            // as every other flat CRUD route in that file), previously
+            // dead stubs since store()/update()/destroy() didn't exist yet.
+      Route::prefix('settings/currencies')->name('currencies.')->group(function () {
+    Route::get('/',              [BusinessCurrencyController::class, 'index'])->name('index');
+    Route::get('/list',          [BusinessCurrencyController::class, 'list'])->name('list');
+    Route::get('/known',         [BusinessCurrencyController::class, 'knownCurrencies'])->name('known');
+    Route::post('/refresh-all',  [BusinessCurrencyController::class, 'refreshAllRates'])->name('refresh-all');
+    Route::post('/',             [BusinessCurrencyController::class, 'store'])->name('store');
+    Route::delete('/bulk',       [BusinessCurrencyController::class, 'bulkDestroy'])->name('bulk-destroy'); // ← BEFORE /{id}
+    Route::get('/{id}',          [BusinessCurrencyController::class, 'show'])->name('show');
+    Route::put('/{id}',          [BusinessCurrencyController::class, 'update'])->name('update');
+    Route::delete('/{id}',       [BusinessCurrencyController::class, 'destroy'])->name('destroy');
+    Route::post('/{id}/refresh', [BusinessCurrencyController::class, 'refreshRate'])->name('refresh');
+});
 
-            Route::get('/allowances', [DashboardController::class, 'allowances'])->name('allowances.index');
+            // CRM moved to its own sibling group after this one closes -
+            // see "CRM" further down.
 
-            Route::get('/advances', [DashboardController::class, 'advances'])->name('advances.index');
-            Route::get('/loans', [DashboardController::class, 'loans'])->name('loans.index');
+            // Quick session debug
+            Route::get('/debug-session', function () {
+                return response()->json([
+                    'active_business_slug' => session('active_business_slug'),
+                    'active_role' => session('active_role'),
+                ]);
+            });
+        });
 
+    // Leave area - split out from the group above so it can be gated by
+    // role_or_permission_or_impersonation (the fixed business roles above,
+    // OR a business-defined custom role holding the matching
+    // module.leave-management.{action} permission, OR a super-admin
+    // impersonation session) instead of that group's fixed role: list.
+    // Same prefix/name as the group above, so every route name/URI here
+    // is byte-identical to before the split (business.leave.*,
+    // business.leave-periods.*, business.leave-entitlements.*).
+    Route::middleware(['ensure_role', 'role_or_permission_or_impersonation:business-admin|business-hr|business-finance|head-of-department|restricted-hr|chief-of-staff|module.leave-management.view|module.leave-management.create|module.leave-management.edit|module.leave-management.delete|module.leave-management.approve'])
+        ->name('business.')
+        ->prefix('business/{business:slug}')
+        ->group(function () {
             // Leave area (business views + a few actions)
             Route::prefix('leave')->name('leave.')->group(function () {
+                Route::get('/calendar', [LeaveCalendarController::class, 'businessCalendar'])->name('calendar');
+                Route::get('/calendar/events', [LeaveCalendarController::class, 'businessEvents'])->name('calendar.events');
+                Route::get('/calendar/team-headcount', [LeaveCalendarController::class, 'teamHeadcount'])->name('calendar.team-headcount');
                 Route::get('/requests', [DashboardController::class, 'leaveApplications'])->name('index');
                 Route::get('/requests/create', [DashboardController::class, 'requestLeave'])->name('create');
                 Route::get('/view/{leave}', [DashboardController::class, 'leaveApplication'])->name('show');
@@ -176,6 +219,10 @@ Route::get('/payroll/variance/data', [PayrollController::class, 'varianceData'])
                 Route::get('/periods', [DashboardController::class, 'leavePeriods'])->name('periods');
                 Route::get('/entitlements', [DashboardController::class, 'leaveEntitlements'])->name('entitlements.index');
                 Route::get('/entitlements/set', [DashboardController::class, 'setLeaveEntitlements'])->name('entitlements.create');
+                Route::get('/settings', [DashboardController::class, 'leaveSettings'])->name('settings');
+                Route::post('/settings', [DashboardController::class, 'updateLeaveSettings'])->name('settings.update');
+
+                // Leave types
                 Route::post('/revoke', [LeaveRequestController::class, 'revoke'])->name('revoke');
                 Route::get('/{reference}/download', [LeaveRequestController::class, 'downloadPdf'])->name('download')->where('reference', '[A-Za-z0-9\-]+');
                 Route::get('/leave-types/{slug}/edit', [LeaveTypeController::class, 'edit'])->name('leave-types.edit');
@@ -184,6 +231,17 @@ Route::get('/payroll/variance/data', [PayrollController::class, 'varianceData'])
                 Route::post('/leave-types/update', [LeaveTypeController::class, 'update'])->name('leave-types.update');
                 Route::post('/upload-document', [LeaveRequestController::class, 'uploadDocument'])->name('upload-document');
                 Route::post('/status', [LeaveRequestController::class, 'status'])->name('status');
+            });
+
+            // Company-mandated leave days (e.g. a Dec 24-28 shutdown) - auto-deducts
+            // from affected employees' balances for a chosen leave type.
+            Route::prefix('mandatory-leave-days')->name('leave.mandatory-leave-days.')->group(function () {
+                Route::post('/fetch', [MandatoryLeavePeriodController::class, 'fetch'])->name('fetch');
+                Route::post('/create', [MandatoryLeavePeriodController::class, 'create'])->name('create');
+                Route::post('/edit', [MandatoryLeavePeriodController::class, 'edit'])->name('edit');
+                Route::post('/store', [MandatoryLeavePeriodController::class, 'store'])->name('store');
+                Route::post('/update', [MandatoryLeavePeriodController::class, 'update'])->name('update');
+                Route::post('/delete', [MandatoryLeavePeriodController::class, 'destroy'])->name('delete');
             });
 
             Route::prefix('leave-periods')->name('leave-periods.')->group(function () {
@@ -196,7 +254,6 @@ Route::get('/payroll/variance/data', [PayrollController::class, 'varianceData'])
                 Route::post('/delete', [LeavePeriodController::class, 'destroy'])->name('delete');
             });
 
-
             Route::prefix('leave-entitlements')->group(function () {
                 Route::post('/fetch',  [LeaveEntitlementController::class, 'fetch'])->name('leave-entitlements.fetch');
                 Route::post('/store',  [LeaveEntitlementController::class, 'store'])->name('leave-entitlements.store');
@@ -204,58 +261,149 @@ Route::get('/payroll/variance/data', [PayrollController::class, 'varianceData'])
                 Route::post('/edit',   [LeaveEntitlementController::class, 'edit'])->name('leave-entitlements.edit');
                 Route::post('/update', [LeaveEntitlementController::class, 'update'])->name('leave-entitlements.update');
                 Route::post('/delete', [LeaveEntitlementController::class, 'delete'])->name('leave-entitlements.delete');
-                Route::post('/by-period', [LeaveEntitlementController::class, 'getByPeriod'])->name('leave-entitlements.by-period');
+                Route::post('/by-period', [LeaveEntitlementController::class, 'getByPeriod'])
+                    ->name('leave-entitlements.by-period');
                 Route::post('/employees/filter', [EmployeeController::class, 'filter'])->name('leave-entitlements.employees.filter');
-                //Route::post('/recalculate', [LeaveEntitlementController::class, 'recalculate'])->name('leave-entitlements.recalculate');
-                //Route::post('/entitled-types', [LeaveEntitlementController::class, 'EntitledTypes'])->name('leave-entitlements.entitled-types');
-          });
-
-
-            Route::prefix('recruitment')->name('recruitment.')->group(function () {
-                Route::get('/job-posts', [JobPostController::class, 'index'])->name('jobs.index');
-                Route::get('/job-posts/create', [JobPostController::class, 'create'])->name('jobs.create');
-                Route::get('/job-posts/{jobpost}', [JobPostController::class, 'show'])->name('jobs.show');
-                Route::get('/job-posts/{jobpost}/edit', [JobPostController::class, 'editView'])->name('jobs.edit');
-                Route::get('/interviews', [DashboardController::class, 'interviews'])->name('interviews');
-                Route::get('/reports', [ApplicationController::class, 'reports'])->name('reports');
+                Route::post('/adjust', [LeaveEntitlementController::class, 'adjust'])->name('leave-entitlements.adjust');
+                Route::post('/process-carryover', [LeaveEntitlementController::class, 'processCarryover'])->name('leave-entitlements.process-carryover');
+                Route::get('/export-pdf', [LeaveEntitlementController::class, 'exportPdf'])->name('leave-entitlements.export-pdf');
             });
 
-            Route::prefix('applications')->name('applications.')->group(function () {
-                Route::get('/', [ApplicationController::class, 'index'])->name('index');
-                Route::get('/create', [ApplicationController::class, 'create'])->name('create');
-                Route::get('/{application}', [ApplicationController::class, 'view'])->name('view');
-            });
+            // Leave reports (see GUIDE plan Phase 2 - shared preview/download pattern)
+            Route::prefix('leave')->name('leave.')->group(function () {
+                Route::get('/reports', [LeaveReportController::class, 'index'])->name('reports.index');
+                Route::get('/reports/balance/preview', [LeaveReportController::class, 'balancePreview'])->name('reports.balance.preview');
+                Route::get('/reports/balance/download', [LeaveReportController::class, 'balanceDownload'])->name('reports.balance.download');
+                Route::get('/reports/full/preview', [LeaveReportController::class, 'fullPreview'])->name('reports.full.preview');
+                Route::get('/reports/full/download', [LeaveReportController::class, 'fullDownload'])->name('reports.full.download');
+                Route::get('/reports/types/preview', [LeaveReportController::class, 'typesPreview'])->name('reports.types.preview');
+                Route::get('/reports/types/download', [LeaveReportController::class, 'typesDownload'])->name('reports.types.download');
+                Route::get('/reports/per-member/preview', [LeaveReportController::class, 'perMemberPreview'])->name('reports.per-member.preview');
+                Route::get('/reports/per-member/download', [LeaveReportController::class, 'perMemberDownload'])->name('reports.per-member.download');
+                Route::get('/reports/master/preview', [LeaveReportController::class, 'masterPreview'])->name('reports.master.preview');
+                Route::get('/reports/master/download', [LeaveReportController::class, 'masterDownload'])->name('reports.master.download');
 
-            Route::prefix('applicants')->name('applicants.')->group(function () {
-                Route::get('/', [ApplicantController::class, 'index'])->name('index');
-                Route::get('/create', [ApplicantController::class, 'create'])->name('create');
-                Route::get('/{applicant}', [ApplicantController::class, 'view'])->name('view');
-                Route::get('/{applicant}/download-document/{mediaId}', [ApplicantController::class, 'downloadDocument'])->name('download-document');
-            });
-
-            Route::prefix('performance')->name('performance.')->group(function () {
-                Route::prefix('tasks')->name('tasks.')->group(function () {
-                    Route::get('/', [DashboardController::class, 'tasks'])->name('index');
-                    Route::get('/create', [DashboardController::class, 'create'])->name('create');
-                    Route::get('/progress/{task}', [DashboardController::class, 'progress'])->name('progress');
-                    Route::get('/reports', [DashboardController::class, 'reports'])->name('reports');
-                    Route::get('/{task}', [DashboardController::class, 'show'])->name('show');
-                });
-                Route::get('/reviews', [DashboardController::class, 'reviews'])->name('reviews');
-                Route::prefix('kpis')->name('kpis.')->group(function () {
-                    Route::get('/', [KPIsController::class, 'index'])->name('index');
-                    Route::get('/create', [KPIsController::class, 'create'])->name('create');
-                    Route::get('/results', [KPIsController::class, 'results'])->name('results');
-                    Route::get('/edit', [KPIsController::class, 'edit'])->name('edit');
+                // Leave Encashment - Leave-side only, see LeaveEncashmentController's
+                // docblock. approve/reject/mark-disbursed are further
+                // restricted to HR/admin roles OR a custom role holding
+                // module.leave-management.approve, on top of this whole
+                // section's existing broader role_or_permission_or_impersonation gate.
+                Route::get('/encashments/fetch', [LeaveEncashmentController::class, 'fetch'])->name('encashments.fetch');
+                Route::post('/encashments/store', [LeaveEncashmentController::class, 'store'])->name('encashments.store');
+                Route::middleware(['role_or_permission_or_impersonation:business-admin|business-hr|restricted-hr|module.leave-management.approve'])->group(function () {
+                    Route::post('/encashments/{encashment}/approve', [LeaveEncashmentController::class, 'approve'])->name('encashments.approve');
+                    Route::post('/encashments/{encashment}/reject', [LeaveEncashmentController::class, 'reject'])->name('encashments.reject');
+                    Route::post('/encashments/{encashment}/mark-disbursed', [LeaveEncashmentController::class, 'markDisbursed'])->name('encashments.mark-disbursed');
                 });
             });
+        });
 
+    // Organization Structure - split out from the group above so it can be
+    // gated by role_or_permission_or_impersonation instead of that group's
+    // fixed role: list. Same prefix/name, so every route name/URI here is
+    // byte-identical to before the split (business.organization-structure.*,
+    // business.organogram.*).
+    Route::middleware(['ensure_role', 'role_or_permission_or_impersonation:business-admin|business-hr|head-of-department|restricted-hr|chief-of-staff|module.organization-structure.view|module.organization-structure.create|module.organization-structure.edit|module.organization-structure.delete|module.organization-structure.approve'])
+        ->name('business.')
+        ->prefix('business/{business:slug}')
+        ->group(function () {
+            Route::prefix('organization-structure')->name('organization-structure.')->group(function () {
+                Route::get('/', [OrganizationStructureController::class, 'index'])->name('index');
+                Route::get('/overview', [OrganizationStructureController::class, 'fetchOverview'])->name('overview.fetch');
+                Route::get('/roles', [OrganizationStructureController::class, 'fetchRoles'])->name('roles.fetch');
+                Route::get('/role-tree', [OrganizationStructureController::class, 'fetchRoleTree'])->name('role-tree.fetch');
+                Route::post('/roles', [OrganizationStructureController::class, 'storeRole'])->name('roles.store');
+                Route::post('/roles/{role}', [OrganizationStructureController::class, 'updateRole'])->name('roles.update');
+                Route::delete('/roles/{role}', [OrganizationStructureController::class, 'destroyRole'])->name('roles.destroy');
+                Route::get('/spatie-roles', [OrganizationStructureController::class, 'fetchAvailableSpatieRoles'])->name('spatie-roles.fetch');
+                Route::get('/teams', [OrganizationStructureController::class, 'fetchTeams'])->name('teams.fetch');
+                Route::post('/teams', [OrganizationStructureController::class, 'storeTeam'])->name('teams.store');
+                Route::delete('/teams/{team}', [OrganizationStructureController::class, 'destroyTeam'])->name('teams.destroy');
+                Route::post('/sync', [OrganizationStructureController::class, 'syncAll'])->name('sync');
+                Route::post('/bulk-assign-role', [OrganizationStructureController::class, 'bulkAssignRole'])->name('bulk-assign-role');
+                Route::get('/assignments', [OrganizationStructureController::class, 'fetchAssignments'])->name('assignments.fetch');
+                Route::post('/positions', [OrganizationStructureController::class, 'storePosition'])->name('positions.store');
+                Route::delete('/positions/{position}', [OrganizationStructureController::class, 'destroyPosition'])->name('positions.destroy');
+
+                // Structure canvas - Figma-style drag/connect blueprint editor.
+                Route::get('/canvas', [OrganizationStructureController::class, 'canvasGraph'])->name('canvas.graph');
+                Route::post('/canvas/nodes/{node}/position', [OrganizationStructureController::class, 'updateCanvasNodePosition'])->name('canvas.nodes.position');
+                Route::post('/canvas/edges', [OrganizationStructureController::class, 'storeCanvasEdge'])->name('canvas.edges.store');
+                Route::delete('/canvas/edges/{edgeId}', [OrganizationStructureController::class, 'destroyCanvasEdge'])->name('canvas.edges.destroy');
+            });
+
+            Route::prefix('organogram')->name('organogram.')->group(function () {
+                Route::get('/', [OrganogramController::class, 'index'])->name('index');
+                Route::get('/fetch', [OrganogramController::class, 'fetch'])->name('fetch');
+                Route::get('/table', [OrganogramController::class, 'table'])->name('table');
+                Route::get('/search', [OrganogramController::class, 'search'])->name('search');
+                Route::get('/filter-options', [OrganogramController::class, 'filterOptions'])->name('filter-options');
+                Route::get('/employee-options', [OrganogramController::class, 'employeeOptions'])->name('employee-options');
+                Route::post('/assign-manager', [OrganogramController::class, 'assignManager'])->name('assign-manager');
+                Route::post('/reset-manager', [OrganogramController::class, 'resetManagerToTemplate'])->name('reset-manager');
+            });
+        });
+
+    // Employee Management - split out from the group above so it can be
+    // gated by role_or_permission_or_impersonation instead of that group's
+    // fixed role: list. Same prefix/name, so every route name/URI here is
+    // byte-identical to before the split (business.employees.*,
+    // business.offboarding.*, business.employees.career-events.*).
+    Route::middleware(['ensure_role', 'role_or_permission_or_impersonation:business-admin|business-hr|business-finance|head-of-department|restricted-hr|chief-of-staff|module.employee-management.view|module.employee-management.create|module.employee-management.edit|module.employee-management.delete|module.employee-management.approve'])
+        ->name('business.')
+        ->prefix('business/{business:slug}')
+        ->group(function () {
+            Route::get('/employees', [DashboardController::class, 'employees'])->name('employees.index');
+            Route::get('/employees/import', [DashboardController::class, 'importEmployees'])->name('employees.import');
+            Route::get('/employees/warning', [DashboardController::class, 'warning'])->name('employees.warning');
+            Route::get('/employees/warning/{warning}', [\App\Http\Controllers\WarningController::class, 'show'])->name('employees.warning.show');
+            Route::get('/employees/contracts', [DashboardController::class, 'contracts'])->name('employees.contracts');
+            Route::get('/employees/download-csv-template', [EmployeeController::class, 'downloadCsvTemplate'])->name('employees.downloadCsvTemplate');
+            Route::get('/employees/download-xlsx-template', [EmployeeController::class, 'downloadXlsxTemplate'])->name('employees.downloadXlsxTemplate');
+
+            // Career history - promotions/salary increments (structured, deferred-effective-date).
+            Route::prefix('employees/{employee}/career-events')->name('employees.career-events.')->group(function () {
+                Route::get('/fetch', [\App\Http\Controllers\EmployeeCareerEventController::class, 'fetch'])->name('fetch');
+                Route::post('/store', [\App\Http\Controllers\EmployeeCareerEventController::class, 'store'])->name('store');
+                Route::delete('/{careerEvent}', [\App\Http\Controllers\EmployeeCareerEventController::class, 'destroy'])->name('destroy');
+            });
+
+            // Career Growth - business-wide nav item over the same career
+            // events (previously only reachable per-employee, above).
+            Route::prefix('career-growth')->name('career-growth.')->group(function () {
+                Route::get('/', [\App\Http\Controllers\EmployeeCareerEventController::class, 'index'])->name('index');
+                Route::get('/fetch', [\App\Http\Controllers\EmployeeCareerEventController::class, 'businessFetch'])->name('fetch');
+            });
+
+            // Offboarding (GUIDE plan Phase 4) - one page, modal task management.
+            Route::prefix('offboarding')->name('offboarding.')->group(function () {
+                Route::get('/', [OffboardingController::class, 'index'])->name('index');
+                Route::post('/{checklistId}/tasks', [OffboardingController::class, 'storeTask'])->name('tasks.store');
+                Route::post('/{checklistId}/tasks/{task}', [OffboardingController::class, 'updateTask'])->name('tasks.update');
+                Route::delete('/{checklistId}/tasks/{task}', [OffboardingController::class, 'destroyTask'])->name('tasks.destroy');
+
+                Route::get('/reports/status/preview', [OffboardingReportController::class, 'statusPreview'])->name('reports.status.preview');
+                Route::get('/reports/status/download', [OffboardingReportController::class, 'statusDownload'])->name('reports.status.download');
+                Route::get('/{checklist}/clearance-summary/preview', [OffboardingReportController::class, 'clearanceSummaryPreview'])->name('reports.clearance-summary.preview');
+                Route::get('/{checklist}/clearance-summary/download', [OffboardingReportController::class, 'clearanceSummaryDownload'])->name('reports.clearance-summary.download');
+            });
+        });
+
+    // Attendance - split out from the group above so it can be gated by
+    // role_or_permission_or_impersonation instead of that group's fixed
+    // role: list. Same prefix/name, so every route name/URI here is
+    // byte-identical to before the split (business.attendances.*,
+    // business.overtime.*, business.work-schedules.*, business.holidays.*,
+    // business.clock-in-out.index, business.reports.index).
+    Route::middleware(['ensure_role', 'role_or_permission_or_impersonation:business-admin|business-hr|business-finance|head-of-department|restricted-hr|chief-of-staff|module.attendance.view|module.attendance.create|module.attendance.edit|module.attendance.delete|module.attendance.approve'])
+        ->name('business.')
+        ->prefix('business/{business:slug}')
+        ->group(function () {
             Route::prefix('attendances')->name('attendances.')->group(function () {
                 Route::get('/', [DashboardController::class, 'attendances'])->name('index');
                 Route::get('/monthly', [DashboardController::class, 'monthlyAttendances'])->name('monthly');
                 Route::get('/clock-in', [DashboardController::class, 'clockIn'])->name('clock-in');
                 Route::get('/clock-out', [DashboardController::class, 'clockOut'])->name('clock-out');
-
             });
 
             Route::prefix('downloads')->name('downloads.')->group(function () {
@@ -279,7 +427,7 @@ Route::get('/payroll/variance/data', [PayrollController::class, 'varianceData'])
                 Route::post('/create-form', [WorkScheduleController::class, 'createForm'])->name('work-schedules.create-form');
                 Route::post('/activate', [WorkScheduleController::class, 'activate'])->name('work-schedules.activate');
                 Route::post('/bulk-store', [WorkScheduleController::class, 'bulkStore'])->name('work-schedules.bulk-store');
-
+                Route::post('/timeline', [WorkScheduleController::class, 'timeline'])->name('work-schedules.timeline');
             });
 
             Route::get('/holidays', [DashboardController::class, 'holidays'])->name('holidays.index');
@@ -292,10 +440,13 @@ Route::get('/payroll/variance/data', [PayrollController::class, 'varianceData'])
                 Route::post('/update', [HolidayController::class, 'update'])->name('holidays.update');
                 Route::post('/delete', [HolidayController::class, 'destroy'])->name('holidays.destroy');
                 Route::post('/check', [HolidayController::class, 'checkHoliday'])->name('holidays.check');
+                Route::get('/countries', [HolidayController::class, 'availableCountries'])->name('holidays.countries');
+                Route::post('/import', [HolidayController::class, 'importFromApi'])->name('holidays.import');
             });
 
             // Enhanced Attendance Routes
             Route::prefix('attendances')->group(function () {
+                Route::get('/settings', [AttendanceController::class, 'settingsPage'])->name('attendances.settings.index');
                 Route::post('/fetch', [AttendanceController::class, 'fetch'])->name('attendances.fetch');
                 Route::post('/monthly', [AttendanceController::class, 'monthly'])->name('attendances.monthly');
                 Route::post('/clockin', [AttendanceController::class, 'clockIn'])->name('attendances.clockin');
@@ -310,6 +461,34 @@ Route::get('/payroll/variance/data', [PayrollController::class, 'varianceData'])
                 Route::post('/{slug}/locations/{locationId}/coords', [AttendanceController::class, 'updateLocationCoords'])->name('attendances.location.coords');
                 Route::post('/employees/{employeeId}/mac', [AttendanceController::class, 'updateEmployeeMac'])->name('attendances.employee.mac');
                 Route::get('/geocode', [AttendanceController::class, 'geocode'])->name('attendances.geocode');
+                Route::post('/payroll-summary', [AttendanceController::class, 'payrollSummary'])->name('attendances.payroll-summary');
+                Route::get('/payroll-hours',[AttendanceController::class, 'payrollHoursPage'])->name('attendances.payroll-hours');
+                Route::post('/payroll-details', [AttendanceController::class, 'payrollEmployeeDetails'])->name('attendances.payroll-details');
+                Route::get('/payroll-summary-export', [AttendanceController::class, 'payrollSummaryExport'])->name('attendances.payroll-summary-export');
+
+                // Reports (see GUIDE plan - shared preview/download pattern)
+                Route::get('/reports', [AttendanceReportController::class, 'index'])->name('attendances.reports.index');
+                Route::get('/reports/daily/preview', [AttendanceReportController::class, 'dailyPreview'])->name('attendances.reports.daily.preview');
+                Route::get('/reports/daily/download', [AttendanceReportController::class, 'dailyDownload'])->name('attendances.reports.daily.download');
+                Route::get('/reports/full/preview', [AttendanceReportController::class, 'fullPreview'])->name('attendances.reports.full.preview');
+                Route::get('/reports/full/download', [AttendanceReportController::class, 'fullDownload'])->name('attendances.reports.full.download');
+                Route::get('/reports/summary/preview', [AttendanceReportController::class, 'summaryPreview'])->name('attendances.reports.summary.preview');
+                Route::get('/reports/summary/download', [AttendanceReportController::class, 'summaryDownload'])->name('attendances.reports.summary.download');
+                Route::get('/reports/monthly/preview', [AttendanceReportController::class, 'monthlyPreview'])->name('attendances.reports.monthly.preview');
+                Route::get('/reports/monthly/download', [AttendanceReportController::class, 'monthlyDownload'])->name('attendances.reports.monthly.download');
+                Route::get('/reports/lateness/preview', [AttendanceReportController::class, 'latenessPreview'])->name('attendances.reports.lateness.preview');
+                Route::get('/reports/lateness/download', [AttendanceReportController::class, 'latenessDownload'])->name('attendances.reports.lateness.download');
+                Route::get('/reports/absent/preview', [AttendanceReportController::class, 'absentPreview'])->name('attendances.reports.absent.preview');
+                Route::get('/reports/absent/download', [AttendanceReportController::class, 'absentDownload'])->name('attendances.reports.absent.download');
+                Route::get('/reports/overtime/preview', [AttendanceReportController::class, 'overtimePreview'])->name('attendances.reports.overtime.preview');
+                Route::get('/reports/overtime/download', [AttendanceReportController::class, 'overtimeDownload'])->name('attendances.reports.overtime.download');
+                Route::get('/reports/per-member/preview', [AttendanceReportController::class, 'perMemberPreview'])->name('attendances.reports.per-member.preview');
+                Route::get('/reports/per-member/download', [AttendanceReportController::class, 'perMemberDownload'])->name('attendances.reports.per-member.download');
+
+                // Expected Working Hours policies (business/department/job-category/employee scoped)
+                Route::get('/policies', [AttendancePolicyController::class, 'fetch'])->name('attendances.policies.fetch');
+                Route::post('/policies', [AttendancePolicyController::class, 'store'])->name('attendances.policies.store');
+                Route::delete('/policies/{policy}', [AttendancePolicyController::class, 'destroy'])->name('attendances.policies.destroy');
             });
 
             // Enhanced Overtime Routes (replace existing overtime routes)
@@ -325,21 +504,324 @@ Route::get('/payroll/variance/data', [PayrollController::class, 'varianceData'])
                 Route::post('/summary', [OvertimeController::class, 'getSummary'])->name('overtime.summary');
             });
 
-
             Route::get('clock-in-out', [DashboardController::class, 'clockInOut'])->name('clock-in-out.index');
-
             Route::get('reports', [DashboardController::class, 'attendanceReport'])->name('reports.index');
+        });
 
-            Route::get('profile', [ProfileController::class, 'edit'])->name('profile.index');
+    // Performance Management - split out from the group above so it can be
+    // gated by role_or_permission_or_impersonation instead of that group's
+    // fixed role: list. Same prefix/name, so every route name/URI here is
+    // byte-identical to before the split (business.performance.*).
+    Route::middleware(['ensure_role', 'role_or_permission_or_impersonation:business-admin|business-hr|head-of-department|restricted-hr|chief-of-staff|module.performance-management.view|module.performance-management.create|module.performance-management.edit|module.performance-management.delete|module.performance-management.approve'])
+        ->name('business.')
+        ->prefix('business/{business:slug}')
+        ->group(function () {
+            Route::prefix('performance')->name('performance.')->group(function () {
+                Route::get('/setup', [PerformanceController::class, 'setupIndex'])->name('setup.index');
+                Route::get('/cycles', [PerformanceController::class, 'cyclesIndex'])->name('cycles.index');
+                Route::get('/cycles/fetch', [PerformanceController::class, 'fetchCycles'])->name('cycles.fetch');
+                Route::post('/cycles', [PerformanceController::class, 'storeCycle'])->name('cycles.store');
+                Route::post('/cycles/{cycle}/status', [PerformanceController::class, 'updateCycleStatus'])->name('cycles.status');
+
+                Route::get('/objectives', [PerformanceController::class, 'objectivesOverview'])->name('objectives.index');
+                Route::get('/objectives/overview-fetch', [PerformanceController::class, 'fetchObjectivesOverview'])->name('objectives.overview-fetch');
+
+                Route::get('/employees/{employee}', [PerformanceController::class, 'employeePerformance'])->name('employee');
+                Route::get('/employees/{employee}/objectives', [PerformanceController::class, 'fetchObjectives'])->name('objectives.fetch');
+                Route::post('/employees/{employee}/objectives', [PerformanceController::class, 'storeObjective'])->name('objectives.store');
+                Route::get('/employees/{employee}/kpis', [PerformanceController::class, 'fetchKpisForEmployee'])->name('kpis.for-employee');
+                Route::get('/objectives/cascade', [PerformanceController::class, 'fetchCascadeObjectives'])->name('objectives.cascade');
+                Route::get('/objectives/critical', [PerformanceController::class, 'fetchCriticalObjectives'])->name('objectives.critical');
+                Route::post('/objectives/{objective}/approve-alignment', [PerformanceController::class, 'approveAlignment'])->name('objectives.approve-alignment');
+                Route::post('/objectives/{objective}/decline-alignment', [PerformanceController::class, 'declineAlignment'])->name('objectives.decline-alignment');
+                Route::post('/objectives/{objective}/key-results', [PerformanceController::class, 'storeKeyResult'])->name('key-results.store');
+                Route::post('/key-results/{keyResult}/progress', [PerformanceController::class, 'updateKeyResultProgress'])->name('key-results.progress');
+
+                Route::get('/cycles/{cycle}/employees/{employee}/review', [PerformanceController::class, 'fetchReview'])->name('review.fetch');
+                Route::post('/reviews/{review}/self-assessment', [PerformanceController::class, 'submitSelfAssessment'])->name('review.self');
+                Route::post('/reviews/{review}/manager-assessment', [PerformanceController::class, 'submitManagerAssessment'])->name('review.manager');
+
+                // Performance reports (GUIDE plan Phase 5 - shared preview/download pattern)
+                Route::get('/reports', [PerformanceReportController::class, 'index'])->name('reports.index');
+                Route::get('/reports/cycle/preview', [PerformanceReportController::class, 'cyclePreview'])->name('reports.cycle.preview');
+                Route::get('/reports/cycle/download', [PerformanceReportController::class, 'cycleDownload'])->name('reports.cycle.download');
+                Route::get('/reports/three-sixty/preview', [PerformanceReportController::class, 'threeSixtyPreview'])->name('reports.three-sixty.preview');
+                Route::get('/reports/three-sixty/download', [PerformanceReportController::class, 'threeSixtyDownload'])->name('reports.three-sixty.download');
+
+                Route::get('/employees/{employee}/feedback', [PerformanceFeedbackController::class, 'fetchForSubject'])->name('feedback.fetch');
+                Route::post('/employees/{employee}/feedback', [PerformanceFeedbackController::class, 'store'])->name('feedback.store');
+                Route::get('/feedback/inbox', [PerformanceFeedbackController::class, 'fetchMyInbox'])->name('feedback.inbox');
+                Route::post('/feedback/{feedbackRequest}/decline', [PerformanceFeedbackController::class, 'decline'])->name('feedback.decline');
+                Route::post('/feedback/{feedbackRequest}/response', [PerformanceFeedbackController::class, 'submitResponse'])->name('feedback.respond');
+
+                Route::prefix('tasks')->name('tasks.')->group(function () {
+                    Route::get('/', [DashboardController::class, 'tasks'])->name('index');
+                    Route::get('/progress/{task}', [DashboardController::class, 'progress'])->name('progress');
+                });
+                Route::prefix('kpis')->name('kpis.')->group(function () {
+                    Route::get('/', [KPIsController::class, 'index'])->name('index');
+                    Route::get('/create', [KPIsController::class, 'create'])->name('create');
+                    Route::get('/results', [KPIsController::class, 'results'])->name('results');
+                    Route::get('/edit', [KPIsController::class, 'edit'])->name('edit');
+                });
+            });
+        });
+
+    // Asset Management - split out from the group above so it can be gated
+    // by role_or_permission_or_impersonation instead of that group's fixed
+    // role: list, on top of its own unchanged ensure_module:asset-management
+    // inner gate. Same prefix/name, so every route name/URI here is
+    // byte-identical to before the split (business.assets.*).
+    Route::middleware(['ensure_role', 'role_or_permission_or_impersonation:business-admin|business-hr|head-of-department|restricted-hr|chief-of-staff|module.asset-management.view|module.asset-management.create|module.asset-management.edit|module.asset-management.delete|module.asset-management.approve'])
+        ->name('business.')
+        ->prefix('business/{business:slug}')
+        ->group(function () {
+            Route::middleware('ensure_module:asset-management')->prefix('assets')->name('assets.')->group(function () {
+                Route::get('/', [AssetController::class, 'index'])->name('index');
+                Route::get('/fetch', [AssetController::class, 'fetch'])->name('fetch');
+                Route::post('/store', [AssetController::class, 'store'])->name('store');
+                Route::post('/{asset}/update', [AssetController::class, 'update'])->name('update');
+                Route::delete('/{asset}', [AssetController::class, 'destroy'])->name('destroy');
+                Route::post('/{asset}/assign', [AssetController::class, 'assign'])->name('assign');
+                Route::post('/{asset}/return', [AssetController::class, 'returnAsset'])->name('return');
+                Route::get('/employees/{employee}/assigned', [AssetController::class, 'employeeAssets'])->name('employee-assets');
+
+                Route::prefix('reports')->name('reports.')->group(function () {
+                    Route::get('/', [AssetReportController::class, 'index'])->name('index');
+                    Route::get('/register/preview', [AssetReportController::class, 'registerPreview'])->name('register.preview');
+                    Route::get('/register/download', [AssetReportController::class, 'registerDownload'])->name('register.download');
+                });
+            });
+        });
+
+    // Learning Management - split out from the group above so it can be
+    // gated by role_or_permission_or_impersonation instead of that group's
+    // fixed role: list, on top of its own unchanged
+    // ensure_module:learning-management inner gate. Same prefix/name, so
+    // every route name/URI here is byte-identical to before the split
+    // (business.learning.*).
+    Route::middleware(['ensure_role', 'role_or_permission_or_impersonation:business-admin|business-hr|head-of-department|restricted-hr|chief-of-staff|module.learning-management.view|module.learning-management.create|module.learning-management.edit|module.learning-management.delete|module.learning-management.approve'])
+        ->name('business.')
+        ->prefix('business/{business:slug}')
+        ->group(function () {
+            Route::middleware('ensure_module:learning-management')->prefix('learning')->name('learning.')->group(function () {
+                Route::get('/', [LearningController::class, 'index'])->name('index');
+                Route::get('/courses/fetch', [LearningController::class, 'fetchCourses'])->name('courses.fetch');
+                Route::get('/courses/options', [LearningController::class, 'courseOptions'])->name('courses.options');
+                Route::post('/courses/store', [LearningController::class, 'storeCourse'])->name('courses.store');
+                Route::post('/courses/{course}/update', [LearningController::class, 'updateCourse'])->name('courses.update');
+                Route::delete('/courses/{course}', [LearningController::class, 'destroyCourse'])->name('courses.destroy');
+
+                Route::get('/courses/{course}/sessions/fetch', [LearningController::class, 'fetchSessions'])->name('sessions.fetch');
+                Route::post('/courses/{course}/sessions/store', [LearningController::class, 'storeSession'])->name('sessions.store');
+                Route::post('/sessions/{courseSession}/update', [LearningController::class, 'updateSession'])->name('sessions.update');
+                Route::delete('/sessions/{courseSession}', [LearningController::class, 'destroySession'])->name('sessions.destroy');
+
+                Route::get('/enrollments/fetch', [LearningController::class, 'fetchEnrollments'])->name('enrollments.fetch');
+                Route::post('/courses/{course}/enrollments/store', [LearningController::class, 'storeEnrollment'])->name('enrollments.store');
+                Route::post('/enrollments/{enrollment}/update', [LearningController::class, 'updateEnrollment'])->name('enrollments.update');
+                Route::delete('/enrollments/{enrollment}', [LearningController::class, 'destroyEnrollment'])->name('enrollments.destroy');
+
+                Route::get('/reports', [LearningReportController::class, 'index'])->name('reports.index');
+                Route::get('/reports/completions/preview', [LearningReportController::class, 'completionsPreview'])->name('reports.completions.preview');
+                Route::get('/reports/completions/download', [LearningReportController::class, 'completionsDownload'])->name('reports.completions.download');
+
+                // Settings: course categories, mandatory/compliance
+                // courses, certificate defaults + reminder days.
+                Route::get('/categories/fetch', [CourseCategoryController::class, 'fetch'])->name('categories.fetch');
+                Route::post('/categories/store', [CourseCategoryController::class, 'store'])->name('categories.store');
+                Route::post('/categories/{category}/update', [CourseCategoryController::class, 'update'])->name('categories.update');
+                Route::delete('/categories/{category}', [CourseCategoryController::class, 'destroy'])->name('categories.destroy');
+
+                Route::get('/mandates/fetch', [CourseMandateController::class, 'fetch'])->name('mandates.fetch');
+                Route::post('/mandates/store', [CourseMandateController::class, 'store'])->name('mandates.store');
+                Route::post('/mandates/{mandate}/update', [CourseMandateController::class, 'update'])->name('mandates.update');
+                Route::delete('/mandates/{mandate}', [CourseMandateController::class, 'destroy'])->name('mandates.destroy');
+
+                Route::post('/settings/update', [LearningController::class, 'updateSettings'])->name('settings.update');
+            });
+        });
+
+    // Project Management - split out from the group above so it can be
+    // gated by role_or_permission_or_impersonation instead of that group's
+    // fixed role: list, on top of its own unchanged
+    // ensure_module:project-management inner gate. Same prefix/name, so
+    // every route name/URI here is byte-identical to before the split
+    // (business.projects.*).
+    Route::middleware(['ensure_role', 'role_or_permission_or_impersonation:business-admin|business-hr|head-of-department|restricted-hr|chief-of-staff|module.project-management.view|module.project-management.create|module.project-management.edit|module.project-management.delete|module.project-management.approve'])
+        ->name('business.')
+        ->prefix('business/{business:slug}')
+        ->group(function () {
+            Route::middleware('ensure_module:project-management')->prefix('projects')->name('projects.')->group(function () {
+                Route::get('/', [ProjectController::class, 'index'])->name('index');
+                Route::get('/fetch', [ProjectController::class, 'fetch'])->name('fetch');
+                Route::get('/options', [ProjectController::class, 'options'])->name('options');
+                Route::post('/store', [ProjectController::class, 'store'])->name('store');
+                Route::post('/{project}/update', [ProjectController::class, 'update'])->name('update');
+                Route::delete('/{project}', [ProjectController::class, 'destroy'])->name('destroy');
+                Route::post('/settings/update', [ProjectController::class, 'updateSettings'])->name('settings.update');
+
+                // Kanban board (page + data + drag-drop persistence)
+                Route::get('/{project}/board', [ProjectController::class, 'showBoard'])->name('board');
+                Route::get('/{project}/board/fetch', [ProjectTaskController::class, 'board'])->name('board.fetch');
+                Route::post('/{project}/board/reorder', [ProjectTaskController::class, 'reorder'])->name('board.reorder');
+
+                // Tasks
+                Route::post('/{project}/tasks/store', [ProjectTaskController::class, 'store'])->name('tasks.store');
+                Route::post('/tasks/{task}/update', [ProjectTaskController::class, 'update'])->name('tasks.update');
+                Route::delete('/tasks/{task}', [ProjectTaskController::class, 'destroy'])->name('tasks.destroy');
+                Route::get('/tasks/{task}/comments/fetch', [ProjectTaskController::class, 'fetchComments'])->name('tasks.comments.fetch');
+                Route::post('/tasks/{task}/comments/store', [ProjectTaskController::class, 'storeComment'])->name('tasks.comments.store');
+
+                // Resource Allocation
+                Route::get('/{project}/members/fetch', [ProjectMemberController::class, 'fetch'])->name('members.fetch');
+                Route::post('/{project}/members/store', [ProjectMemberController::class, 'store'])->name('members.store');
+                Route::post('/members/{member}/update', [ProjectMemberController::class, 'update'])->name('members.update');
+                Route::delete('/members/{member}', [ProjectMemberController::class, 'destroy'])->name('members.destroy');
+
+                // Time Tracking
+                Route::get('/{project}/time-logs/fetch', [ProjectTimeLogController::class, 'fetch'])->name('time-logs.fetch');
+                Route::post('/{project}/time-logs/store', [ProjectTimeLogController::class, 'store'])->name('time-logs.store');
+                Route::delete('/time-logs/{timeLog}', [ProjectTimeLogController::class, 'destroy'])->name('time-logs.destroy');
+
+                // Reports
+                Route::get('/reports', [ProjectReportController::class, 'index'])->name('reports.index');
+                Route::get('/reports/task-status/preview', [ProjectReportController::class, 'taskStatusPreview'])->name('reports.task-status.preview');
+                Route::get('/reports/task-status/download', [ProjectReportController::class, 'taskStatusDownload'])->name('reports.task-status.download');
+                Route::get('/reports/time-tracking/preview', [ProjectReportController::class, 'timeTrackingPreview'])->name('reports.time-tracking.preview');
+                Route::get('/reports/time-tracking/download', [ProjectReportController::class, 'timeTrackingDownload'])->name('reports.time-tracking.download');
+
+                // Settings: Kanban columns + task categories
+                Route::get('/statuses/fetch', [ProjectTaskStatusController::class, 'fetch'])->name('statuses.fetch');
+                Route::post('/statuses/store', [ProjectTaskStatusController::class, 'store'])->name('statuses.store');
+                Route::post('/statuses/{status}/update', [ProjectTaskStatusController::class, 'update'])->name('statuses.update');
+                Route::delete('/statuses/{status}', [ProjectTaskStatusController::class, 'destroy'])->name('statuses.destroy');
+                Route::post('/statuses/reorder', [ProjectTaskStatusController::class, 'reorder'])->name('statuses.reorder');
+
+                Route::get('/task-categories/fetch', [ProjectTaskCategoryController::class, 'fetch'])->name('task-categories.fetch');
+                Route::post('/task-categories/store', [ProjectTaskCategoryController::class, 'store'])->name('task-categories.store');
+                Route::post('/task-categories/{category}/update', [ProjectTaskCategoryController::class, 'update'])->name('task-categories.update');
+                Route::delete('/task-categories/{category}', [ProjectTaskCategoryController::class, 'destroy'])->name('task-categories.destroy');
+                Route::post('/task-categories/reorder', [ProjectTaskCategoryController::class, 'reorder'])->name('task-categories.reorder');
+            });
+        });
+
+    // Recruitment/Onboarding - split out from the group above so it can be
+    // gated by role_or_permission_or_impersonation instead of that group's
+    // fixed role: list. Same prefix/name, so every route name/URI here is
+    // byte-identical to before the split (business.recruitment.*,
+    // business.applications.*, business.applicants.*).
+    Route::middleware(['ensure_role', 'role_or_permission_or_impersonation:business-admin|business-hr|head-of-department|restricted-hr|chief-of-staff|module.recruitment-onboarding.view|module.recruitment-onboarding.create|module.recruitment-onboarding.edit|module.recruitment-onboarding.delete|module.recruitment-onboarding.approve'])
+        ->name('business.')
+        ->prefix('business/{business:slug}')
+        ->group(function () {
+            Route::prefix('recruitment')->name('recruitment.')->group(function () {
+                Route::get('/job-posts', [JobPostController::class, 'index'])->name('jobs.index');
+                Route::get('/job-posts/create', [JobPostController::class, 'create'])->name('jobs.create');
+                Route::get('/job-posts/{jobpost}', [JobPostController::class, 'show'])->name('jobs.show');
+                Route::get('/job-posts/{jobpost}/edit', [JobPostController::class, 'editView'])->name('jobs.edit');
+                Route::get('/interviews', [DashboardController::class, 'interviews'])->name('interviews');
+                Route::get('/reports', [ApplicationController::class, 'reports'])->name('reports');
+            });
+
+            Route::prefix('applications')->name('applications.')->group(function () {
+                Route::get('/', [ApplicationController::class, 'index'])->name('index');
+                Route::get('/create', [ApplicationController::class, 'create'])->name('create');
+                Route::get('/{application}', [ApplicationController::class, 'view'])->name('view');
+            });
+
+            Route::prefix('applicants')->name('applicants.')->group(function () {
+                Route::get('/', [ApplicantController::class, 'index'])->name('index');
+                Route::get('/create', [ApplicantController::class, 'create'])->name('create');
+                Route::get('/{applicant}', [ApplicantController::class, 'view'])->name('view');
+                Route::get('/{applicant}/download-document/{mediaId}', [ApplicantController::class, 'downloadDocument'])->name('download-document');
+            });
+        });
+
+    // Payroll Management - split out from the group above so it can be
+    // gated by role_or_permission_or_impersonation instead of that group's
+    // fixed role: list. Same prefix/name, so every route name/URI here is
+    // byte-identical to before the split (business.payroll.*,
+    // business.payroll-formulas.*, business.reliefs.index,
+    // business.employee-reliefs.index, business.allowances.index,
+    // business.advances.index, business.loans.index,
+    // business.pay-grades.index).
+    Route::middleware(['ensure_role', 'role_or_permission_or_impersonation:business-admin|business-hr|business-finance|head-of-department|restricted-hr|chief-of-staff|module.payroll-management.view|module.payroll-management.create|module.payroll-management.edit|module.payroll-management.delete|module.payroll-management.approve'])
+        ->name('business.')
+        ->prefix('business/{business:slug}')
+        ->group(function () {
+            Route::get('/payroll-formulas', [DashboardController::class, 'payrollFormulas'])->name('payroll-formulas.index');
+            Route::get('/payroll-formulas/bracket-template', [PayrollFormulaController::class, 'bracketTemplate'])->name('payroll-formulas.bracket-template');
+
+            Route::get('/deductions', [DashboardController::class, 'deductions'])->name('deductions');
+
+            Route::get('/payroll', [DashboardController::class, 'payroll'])->name('payroll.index');
+            Route::get('/payroll/all', [DashboardController::class, 'payrollAll'])->name('payroll.all');
+            // variance report
+            Route::get('/payroll/variance', [PayrollController::class, 'variancePage'])
+                ->name('payroll.variance');
+            Route::get('/payroll/variance/download', [PayrollController::class, 'downloadVarianceReport'])
+                ->name('payroll.variance.download');
+            Route::get('/payroll/variance/data', [PayrollController::class, 'varianceData'])
+                ->name('payroll.variance.data');
+
+            Route::get('/payroll/{id}', [DashboardController::class, 'viewPayroll'])->name('payroll.view');
+            Route::get('/payroll/{id}/download/{format}', [DashboardController::class, 'downloadPayroll'])->name('payroll.reports');
+            Route::get('/payroll/{id}/download-column/{column}/{format}', [DashboardController::class, 'downloadColumn'])->name('payroll.download_column');
+            Route::get('/payroll/{id}/print-all-payslips', [DashboardController::class, 'printAllPayslips'])->name('payroll.print_all_payslips');
+
+            Route::get('/payslips', [PayrollController::class, 'viewPayslips'])->name('payslips');
+            Route::get('/payroll/payslip/{employee_id}', [PayrollController::class, 'viewPayslip'])->name('payroll.payslip');
+
+            Route::get('/payroll/download-p9/{year}/{format}', [PayrollController::class, 'downloadP9'])->name('payroll.download_p9');
+            Route::get('/payroll/download-bank-advice/{year}/{month}/{format}', [PayrollController::class, 'downloadBankAdvice'])->name('payroll.download_bank_advice');
+            Route::get('/payroll/p9/{employeeId}/{year}/{format}', [PayrollController::class, 'downloadSingleP9'])->name('payroll.download_single_p9');
+
+            Route::post('/payroll/send-payslips', [PayrollController::class, 'sendPayslips'])->name('payroll.send_payslips');
+            Route::get(
+                '/payroll/{id}/master-roll',
+                [PayrollController::class, 'downloadMasterRoll']
+            )
+                ->name('payroll.master-roll');
+
+            // Monthly Summary Downloads
+            Route::get('/download-nssf-summary', [PayrollController::class, 'downloadNssfMonthlySummary'])
+                ->name('download-nssf-summary');
+
+            Route::get('/download-shif-summary', [PayrollController::class, 'downloadShifMonthlySummary'])
+                ->name('download-shif-summary');
+
+            Route::get('/download-nhif-summary', [PayrollController::class, 'downloadNhifMonthlySummary'])
+                ->name('download-nhif-summary');
+
+            // ─── NSSF per-payroll format downloads ───────────────────────────────
+            // Handles: new_remittance | pre_2018 | old_format | schedule | grouped
+            Route::get('/payroll/nssf/download', [PayrollController::class, 'downloadNssf'])
+                ->name('payroll.nssf.download');
+
+            // ─── NSSF month-by-month summary (full year, xlsx + pdf) ─────────────
+            Route::get('/payroll/nssf/monthly-summary', [PayrollController::class, 'downloadNssfMonthlySummaryWithFormat'])
+                ->name('payroll.nssf.monthly_summary');
+
+            Route::get('reliefs', [DashboardController::class, 'reliefs'])->name('reliefs.index');
+            Route::get('employee-reliefs', [DashboardController::class, 'employeeReliefs'])->name('employee-reliefs.index');
+
+            Route::get('/allowances', [DashboardController::class, 'allowances'])->name('allowances.index');
+
+            Route::get('/advances', [DashboardController::class, 'advances'])->name('advances.index');
+            Route::get('/loans', [DashboardController::class, 'loans'])->name('loans.index');
 
             Route::get('pay-grades', [DashboardController::class, 'payGrades'])->name('pay-grades.index');
+        });
 
-            // roles
-            Route::get('/roles', [RoleController::class, 'index'])->name('roles.index');
-            Route::get('/roles/create', [RoleController::class, 'create'])->name('roles.create');
-            Route::get('/roles/{role}', [RoleController::class, 'show'])->name('roles.show');
-            Route::get('/roles/{role}/edit', [RoleController::class, 'editView'])->name('roles.edit');
-
+    // CRM - split out from the group above so it can be gated by
+    // role_or_permission_or_impersonation instead of that group's fixed
+    // role: list. Same prefix/name, so every route name/URI here is
+    // byte-identical to before the split (business.crm.*).
+    Route::middleware(['ensure_role', 'role_or_permission_or_impersonation:business-admin|business-hr|head-of-department|restricted-hr|chief-of-staff|module.crm-integration.view|module.crm-integration.create|module.crm-integration.edit|module.crm-integration.delete|module.crm-integration.approve'])
+        ->name('business.')
+        ->prefix('business/{business:slug}')
+        ->group(function () {
             // 🔹 CRM (PAGE ROUTES) — fixes Route [business.crm.contacts.index] not defined
             Route::prefix('crm')->name('crm.')->group(function () {
                 // Contacts pages
@@ -368,14 +850,66 @@ Route::get('/payroll/variance/data', [PayrollController::class, 'varianceData'])
                     ->name('reports.export')
                     ->where(['type' => 'leads|campaigns|contacts', 'format' => 'xlsx|csv|pdf']);
             });
+        });
 
-            // Quick session debug
-            Route::get('/debug-session', function () {
-                return response()->json([
-                    'active_business_slug' => session('active_business_slug'),
-                    'active_role' => session('active_role'),
-                ]);
-            });
+    // The dashboard landing page ("business.index") needs to be reachable
+    // by EVERY business role, not just super-admin - it's each
+    // role's actual home route after login (getRedirectUrlForRole(),
+    // RoleHomeRouteService). It used to be registered ONLY under
+    // role:super-admin (split out from the business-admin|
+    // business-hr|... group below to fix super-admin getting
+    // 403'd here - see git history) which silently swapped the bug for
+    // its mirror image: every OTHER role got 403'd here instead, and once
+    // 403s started redirecting to each role's own home (also
+    // business.index) that became an infinite redirect loop. One
+    // combined role list covers everyone who's actually meant to land
+    // here; EnsureCorrectRole's own access.dashboard permission check
+    // still correctly turns business-hr/restricted-hr/head-of-department/
+    // chief-of-staff away toward their real home instead.
+    Route::middleware(['ensure_role', 'role:super-admin|business-admin|business-hr|business-finance|head-of-department|restricted-hr|chief-of-staff'])
+        ->name('business.')
+        ->prefix('business/{business:slug}')
+        ->group(function () {
+            Route::get('/', [DashboardController::class, 'index'])->name('index');
+            Route::get('/setup-progress', [DashboardController::class, 'fetchSetupProgress'])->name('setup-progress.fetch');
+            Route::post('/setup-progress/dismiss', [DashboardController::class, 'dismissSetupGuide'])->name('setup-progress.dismiss');
+            Route::post('/setup-progress/reopen', [DashboardController::class, 'reopenSetupGuide'])->name('setup-progress.reopen');
+        });
+
+    // Clients management stays platform-governance only - NOT part of the
+    // wider group above, unlike the dashboard landing page.
+    Route::middleware(['ensure_role', 'role:super-admin'])
+        ->name('business.')
+        ->prefix('business/{business:slug}')
+        ->group(function () {
+            Route::get('/clients', [ClientController::class, 'index'])->name('clients.index');
+            Route::get('/clients/{clientBusiness:slug}', [ClientController::class, 'view'])->name('clients.view');
+            // verify/deactivate/modules-assign/impersonate/fetch/switch-back
+            // already exist under routes/requests.php's `businesses/{business_slug}/clients`
+            // group (super-admin-only tier deliberately kept separate from
+            // super-admin governance for verify/deactivate/modules) - not duplicated here.
+        });
+
+    // Granting platform-operator access is itself a governance action
+    // (same tier as verify/deactivate) - super-admin only.
+    Route::middleware(['ensure_role', 'role:super-admin'])
+        ->name('business.')
+        ->prefix('business/{business:slug}')
+        ->group(function () {
+            Route::get('/platform-admins', [PlatformAdminController::class, 'index'])->name('platform-admins.index');
+            Route::get('/system-health', [\App\Http\Controllers\SystemHealthController::class, 'index'])->name('system-health.index');
+        });
+
+    // Inviting a colleague into THIS business account ("Account Sharing") -
+    // business-admin owns this day to day; super-admin can also
+    // reach it while impersonating a client business. Unrelated to the
+    // clients.* group above (that's the platform business managing tenant businesses).
+    Route::middleware(['ensure_role', 'role:super-admin|business-admin'])
+        ->name('business.clients.')
+        ->prefix('business/{business:slug}')
+        ->group(function () {
+            Route::get('/access/request', [ClientController::class, 'showRequestAccess'])->name('request-access');
+            Route::get('/access/grant', [ClientController::class, 'showGrantAccess'])->name('grant-access');
         });
 });
 
@@ -387,8 +921,86 @@ Route::middleware(['ensure_role', 'role:business-employee'])
 
         Route::get('update-details', [EmployeeDashboardController::class, 'updateDetails'])->name('update');
         Route::get('profile', [ProfileController::class, 'edit'])->name('profile');
+        Route::get('my-team', [OrganogramController::class, 'myTeam'])->name('my-team');
+
+        // Read-only business-wide employee id/name list - same data an
+        // admin sees, needed so a portal user can assign a task/log time
+        // against a colleague on a shared project (see My Projects below).
+        Route::prefix('organogram')->name('organogram.')->group(function () {
+            Route::get('employee-options', [OrganogramController::class, 'employeeOptions'])->name('employee-options');
+        });
+
+        Route::prefix('performance')->name('performance.')->group(function () {
+            Route::get('/', [PerformanceController::class, 'myPerformance'])->name('index');
+            Route::get('/cycles/active', [PerformanceController::class, 'fetchActiveCycles'])->name('cycles.active');
+            Route::get('/employees/{employee}', [PerformanceController::class, 'employeePerformance'])->name('employee');
+            Route::get('/employees/{employee}/objectives', [PerformanceController::class, 'fetchObjectives'])->name('objectives.fetch');
+            Route::post('/employees/{employee}/objectives', [PerformanceController::class, 'storeObjective'])->name('objectives.store');
+            Route::get('/employees/{employee}/kpis', [PerformanceController::class, 'fetchKpisForEmployee'])->name('kpis.for-employee');
+            Route::get('/objectives/cascade', [PerformanceController::class, 'fetchCascadeObjectives'])->name('objectives.cascade');
+            Route::get('/objectives/critical', [PerformanceController::class, 'fetchCriticalObjectives'])->name('objectives.critical');
+            Route::post('/objectives/{objective}/approve-alignment', [PerformanceController::class, 'approveAlignment'])->name('objectives.approve-alignment');
+            Route::post('/objectives/{objective}/decline-alignment', [PerformanceController::class, 'declineAlignment'])->name('objectives.decline-alignment');
+            Route::post('/objectives/{objective}/key-results', [PerformanceController::class, 'storeKeyResult'])->name('key-results.store');
+            Route::post('/key-results/{keyResult}/progress', [PerformanceController::class, 'updateKeyResultProgress'])->name('key-results.progress');
+
+            Route::get('/cycles/{cycle}/employees/{employee}/review', [PerformanceController::class, 'fetchReview'])->name('review.fetch');
+            Route::post('/reviews/{review}/self-assessment', [PerformanceController::class, 'submitSelfAssessment'])->name('review.self');
+            Route::post('/reviews/{review}/manager-assessment', [PerformanceController::class, 'submitManagerAssessment'])->name('review.manager');
+
+            Route::get('/employees/{employee}/feedback', [PerformanceFeedbackController::class, 'fetchForSubject'])->name('feedback.fetch');
+            Route::post('/employees/{employee}/feedback', [PerformanceFeedbackController::class, 'store'])->name('feedback.store');
+            Route::get('/feedback/inbox', [PerformanceFeedbackController::class, 'fetchMyInbox'])->name('feedback.inbox');
+            Route::post('/feedback/{feedbackRequest}/decline', [PerformanceFeedbackController::class, 'decline'])->name('feedback.decline');
+            Route::post('/feedback/{feedbackRequest}/response', [PerformanceFeedbackController::class, 'submitResponse'])->name('feedback.respond');
+        });
+
+        Route::get('/disciplinary', [\App\Http\Controllers\WarningController::class, 'myIndex'])->name('disciplinary.index');
+        Route::post('/disciplinary/{id}/acknowledge', [\App\Http\Controllers\WarningController::class, 'acknowledge'])->name('disciplinary.acknowledge');
+        Route::post('/disciplinary/{id}/respond', [\App\Http\Controllers\WarningController::class, 'submitResponse'])->name('disciplinary.respond');
+
+        // My Projects - full parity with the admin Kanban board (drag-drop,
+        // task CRUD, comments, resource allocation, time logging), reusing
+        // the EXACT same controllers/views as business.projects.* - see
+        // ProjectController::myProjects()/showBoard() and
+        // EnsureProjectMember, which is what makes that reuse safe for a
+        // plain business-employee (scoped to projects they manage or are
+        // an active member of, checked per-request against whichever
+        // model - project/task/member/timeLog - the route binds).
+        Route::prefix('projects')->name('projects.')->group(function () {
+            Route::get('/', [ProjectController::class, 'myProjects'])->name('index');
+            Route::get('/task-categories/fetch', [ProjectTaskCategoryController::class, 'fetch'])->name('task-categories.fetch');
+
+            Route::middleware('ensure_project_member')->group(function () {
+                Route::get('/{project}/board', [ProjectController::class, 'showBoard'])->name('board');
+                Route::get('/{project}/board/fetch', [ProjectTaskController::class, 'board'])->name('board.fetch');
+                Route::post('/{project}/board/reorder', [ProjectTaskController::class, 'reorder'])->name('board.reorder');
+
+                Route::post('/{project}/tasks/store', [ProjectTaskController::class, 'store'])->name('tasks.store');
+                Route::post('/tasks/{task}/update', [ProjectTaskController::class, 'update'])->name('tasks.update');
+                Route::delete('/tasks/{task}', [ProjectTaskController::class, 'destroy'])->name('tasks.destroy');
+                Route::get('/tasks/{task}/comments/fetch', [ProjectTaskController::class, 'fetchComments'])->name('tasks.comments.fetch');
+                Route::post('/tasks/{task}/comments/store', [ProjectTaskController::class, 'storeComment'])->name('tasks.comments.store');
+
+                Route::get('/{project}/members/fetch', [ProjectMemberController::class, 'fetch'])->name('members.fetch');
+                Route::post('/{project}/members/store', [ProjectMemberController::class, 'store'])->name('members.store');
+                Route::delete('/members/{member}', [ProjectMemberController::class, 'destroy'])->name('members.destroy');
+
+                Route::get('/{project}/time-logs/fetch', [ProjectTimeLogController::class, 'fetch'])->name('time-logs.fetch');
+                Route::post('/{project}/time-logs/store', [ProjectTimeLogController::class, 'store'])->name('time-logs.store');
+                Route::delete('/time-logs/{timeLog}', [ProjectTimeLogController::class, 'destroy'])->name('time-logs.destroy');
+            });
+        });
+
+        Route::prefix('delegations')->name('delegations.')->group(function () {
+            Route::get('/', [LeaveDelegationController::class, 'myDelegations'])->name('index');
+            Route::post('/{delegation}/accept', [LeaveDelegationController::class, 'accept'])->name('accept');
+            Route::post('/{delegation}/decline', [LeaveDelegationController::class, 'decline'])->name('decline');
+        });
 
         Route::prefix('leave')->name('leave.')->group(function () {
+            Route::get('/calendar', [LeaveCalendarController::class, 'employeeCalendar'])->name('calendar');
+            Route::get('/calendar/events', [LeaveCalendarController::class, 'employeeEvents'])->name('calendar.events');
             Route::get('/requests', [EmployeeDashboardController::class, 'viewLeaves'])->name('requests.index');
             Route::get('/requests/create', [EmployeeDashboardController::class, 'requestLeave'])->name('requests.create');
             Route::get('/view/{leave}', [EmployeeDashboardController::class, 'leaveApplication'])->name('show');
@@ -398,6 +1010,15 @@ Route::middleware(['ensure_role', 'role:business-employee'])
         Route::prefix('attendances')->name('attendances.')->group(function () {
             Route::get('/', [EmployeeDashboardController::class, 'attendances'])->name('index');
             Route::get('clock-in-out', [EmployeeDashboardController::class, 'clockInOut'])->name('clock-in-out.index');
+
+            // My Attendance reports - always self-scoped, see
+            // AttendanceReportController::my*() (Phase 1 employee-portal cleanup).
+            Route::get('/reports/daily/preview', [AttendanceReportController::class, 'myDailyPreview'])->name('reports.daily.preview');
+            Route::get('/reports/daily/download', [AttendanceReportController::class, 'myDailyDownload'])->name('reports.daily.download');
+            Route::get('/reports/monthly/preview', [AttendanceReportController::class, 'myMonthlyPreview'])->name('reports.monthly.preview');
+            Route::get('/reports/monthly/download', [AttendanceReportController::class, 'myMonthlyDownload'])->name('reports.monthly.download');
+            Route::get('/reports/summary/preview', [AttendanceReportController::class, 'mySummaryPreview'])->name('reports.summary.preview');
+            Route::get('/reports/summary/download', [AttendanceReportController::class, 'mySummaryDownload'])->name('reports.summary.download');
         });
 
         Route::prefix('overtime')->name('overtime.')->group(function () {
@@ -407,21 +1028,29 @@ Route::middleware(['ensure_role', 'role:business-employee'])
 
         Route::get('absenteeism', [DashboardController::class, 'absenteeism'])->name('absenteeism.index');
 
-        Route::get('/attendance', [EmployeeDashboardController::class, 'checkIn'])->name('attendance');
+        // Was pointed at a non-existent checkIn() method (dead route, unreferenced
+        // anywhere in the UI) - repointed to the same working clock-in/out flow
+        // rather than leaving a route that 500s if ever hit directly.
+        Route::get('/attendance', [EmployeeDashboardController::class, 'clockInOut'])->name('attendance');
 
-        Route::get('/p9', [EmployeeDashboardController::class, 'downloadP9'])->name('p9');
+        Route::get('/p9', [EmployeeDashboardController::class, 'viewP9Forms'])->name('p9.index');
+        Route::get('/p9/download', [EmployeeDashboardController::class, 'downloadP9'])->name('p9');
 
         Route::get('/payslips', [EmployeeDashboardController::class, 'viewPayslips'])->name('payslips');
 
         Route::get('/payslips/download/{id}', [EmployeeDashboardController::class, 'downloadPayslip'])->name('payslips.download');
 
+        Route::get('/assets', [EmployeeDashboardController::class, 'myAssets'])->name('assets.index');
+
+        Route::get('/learning', [EmployeeDashboardController::class, 'myLearning'])->name('learning.index');
+
         Route::middleware('auth')->group(function () {
             Route::get('/account-settings', [EmployeeDashboardController::class, 'accountSettings'])->name('account.settings');
         });
 
-        Route::get('/notifications', function () {
-            return view('employee.notifications');
-        })->name('notifications');
+        Route::get('/notifications', [EmployeeDashboardController::class, 'notifications'])->name('notifications');
+        Route::post('/notifications/{notification}/read', [EmployeeDashboardController::class, 'markNotificationRead'])->name('notifications.read');
+        Route::post('/notifications/read-all', [EmployeeDashboardController::class, 'markAllNotificationsRead'])->name('notifications.read-all');
     });
 
 Route::get('/test-log', function () {
@@ -435,7 +1064,12 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     Route::name('setup.')->prefix('setup')->group(function () {
-        Route::get('business', [BusinessController::class, 'create'])->name('business');
+        // business-admin only: this is also the "Add Business" entry
+        // point for accounts that already own a business (see
+        // navbar.blade.php). RegisteredUserController::store() grants
+        // business-admin at signup, before a first-time user ever
+        // reaches here, so this doesn't block onboarding.
+        Route::middleware(['role:business-admin'])->get('business', [BusinessController::class, 'create'])->name('business');
         Route::get('modules', [ModuleController::class, 'create'])->name('modules');
     });
 
@@ -458,7 +1092,14 @@ Route::middleware(['auth'])->group(function () {
         });
 });
 
-Route::get('business/{business:slug}/activate', [BusinessController::class, 'activate'])->name('business.activate');
+// auth only - deliberately NOT VerifyBusiness (that's what redirects HERE
+// when a business isn't verified; adding it back would loop). Without
+// auth, this crashed for anyone who reached it without a live session
+// (auth()->user()->id on a null user in the shared app layout) instead of
+// bouncing them to login first.
+Route::middleware('auth')
+    ->get('business/{business:slug}/activate', [BusinessController::class, 'activate'])
+    ->name('business.activate');
 
 // Short link routes
 Route::get('/campaign/{slug}', [CrmController::class, 'handleShortLink'])->name('short.link');
@@ -475,15 +1116,14 @@ require __DIR__ . '/auth.php';
 require __DIR__ . '/requests.php';
 
 // Temporary route for testing leave type edit page
-Route::get('/test-leave-types/{slug}/edit', function($slug) {
+Route::get('/test-leave-types/{slug}/edit', function ($slug) {
     return "Edit page for $slug";
 });
 
-Route::middleware(['ensure_role', 'role:business-admin|business-hr|business-finance'])
+Route::middleware(['ensure_role', 'role_or_permission_or_impersonation:business-admin|business-hr|business-finance|module.employee-management.edit|module.payroll-management.edit'])
     ->name('business.')
     ->prefix('business/{business:slug}')
     ->group(function () {
-
 
         Route::get('/employees/{employee}/payment-details', [EmployeeController::class, 'editPaymentDetails'])
             ->name('employees.payment-details.edit');

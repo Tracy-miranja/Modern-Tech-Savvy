@@ -34,7 +34,7 @@ class LeavePolicyService
     private function empEmploymentDate(Employee $e): ?Carbon
     {
         $date = $e->employment_date
-            ?? $e->employmentDetail->employment_date
+            ?? optional($e->employmentDetails)->employment_date
             ?? null;
 
         return $date ? Carbon::parse($date) : null;
@@ -43,13 +43,13 @@ class LeavePolicyService
     /** Department to use for policy matching */
     private function empDeptId(Employee $e): ?int
     {
-        return $e->department_id ?? $e->employmentDetail->department_id ?? null;
+        return $e->department_id ?? optional($e->employmentDetails)->department_id ?? null;
     }
 
     /** Job category to use for policy matching */
     private function empJobCatId(Employee $e): ?int
     {
-        return $e->job_category_id ?? $e->employmentDetail->job_category_id ?? null;
+        return $e->job_category_id ?? optional($e->employmentDetails)->job_category_id ?? null;
     }
 
     /**
@@ -128,31 +128,34 @@ class LeavePolicyService
      */
     public function computeEntitledDays(LeavePolicy $policy, Employee $employee, LeavePeriod $period): float
     {
-        $employmentDate = $this->empEmploymentDate($employee);
-        $periodStart = Carbon::parse($period->start_date);
-        $periodEnd   = Carbon::parse($period->end_date);
+        $default = (float) $policy->default_days;
 
-        if ($policy->minimum_service_days_required > 0) {
-            if (!$employmentDate) {
-                Log::warning("Employee {$employee->id} has no employment_date. Cannot compute entitlement.");
-                return 0;
-            }
-            $serviceDays = $employmentDate->diffInDays(now());
-            if ($serviceDays < $policy->minimum_service_days_required) {
-                Log::info("Employee {$employee->id} doesn't meet minimum service days ({$serviceDays}/{$policy->minimum_service_days_required})");
-                return 0;
+        // Minimum service days gate
+        $hiredAt = $employee->employmentDetails?->employment_date ?? $employee->created_at;
+        if ($hiredAt && !$hiredAt instanceof Carbon) {
+            $hiredAt = Carbon::parse($hiredAt);
+        }
+
+        if ($policy->minimum_service_days_required && $hiredAt) {
+            // Signed diff: negative when hired AFTER the period start (i.e. not enough service yet).
+            $daysServed = $hiredAt->diffInDays($period->start_date, false);
+            if ($daysServed < (int) $policy->minimum_service_days_required) {
+                return 0.0;
             }
         }
 
         $defaultDays = (float) $policy->default_days;
 
-        if ($policy->prorated_for_new_employees && $employmentDate && $employmentDate->between($periodStart, $periodEnd)) {
+        $periodStart = Carbon::parse($period->start_date);
+        $periodEnd   = Carbon::parse($period->end_date);
+
+        if ($policy->prorated_for_new_employees && $hiredAt && $hiredAt->between($periodStart, $periodEnd)) {
             $totalPeriodDays = $periodStart->diffInDays($periodEnd) + 1;
-            $workedDays      = $employmentDate->diffInDays($periodEnd) + 1;
+            $workedDays      = $hiredAt->diffInDays($periodEnd) + 1;
             $proratedDays    = ($defaultDays / $totalPeriodDays) * $workedDays;
 
             Log::info("Prorated entitlement for employee {$employee->id}: " . round($proratedDays, 2) .
-                " days (employment_date {$employmentDate->toDateString()}, worked {$workedDays}/{$totalPeriodDays} days)");
+                " days (employment_date {$hiredAt->toDateString()}, worked {$workedDays}/{$totalPeriodDays} days)");
 
             return round($proratedDays, 2);
         }
@@ -183,13 +186,69 @@ class LeavePolicyService
             return 0;
         }
 
-        $unused      = max(0, (float)$previousEntitlement->days_remaining);
-        $maxCarryover= (float) ($policy->max_carryover_days ?? 0);
-        $carryover   = min($unused, $maxCarryover);
+        $unused    = max(0, (float) $previousEntitlement->days_remaining);
+        $carryover = $this->applyCarryoverTypeAndCap($policy, $unused);
 
-        Log::info("Carryover for employee {$employee->id}, leave type {$leaveType->id}: {$carryover} days (unused: {$unused}, max allowed: {$maxCarryover})");
+        Log::info("Carryover for employee {$employee->id}, leave type {$leaveType->id}: {$carryover} days (unused: {$unused}, type: {$policy->carryover_type}, cap: {$policy->max_carryover_days})");
 
         return $carryover;
+    }
+
+    /**
+     * The type/value → amount computation, shared by calculateCarryover()
+     * (adjacent-period auto carryover) and computeCarryover() (HR-driven
+     * carryover between explicitly chosen periods) so the two never drift
+     * apart on what "full/fixed/percent" actually means.
+     *
+     * 'full' reproduces the original min(unused, cap) behavior exactly -
+     * the default, so businesses that never touch the new fields see no
+     * change. max_carryover_days always stays the hard ceiling on top of
+     * whichever type is chosen, not replaced by it.
+     */
+    private function applyCarryoverTypeAndCap(LeavePolicy $policy, float $unused): float
+    {
+        $type = $policy->carryover_type ?? 'full';
+        $value = (float) ($policy->carryover_value ?? 0);
+
+        $computed = match ($type) {
+            'fixed'   => min($value, $unused),
+            'percent' => $unused * ($value / 100),
+            default   => $unused, // 'full'
+        };
+
+        $cap = (float) ($policy->max_carryover_days ?? 0);
+
+        return $cap > 0 ? min($computed, $cap) : max(0.0, $computed);
+    }
+
+    /**
+     * The date carried-over days stop being usable, or null if the policy
+     * has no expiry configured - matches today's "never expires" behavior
+     * by default. Computed from the period the carryover is landing IN
+     * (not the one it came from), so "3 months into the new period" always
+     * means 3 months of the new period, regardless of the previous one's
+     * length.
+     */
+    public function calculateCarryoverExpiryDate(LeavePeriod $currentPeriod, LeavePolicy $policy): ?Carbon
+    {
+        if (!$policy->carryover_expiry_months) {
+            return null;
+        }
+
+        return Carbon::parse($currentPeriod->start_date)->addMonths((int) $policy->carryover_expiry_months);
+    }
+
+    /**
+     * Simple policy-capped carryover for a known previous balance - used by
+     * LeaveEntitlementController::processCarryover(), which lets HR carry
+     * from an explicitly chosen source period to an explicitly chosen
+     * destination period (not necessarily adjacent ones), unlike
+     * calculateCarryover() above which always auto-discovers whichever
+     * period immediately precedes the given one.
+     */
+    public function computeCarryover(LeavePolicy $policy, float $previousBalance): float
+    {
+        return $this->applyCarryoverTypeAndCap($policy, max(0.0, $previousBalance));
     }
 
     public function calculateAccruedDays(LeaveEntitlement $entitlement, LeavePolicy $policy, Carbon $asOfDate): float
@@ -200,7 +259,13 @@ class LeavePolicyService
         }
 
         $leaveType = $entitlement->leaveType;
-        if (!$leaveType || !(Schema::hasColumn('leave_types', 'allowance_accruable') ? $leaveType->allowance_accruable : true)) {
+        $accruableFlag = Schema::hasColumn('leave_types', 'allowance_accruable')
+            ? (bool)($leaveType->allowance_accruable ?? false)
+            : true;
+        // A policy with a real accrual_amount configured is accruable
+        // regardless of the separate allowance_accruable toggle - see the
+        // matching comment in LeaveEntitlementController::store().
+        if (!$leaveType || !($accruableFlag || (float)($policy->accrual_amount ?? 0) > 0)) {
             return (float)($entitlement->accrued_days ?? 0);
         }
 
@@ -302,13 +367,16 @@ public function createOrUpdateEntitlement(Employee $employee, LeaveType $leaveTy
         return null;
     }
 
-    $entitledDays = $this->computeEntitledDays($policy, $employee, $period);
-    if ($entitledDays <= 0) {
-        Log::info("Skipping entitlement: Employee {$employee->id} entitled to 0 days");
-        return null;
-    }
-
+    // Deliberately NOT skipped when the policy's default_days is 0 - some
+    // leave types (compensatory "off days" for working a public holiday,
+    // etc.) have no baseline grant at all and exist purely so HR can apply
+    // ad-hoc adjustments (applyAdjustment()) once a day is actually
+    // earned. Skipping row creation here would leave nothing for
+    // LeaveEntitlementController::adjust() to adjust - the row must exist
+    // with a 0 baseline so it's visible in the entitlements table and
+    // ready to receive a grant the moment one is earned.
     $carryover = $this->calculateCarryover($employee, $leaveType, $period, $policy);
+    $carryoverExpiryDate = $carryover > 0 ? $this->calculateCarryoverExpiryDate($period, $policy) : null;
 
     // Keep policy default days for reference only
     $entitledDays = (float)($policy->default_days ?? 0);
@@ -324,43 +392,75 @@ public function createOrUpdateEntitlement(Employee $employee, LeaveType $leaveTy
 
     $entitlement->entitled_days   = $entitledDays;
     $entitlement->carryover_days  = $carryover;
+    $entitlement->carryover_expiry_date = $carryoverExpiryDate;
 
-    // >>> key change: if NOT accruable, credit full upfront into accrued_days
+    // See LeaveEntitlementController::store()'s matching comment - a
+    // policy with accrual_amount > 0 is treated as accruable even if the
+    // separate allowance_accruable toggle was left off.
     $isAccruable = !Schema::hasColumn('leave_types','allowance_accruable')
         ? true
-        : (bool)$leaveType->allowance_accruable;
+        : ((bool)$leaveType->allowance_accruable || (float)($policy->accrual_amount ?? 0) > 0);
 
+    // accrued_days only carries real meaning for accruable types (the
+    // fraction of entitled_days unlocked so far, grown over time by
+    // processAccruals()). For non-accruable types we still mirror it to
+    // entitled_days purely so the entitlements table's "Accrued" column
+    // reads sensibly - LeaveEntitlement::recalculateTotals() below never
+    // sums accrued_days and entitled_days together, so this mirroring is
+    // cosmetic only and can't double-count.
     if ($isNew) {
         $entitlement->accrued_days     = $isAccruable ? 0.0 : (float)$entitledDays;
         $entitlement->last_accrued_at  = Carbon::parse($period->start_date);
-    } else {
-        // If already exists and type is non-accruable, make sure accrued mirrors entitled
-        if (!$isAccruable) {
-            $entitlement->accrued_days = (float)$entitledDays;
-        }
+    } elseif (!$isAccruable) {
+        $entitlement->accrued_days = (float)$entitledDays;
     }
 
-    // total_days = accrued + carryover
-    $entitlement->total_days     = (float)$entitlement->carryover_days + (float)$entitlement->accrued_days;
-
-    // Compute usage inside period and remaining
-    $daysTaken = LeaveRequest::where('employee_id', $employee->id)
-        ->where('leave_type_id', $leaveType->id)
-        ->whereNotNull('approved_by')
-        ->whereNull('rejection_reason')
-        ->whereBetween('start_date', [$period->start_date, $period->end_date])
-        ->sum('total_days');
-
-    $entitlement->days_taken     = (float)$daysTaken;
-    $entitlement->days_remaining = max(0, $entitlement->total_days - $entitlement->days_taken);
-
-    $entitlement->save();
+    // total_days/days_taken/days_pending/days_remaining are all derived by
+    // the single canonical formula - see LeaveEntitlement::recalculateTotals().
+    $entitlement->recalculateTotals();
 
     Log::info("Entitlement " . ($isNew ? 'created' : 'updated') . " for employee {$employee->id}, leave type {$leaveType->id}: {$entitledDays} entitled, {$carryover} carryover, {$entitlement->accrued_days} accrued = {$entitlement->total_days} total.");
 
     return $entitlement;
 }
 
+
+    /**
+     * Forfeits unused carryover once its expiry date passes - called daily
+     * from leave:run-accruals, same automatic cadence as accruals
+     * themselves. Heuristic (deliberately not a full FIFO leave-day
+     * ledger): whatever of the entitlement's ORIGINAL carryover_days
+     * hasn't been "covered" by approved usage since the period started is
+     * considered still-unused carryover and gets clawed back via the same
+     * applyAdjustment() mechanism as any other manual HR correction, so
+     * every forfeiture leaves a normal, auditable adjustment row with a
+     * clear reason - not a silent balance change.
+     */
+    public function forfeitExpiredCarryover(Carbon $asOfDate = null): int
+    {
+        $asOfDate = $asOfDate ?? now();
+        $forfeitedCount = 0;
+
+        LeaveEntitlement::whereNotNull('carryover_expiry_date')
+            ->whereDate('carryover_expiry_date', '<=', $asOfDate)
+            ->where('carryover_days', '>', 0)
+            ->get()
+            ->each(function (LeaveEntitlement $entitlement) use (&$forfeitedCount) {
+                $unusedCarryover = max(0.0, (float) $entitlement->carryover_days - (float) $entitlement->days_taken);
+
+                if ($unusedCarryover > 0) {
+                    $entitlement->applyAdjustment(-$unusedCarryover, 'Carryover expired');
+                    $forfeitedCount++;
+                }
+
+                // Cleared regardless of whether anything was actually
+                // forfeited, so an already-fully-used carryover allocation
+                // doesn't keep getting re-evaluated on every future run.
+                $entitlement->update(['carryover_expiry_date' => null]);
+            });
+
+        return $forfeitedCount;
+    }
 
     public function processAccruals(LeavePeriod $period, Carbon $asOfDate = null): int
     {
@@ -383,11 +483,9 @@ public function createOrUpdateEntitlement(Employee $employee, LeaveType $leaveTy
                 $targetAccrued = $this->calculateAccruedDays($entitlement, $policy, $asOfDate);
 
                 if ($targetAccrued !== $oldAccrued) {
-                    $entitlement->accrued_days   = $targetAccrued;
-                    $entitlement->last_accrued_at= $asOfDate;
-                    $entitlement->total_days     = (float)$entitlement->carryover_days + $targetAccrued;
-                    $entitlement->days_remaining = max(0, $entitlement->total_days - (float)$entitlement->days_taken);
-                    $entitlement->save();
+                    $entitlement->accrued_days    = $targetAccrued;
+                    $entitlement->last_accrued_at = $asOfDate;
+                    $entitlement->recalculateTotals();
                     $processed++;
 
                     Log::info("Accrual processed for entitlement {$entitlement->id}: {$oldAccrued} → {$targetAccrued} days");
@@ -430,7 +528,7 @@ public function createOrUpdateEntitlement(Employee $employee, LeaveType $leaveTy
         $periodStart = Carbon::parse($period->start_date);
         $periodEnd   = Carbon::parse($period->end_date);
         $employment  = $employee->employment_date
-            ?? optional($employee->employmentDetail)->employment_date
+            ?? optional($employee->employmentDetails)->employment_date
             ?? null;
 
         $eligibilityDate = $periodStart->copy();
@@ -456,10 +554,11 @@ public function createOrUpdateEntitlement(Employee $employee, LeaveType $leaveTy
         // carryover as you already do
         $carryover = $this->calculateCarryover($employee, $leaveType, $period, $policy);
 
-        // should this type accrue?
+        // should this type accrue? (see LeaveEntitlementController::store()'s
+        // matching comment - a real accrual_amount counts too)
         $isAccruable = !Schema::hasColumn('leave_types', 'allowance_accruable')
             ? true
-            : (bool)$leaveType->allowance_accruable;
+            : ((bool)$leaveType->allowance_accruable || (float)($policy->accrual_amount ?? 0) > 0);
 
         // yearly = front-load; non-accruable = front-load
         $freq = strtolower((string)($policy->accrual_frequency ?? ''));

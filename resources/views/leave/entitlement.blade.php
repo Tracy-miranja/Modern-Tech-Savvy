@@ -1,5 +1,5 @@
 <x-app-layout>
-    <form method="POST" id="leaveEntitlementsForm">
+    <form method="POST" id="leaveEntitlementsForm" data-entitlements-index-url="{{ route('business.leave.entitlements.index', $currentBusiness->slug) }}">
         @csrf
         <div class="row g-20">
 

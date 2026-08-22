@@ -1,468 +1,586 @@
-{{-- <!DOCTYPE html>
-<html>
-
+<!DOCTYPE html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>P9 Form - {{ $year }}</title>
+    <title>Payslip - {{ $employeePayroll->employee->user->name ?? 'Employee' }}</title>
     <style>
-    body {
-        font-family: 'Times New Roman', Times, serif;
-        font-size: 11px;
-        /* Slightly reduced for better fit */
-        margin: 0;
-        padding: 0;
-    }
-
-    .container {
-        width: 100%;
-        padding: 15px;
-        /* Reduced padding to save space */
-        box-sizing: border-box;
-    }
-
-    .header {
-        text-align: center;
-        margin-bottom: 10px;
-        /* Reduced margin */
-    }
-
-    .header h2 {
-        font-size: 14px;
-        /* Slightly smaller to save space */
-        margin: 0;
-        font-weight: bold;
-    }
-
-    .header p {
-        margin: 2px 0;
-        /* Tighter spacing */
-        font-size: 11px;
-    }
-
-    .employee-details {
-        display: flex;
-        justify-content: space-between;
-        margin-bottom: 8px;
-        /* Reduced margin */
-    }
-
-    .employee-details .left,
-    .employee-details .right {
-        width: 48%;
-    }
-
-    .employee-details p {
-        margin: 1px 0;
-        /* Tighter spacing */
-        font-size: 11px;
-    }
-
-    table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-bottom: 10px;
-        /* Reduced margin */
-    }
-
-    th,
-    td {
-        border: 1px solid #000;
-        padding: 3px;
-        /* Reduced padding to save space */
-        text-align: right;
-        vertical-align: middle;
-        font-size: 10px;
-        /* Slightly smaller to fit table */
-    }
-
-    th {
-        background-color: #f2f2f2;
-        font-weight: bold;
-    }
-
-    .text-left {
-        text-align: left;
-    }
-
-    .totals {
-        font-weight: bold;
-    }
-
-    .footer {
-        display: flex;
-        justify-content: space-between;
-        font-size: 10px;
-        /* Reduced font size for footer */
-        margin-top: 10px;
-        /* Reduced margin */
-        line-height: 1.2;
-        /* Tighter line spacing */
-    }
-
-    .footer .left,
-    .footer .right {
-        width: 48%;
-    }
-
-    .footer p {
-        margin: 1px 0;
-        /* Tighter spacing */
-    }
-
-    .page-break {
-        page-break-after: always;
-    }
-    </style>
-</head>
-
-<body>
-    @foreach($data as $item)
-    <div class="container {{ $loop->last ? '' : 'page-break' }}">
-        <div class="header">
-            <h2>KENYA REVENUE AUTHORITY</h2>
-            <p>DOMESTIC TAXES DEPARTMENT</p>
-            <p>TAX DEDUCTION CARD YEAR {{ $year }}</p>
-        </div>
-
-        <div class="employee-details">
-            <div class="left">
-                <p>Employer's Name: {{ $business->company_name ?? $business->name }}</p>
-                <p>Employee's Main Name: {{ $item['employee_name'] }}</p>
-                <p>Employee's Other Name:
-                    <!-- Add logic if available -->
-                </p>
-            </div>
-            <div class="right">
-                <p>Employer's PIN: {{ $business->tax_pin_no ?? 'N/A' }}</p>
-                <p>Employee's PIN: {{ $item['tax_no'] }}</p>
-            </div>
-        </div>
-
-        <table>
-            <thead>
-                <tr>
-                    <th class="text-left">Month</th>
-                    <th>A<br>Basic Salary</th>
-                    <th>B<br>Benefits - Non Cash</th>
-                    <th>C<br>Value of quarters</th>
-                    <th>D<br>Total gross pay</th>
-                    <th colspan="3">Defined contribution retirement scheme</th>
-                    <th>F<br>Owner occupied interest</th>
-                    <th>G<br>Retirement contribution & owner occupied interest</th>
-                    <th>H<br>Chargeable pay</th>
-                    <th>J<br>Tax charged</th>
-                    <th colspan="2">K</th>
-                    <th>L<br>Pay tax (J-K)</th>
-                </tr>
-                <tr>
-                    <th></th>
-                    <th></th>
-                    <th></th>
-                    <th></th>
-                    <th></th>
-                    <th>E1<br>30% of A</th>
-                    <th>E2<br>Actual</th>
-                    <th>E3<br>Fixed</th>
-                    <th></th>
-                    <th>The lowest of E added to F</th>
-                    <th></th>
-                    <th></th>
-                    <th>Personal relief</th>
-                    <th>Insurance relief</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                @for($i = 1; $i <= 12; $i++) <tr>
-                    <td class="text-left">{{ \DateTime::createFromFormat('!m', $i)->format('F') }}</td>
-                    <td>{{ number_format($item['monthly_data'][$i]['basic_salary'], 0, '.', ',') }}</td>
-                    <td>{{ number_format($item['monthly_data'][$i]['benefits_non_cash'], 0, '.', ',') }}</td>
-                    <td>{{ number_format($item['monthly_data'][$i]['value_of_quarters'], 0, '.', ',') }}</td>
-                    <td>{{ number_format($item['monthly_data'][$i]['total_gross_pay'], 0, '.', ',') }}</td>
-                    <td>{{ number_format($item['monthly_data'][$i]['retirement_e1'], 0, '.', ',') }}</td>
-                    <td>{{ number_format($item['monthly_data'][$i]['retirement_e2'], 0, '.', ',') }}</td>
-                    <td>{{ number_format($item['monthly_data'][$i]['retirement_e3'], 0, '.', ',') }}</td>
-                    <td>{{ number_format($item['monthly_data'][$i]['owner_occupied_interest'], 0, '.', ',') }}</td>
-                    <td>{{ number_format($item['monthly_data'][$i]['retirement_contribution'], 0, '.', ',') }}</td>
-                    <td>{{ number_format($item['monthly_data'][$i]['chargeable_pay'], 0, '.', ',') }}</td>
-                    <td>{{ number_format($item['monthly_data'][$i]['tax_charged'], 0, '.', ',') }}</td>
-                    <td>{{ number_format($item['monthly_data'][$i]['personal_relief'], 0, '.', ',') }}</td>
-                    <td>{{ number_format($item['monthly_data'][$i]['insurance_relief'], 0, '.', ',') }}</td>
-                    <td>{{ number_format($item['monthly_data'][$i]['paye'], 0, '.', ',') }}</td>
-                    </tr>
-                    @endfor
-                    <tr class="totals">
-                        <td class="text-left">Total</td>
-                        <td>{{ number_format($item['totals']['basic_salary'], 0, '.', ',') }}</td>
-                        <td>{{ number_format($item['totals']['benefits_non_cash'], 0, '.', ',') }}</td>
-                        <td>{{ number_format($item['totals']['value_of_quarters'], 0, '.', ',') }}</td>
-                        <td>{{ number_format($item['totals']['total_gross_pay'], 0, '.', ',') }}</td>
-                        <td>{{ number_format($item['totals']['retirement_e1'], 0, '.', ',') }}</td>
-                        <td>{{ number_format($item['totals']['retirement_e2'], 0, '.', ',') }}</td>
-                        <td>{{ number_format($item['totals']['retirement_e3'], 0, '.', ',') }}</td>
-                        <td>{{ number_format($item['totals']['owner_occupied_interest'], 0, '.', ',') }}</td>
-                        <td>{{ number_format($item['totals']['retirement_contribution'], 0, '.', ',') }}</td>
-                        <td>{{ number_format($item['totals']['chargeable_pay'], 0, '.', ',') }}</td>
-                        <td>{{ number_format($item['totals']['tax_charged'], 0, '.', ',') }}</td>
-                        <td>{{ number_format($item['totals']['personal_relief'], 0, '.', ',') }}</td>
-                        <td>{{ number_format($item['totals']['insurance_relief'], 0, '.', ',') }}</td>
-                        <td>{{ number_format($item['totals']['paye'], 0, '.', ',') }}</td>
-                    </tr>
-            </tbody>
-        </table>
-
-        <div class="footer">
-            <div class="left">
-                <p><strong>TOTAL CHARGEABLE PAY (COL. H):</strong>
-                    {{ number_format($item['totals']['chargeable_pay'], 0, '.', ',') }}
-                </p>
-                <p><strong>TOTAL CHARGEABLE PAY (COL. L):</strong>
-                    {{ number_format($item['totals']['paye'], 0, '.', ',') }}
-                </p>
-                <p><strong>IMPORTANT</strong></p>
-                <p>1. Use P9A (a) For all liable employees and where director/employee received benefits in addition to
-                    cash emoluments</p>
-                <p>(b) Where an employee is eligible to deduction on owner occupier interest</p>
-                <p>2. Deductible interest in respect of any month must not exceed Kshs 12,500/= (See back of this card
-                    for further information required by the Department).</p>
-            </div>
-            <div class="right">
-                <p>b). Attach</p>
-                <p>Photostat copy of interest certificate and statement of account from the Financial Institution.</p>
-                <p>The DECLARATION duly signed by the employee.</p>
-                <p>NAMES OF FINANCIAL INSTITUTION ADVANCING MORTGAGE LOAN ___________________________</p>
-                <p>L R NO. OF OWNER OCCUPIED PROPERTY: ___________________________</p>
-                <p>DATE OF OCCUPATION OF HOUSE: ___________________________</p>
-            </div>
-        </div>
-    </div>
-    @endforeach
-</body>
-
-</html> --}}
-
-<!DOCTYPE html>
-<html>
-<head>
-    <title>KRA P9A Form - {{ $year }}</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            font-size: 10px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 9px;
-        }
-        th, td {
-            border: 1px solid black;
-            padding: 3px;
-            text-align: right;
-        }
-        th {
-            background-color: #f2f2f2;
-        }
-        .text-left {
-            text-align: left;
-        }
-        h3 {
-            text-align: center;
-            margin-bottom: 5px;
-        }
-        .note {
-            font-size: 9px;
-            margin-top: 30px;
-            line-height: 1.5;
-        }
-        .totals {
-            margin-top: 20px;
-            font-size: 10px;
-        }
-        .employee-details {
-            margin-bottom: 10px;
-        },
-        table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 10px;
-}
-
-th, td {
-    border: 1px solid black;
-    padding: 4px;
-    text-align: center;
-}
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #222; background: #fff; padding: 50px 50px 40px; }
+        .payslip { width: 100%; max-width: 600px; margin: 0 auto; background: #fff; padding: 0 16px; }
+        .logo-wrap { text-align: center; margin-bottom: 12px; padding-top: 10px; }
+        .logo-wrap img { max-height: 90px; max-width: 200px; object-fit: contain; }
+        .company-name { text-align: center; font-size: 13px; font-weight: bold; margin: 0 0 4px; letter-spacing: 0.3px; }
+        .payslip-title { text-align: center; font-size: 11px; font-weight: bold; margin-bottom: 20px; color: #333; }
+        .emp-info { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
+        .emp-info td { font-size: 11px; padding: 2px 0; }
+        .emp-info td.label { width: 120px; color: #555; }
+        .emp-info td.value { font-weight: bold; text-align: right; }
+        .pay-table { width: 100%; border-collapse: collapse; }
+        .pay-table thead tr th { font-size: 11px; font-weight: bold; padding: 6px 4px 6px 0; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; text-align: left; }
+        .pay-table thead tr th:not(:first-child) { text-align: right; }
+        .pay-table tbody tr td { font-size: 11px; padding: 3px 4px 3px 0; vertical-align: middle; }
+        .pay-table tbody tr td:not(:first-child) { text-align: right; }
+        .row-subtotal td { font-weight: bold; color: #1a56c4; border-top: 1px solid #ddd; padding-top: 5px !important; padding-bottom: 5px !important; }
+        .row-gap td { padding-top: 10px !important; }
+        .row-netpay td { font-weight: bold; font-size: 12px; border-top: 1.5px solid #000; padding-top: 8px !important; padding-bottom: 6px !important; }
+        .row-noncash td { color: #666; font-style: italic; }
+        .neg { color: #c00; }
+        .fx-note { font-size: 10px; color: #555; margin-top: 6px; margin-bottom: 14px; }
+        .contributions { margin-top: 16px; font-size: 11px; }
+        .contributions p { margin-bottom: 4px; }
+        .bank-info { margin-top: 14px; font-size: 11px; }
+        .bank-info table { width: 100%; border-collapse: collapse; }
+        .bank-info td { padding: 2px 0; }
+        .bank-info td.lbl { width: 120px; color: #555; }
+        .bank-info td.val { font-weight: bold; }
+        .signatures { margin-top: 32px; font-size: 11px; }
+        .signatures p { margin-bottom: 24px; }
+        .footer { text-align: center; font-size: 10px; font-weight: bold; color: #c00; margin-top: 10px; }
+        .pension-note { margin-top: 14px; font-size: 10px; color: #555; border-top: 1px solid #eee; padding-top: 8px; }
     </style>
 </head>
 <body>
-    <h3><strong>KENYA REVENUE AUTHORITY</strong></h3>
-    <h3>DOMESTIC TAXES DEPARTMENT</h3>
-    <h3><strong>P9A FORM - {{ $year }}</strong></h3>
+<div class="payslip">
 
-    <div class="employee-details">
-        <p><strong>Employer's Name:</strong> {{ $data[0]['employee_name'] }} &nbsp;&nbsp;&nbsp;&nbsp; <strong>Employer's PIN:</strong> {{ $data[0]['tax_no'] }}</p>
-        <p><strong>Employee's Main Name:</strong> {{ $data[0]['main_name'] }} &nbsp;&nbsp;&nbsp;&nbsp; <strong>Employee's PIN:</strong> {{ $data[0]['pin'] }}</p>
-        <p><strong>Employee's NSSF:</strong> {{ $data[0]['nssf'] }} &nbsp;&nbsp;&nbsp;&nbsp; <strong>Employee's SHIF:</strong> {{ $data[0]['shif'] }}</p>
+@php
+    $ep       = $employeePayroll;
+    $employee = $ep->employee;
+    $payroll  = $ep->payroll;
+
+    // ── Tax currency: the currency payroll is computed in (e.g. KES or UGX) ──
+    $currency = strtoupper(trim($payroll->currency ?? 'KES'));
+
+    // ── FX column logic ───────────────────────────────────────────────────────
+    //
+    // $exchangeRates  = rate passed from controller
+    //                   meaning: 1 $targetCurrency = X $currency (tax currency)
+    //                   e.g. storedRate=129 means 1 USD = 129 KES
+    //
+    // $targetCurrency = the employee's ORIGINAL pay currency (e.g. 'USD', 'UGX')
+    //                   This is what should appear as the 4th column header.
+    //
+    // The 4th column converts tax-currency amounts BACK to the employee's
+    // original currency by DIVIDING by storedRate:
+    //     foreignAmount = taxAmount / storedRate
+    //     e.g. 578,150 KES / 129 = 5,781.50 USD  ✓
+    //
+    // Show the 4th column ONLY when:
+    //   1. $targetCurrency is different from the tax/payroll currency
+    //   2. The stored rate is meaningfully different from 1.0
+    //   3. The rate is a valid positive number
+    //
+    // Employees paid in the same currency as the business → NO 4th column.
+    // Employees paid in a foreign currency (e.g. USD employee in a KES business)
+    // → 4th column showing their amounts in their original currency.
+
+    $storedRate  = floatval($exchangeRates ?? 1.0);
+    $fxCurrency  = strtoupper(trim($targetCurrency ?? $currency));
+
+    // The 4th column is shown ONLY for employees whose pay currency differs
+    // from the tax/payroll currency AND the exchange rate is meaningful (not 1:1)
+    $showFx = ($fxCurrency !== $currency)
+           && ($storedRate > 0)
+           && (abs($storedRate - 1.0) > 0.0001);
+
+    // Header label: e.g. "UGX (R: 0.0077)" or "USD (R: 129)"
+    // For rates >= 1 (e.g. 1 USD = 129 KES) → show as whole number
+    // For rates < 1 (e.g. 1 UGX = 0.0077 KES) → show 4 decimal places
+    $fxRateLabel = $storedRate >= 1
+        ? number_format(round($storedRate), 0)
+        : number_format($storedRate, 4);
+
+    // Convert tax-currency amount → original employee currency
+    // Divide because storedRate = "1 foreignUnit = X taxUnits"
+    // So foreignUnits = taxAmount / storedRate
+    $fx = fn(float $taxAmt): float => ($storedRate > 0)
+        ? round($taxAmt / $storedRate, 2)
+        : 0.0;
+
+    // Format foreign value for display; $neg=true shows red brackets
+    $fxFmt = function(float $taxAmt, bool $neg = false) use ($storedRate): string {
+        if ($storedRate <= 0) return '-';
+        $val = round($taxAmt / $storedRate, 2);
+        if ($neg) {
+            return '<span class="neg">(' . number_format(abs($val), 2) . ')</span>';
+        }
+        return $val == 0 ? '-' : number_format($val, 2);
+    };
+
+    // ── Logo ──────────────────────────────────────────────────────────────────
+    $logoUrl    = $business->getImageUrl();
+    $logoBase64 = null;
+    $filePath   = public_path(parse_url($logoUrl, PHP_URL_PATH));
+    if (is_file($filePath)) {
+        $ext        = pathinfo($filePath, PATHINFO_EXTENSION);
+        $logoBase64 = 'data:image/' . $ext . ';base64,' . base64_encode(file_get_contents($filePath));
+    }
+
+    // ── Period ────────────────────────────────────────────────────────────────
+    $month       = (int) $payroll->payrun_month;
+    $year        = $payroll->payrun_year;
+    $periodLabel = \Carbon\Carbon::create($year, $month)->format('F')
+                   . ' (' . str_pad($month, 2, '0', STR_PAD_LEFT) . '), ' . $year;
+
+    // ── Core figures (all in tax currency, e.g. KES) ──────────────────────────
+    $basicSalary  = (float)($ep->basic_salary ?? 0);
+    $grossPay     = (float)($ep->gross_pay    ?? 0);
+    $overtimeData = json_decode($ep->overtime, true) ?? [];
+    $overtimeAmt  = (float)($overtimeData['amount'] ?? 0);
+
+    // Allowances
+    $allowancesRaw = json_decode($ep->allowances, true) ?? [];
+    $allowanceRows = [];
+    foreach ($allowancesRaw as $a) {
+        if (!is_array($a)) continue;
+        $name = trim($a['name'] ?? $a['item_name'] ?? 'Allowance');
+        if (strtolower($name) === 'hourly breakdown') continue;
+        $amt          = (float)($a['amount'] ?? 0);
+        $isEmpContrib = (bool)($a['is_employer_contribution'] ?? false);
+        $allowanceRows[] = [
+            'name'     => $name . ($isEmpContrib ? ' (non cash)' : ''),
+            'amount'   => $amt,
+            'non_cash' => $isEmpContrib,
+        ];
+    }
+
+    // Statutory
+    $shif            = (float)($ep->shif         ?? 0);
+    $nssf            = (float)($ep->nssf         ?? 0);
+    $housingLevy     = (float)($ep->housing_levy  ?? 0);
+    $helb            = (float)($ep->helb          ?? 0);
+    $deductBeforeTax = $shif + $nssf + $housingLevy + $helb;
+
+    // Employer pension
+    // ── KEY FIX: only show employer pension rows when taxable excess > 0 ──
+    // If the full employer pension is within the 30,000/month exempt limit,
+    // there is nothing extra to show on the payslip — it never entered the
+    // tax base and has no impact on PAYE. Only show when $employerPensionTaxable > 0.
+    $employerPensionTaxable = (float)($ep->employer_pension_taxable ?? 0);
+    $employerPensionExempt  = (float)($ep->employer_pension_exempt  ?? 0);
+    $employerPensionTotal   = (float)($ep->employer_pension         ?? 0);
+    $taxableGross           = (float)($ep->taxable_gross            ?? ($grossPay + $employerPensionTaxable));
+
+    // Only show employer pension section when there is a TAXABLE EXCESS above 30,000.
+    // If the employer pension is fully within the 30,000 exempt limit → nothing to show.
+    $showEmployerPension    = $employerPensionTaxable > 0;
+
+    // PAYE
+    $taxableIncome    = (float)($ep->taxable_income      ?? 0);
+    $payeBeforeRelief = (float)($ep->paye_before_reliefs ?? 0);
+    $personalRelief   = (float)($ep->personal_relief     ?? 0);
+    $insuranceRelief  = (float)($ep->insurance_relief    ?? 0);
+    $paye             = (float)($ep->paye                ?? 0);
+
+    // Custom deductions
+    $deductionsRaw   = json_decode($ep->deductions, true) ?? [];
+    $loanRepayment   = (float)($ep->loan_repayment   ?? 0);
+    $advanceRecovery = (float)($ep->advance_recovery ?? 0);
+
+    $skipKeys = ['shif','nssf','paye','housing levy','housing_levy','helb','absenteeism','absenteeism charge'];
+    $customDeductions = [];
+    $absenteeismAmt   = 0.0;
+    foreach ($deductionsRaw as $d) {
+        if (!is_array($d)) continue;
+        $nl  = strtolower(trim($d['name'] ?? $d['item_name'] ?? ''));
+        $amt = (float)($d['amount'] ?? 0);
+        if (str_contains($nl, 'absenteeism')) { $absenteeismAmt += $amt; continue; }
+        if (in_array($nl, $skipKeys)) continue;
+        if ($amt > 0) $customDeductions[] = ['name' => $d['name'] ?? $d['item_name'], 'amount' => $amt];
+    }
+
+    $netPay             = (float)($ep->net_pay ?? 0);
+    $totalAllDeductions = $grossPay - $netPay;
+
+    // NSSF year-to-date
+    $nssfToDate = \App\Models\EmployeePayroll::where('employee_id', $employee->id)
+        ->whereHas('payroll', fn($q) => $q->where('payrun_year', $year))
+        ->sum('nssf');
+@endphp
+
+    {{-- Logo --}}
+    <div class="logo-wrap">
+        @if($logoBase64)<img src="{{ $logoBase64 }}" alt="Logo">@endif
     </div>
 
-    <table>
-   <thead>
-    <tr>
-        <th rowspan="2">Month</th>
-        <th rowspan="2">Basic Salary</th>
-        <th rowspan="2">Benefits - Non Cash</th>
-        <th rowspan="2">Value of Quarters</th>
-        <th rowspan="2">Total Gross Pay</th>
-        <th colspan="3">Defined Contribution Retirement Scheme</th>
-        <th rowspan="2">Affordable Housing Levy (AHL)</th>
-        <th rowspan="2">Social Health Insurance Fund (SHIF)</th>
-        <th rowspan="2">Post Retirement Medical Fund (PRMF)</th>
-        <th rowspan="2">Owner Occupied Interest</th>
-        <th rowspan="2">Total Deductions<br><small>(Lower of E+F+G+H+I)</small></th>
-        <th rowspan="2">Chargeable Pay<br><small>(D - J)</small></th>
-        <th rowspan="2">Tax Charged</th>
-        <th rowspan="2">Personal Relief</th>
-        <th rowspan="2">Insurance Relief</th>
-        <th rowspan="2">PAYE Tax<br><small>(L - M - N)</small></th>
-    </tr>
-    <tr>
-        <th>E1<br>30% of A</th>
-        <th>E2<br>Actual</th>
-        <th>E3<br>Fixed</th>
-    </tr>
-    <tr>
-        <th></th>
-        <th>A</th>
-        <th>B</th>
-        <th>C</th>
-        <th>D</th>
-        <th>E1</th>
-        <th>E2</th>
-        <th>E3</th>
-        <th>F</th>
-        <th>G</th>
-        <th>H</th>
-        <th>I</th>
-        <th>J</th>
-        <th>K</th>
-        <th>L</th>
-        <th>M</th>
-        <th>N</th>
-        <th>O</th>
-    </tr>
-</thead>
+    <div class="company-name">{{ $entity->company_name ?? $entity->name ?? ($business->company_name ?? 'Company') }}</div>
+    <div class="payslip-title">Payslip for the month of {{ $periodLabel }}</div>
 
+    {{-- Employee info --}}
+    <table class="emp-info">
+        <tr><td class="label">Name:</td><td class="value">{{ $employee->user->name ?? 'N/A' }}</td></tr>
+        @if($employee->national_id)
+        <tr><td class="label">ID no:</td><td class="value">{{ $employee->national_id }}</td></tr>
+        @endif
+        @if($employee->tax_no)
+        <tr><td class="label">PIN no:</td><td class="value">{{ $employee->tax_no }}</td></tr>
+        @endif
+        @if($employee->nssf_no)
+        <tr><td class="label">NSSF no:</td><td class="value">{{ $employee->nssf_no }}</td></tr>
+        @endif
+        @if($employee->shif_no ?? $employee->nhif_no ?? null)
+        <tr><td class="label">SHIF no:</td><td class="value">{{ $employee->shif_no ?? $employee->nhif_no }}</td></tr>
+        @endif
+        @if($employee->employmentDetails?->jobCategory?->name ?? null)
+        <tr>
+            <td class="label">Title:</td>
+            <td class="value">
+                {{ $employee->employmentDetails->jobCategory->name }}
+                @if($employee->location?->name) at {{ $employee->location->name }}@endif
+            </td>
+        </tr>
+        @endif
+        @if($entityType === 'location')
+        <tr><td class="label">Location:</td><td class="value">{{ $entity->name ?? 'N/A' }}</td></tr>
+        @endif
+        {{-- Show pay currency only for converted employees --}}
+        @if($showFx)
+        <tr><td class="label">Pay currency:</td><td class="value">{{ $fxCurrency }}</td></tr>
+        @endif
+    </table>
+
+    {{-- Pay table --}}
+    {{--
+        Column layout:
+          3 columns  → all employees paid in the business/payroll base currency
+          4 columns  → ONLY employees whose pay currency differs from the base currency
+                       4th column header = their original currency + conversion rate
+                       e.g. "UGX (R: 0.0077)" or "USD (R: 129)"
+    --}}
+    <table class="pay-table">
+        <thead>
+            <tr>
+                <th>Description</th>
+                <th>Taxation</th>
+                <th>Pay ({{ $currency }})</th>
+                @if($showFx)
+                {{-- 4th column: employee's original pay currency with the rate used --}}
+                <th>{{ $fxCurrency }} (R: {{ $fxRateLabel }})</th>
+                @endif
+            </tr>
+        </thead>
         <tbody>
-            @php
-                $months = [
-                    1 => 'January', 2 => 'February', 3 => 'March', 4 => 'April',
-                    5 => 'May', 6 => 'June', 7 => 'July', 8 => 'August',
-                    9 => 'September', 10 => 'October', 11 => 'November', 12 => 'December'
-                ];
 
-                $totalCols = array_fill_keys([
-                    'basic_salary', 'benefits_non_cash', 'value_of_quarters', 'total_gross_pay',
-                    'retirement_e1', 'retirement_e2', 'retirement_e3', 'housing_levy', 'shif/NHIF', 'prmf',
-                    'owner_occupied_interest', 'total_deductions', 'chargeable_pay', 'tax_charged',
-                    'personal_relief', 'insurance_relief', 'paye'
-                ], 0);
-            @endphp
+            {{-- Basic salary --}}
+            <tr>
+                <td>Basic salary</td>
+                <td>{{ number_format($basicSalary, 2) }}</td>
+                <td>{{ number_format($basicSalary, 2) }}</td>
+                @if($showFx)<td>{{ number_format($fx($basicSalary), 2) }}</td>@endif
+            </tr>
 
-            @foreach($months as $monthNumber => $monthName)
-                @php
-                    $row = $data[0]['monthly_data'][$monthNumber] ?? [
-                        'basic_salary' => 0, 'benefits_non_cash' => 0, 'value_of_quarters' => 0,
-                        'total_gross_pay' => 0, 'retirement_e1' => 0, 'retirement_e2' => 0,
-                        'retirement_e3' => 0, 'housing_levy' => 0, 'shif' => 0, 'prmf' => 0,
-                        'owner_occupied_interest' => 0, 'retirement_contribution' => 0,
-                        'chargeable_pay' => 0, 'tax_charged' => 0, 'personal_relief' => 0,
-                        'insurance_relief' => 0, 'paye' => 0
-                    ];
+            {{-- Overtime --}}
+            @if($overtimeAmt > 0)
+            <tr>
+                <td>Overtime</td>
+                <td></td>
+                <td>{{ number_format($overtimeAmt, 2) }}</td>
+                @if($showFx)<td>{{ number_format($fx($overtimeAmt), 2) }}</td>@endif
+            </tr>
+            @endif
 
-                    $housing_levy = $row['housing_levy'] ?? ($row['basic_salary'] * 0.015);
-                    $shif = $row['shif'] ?? 0;
-                    $prmf = $row['prmf'] ?? 0;
-                    $owner_occupied_interest = $row['owner_occupied_interest'] ?? 0;
-
-                    $deduction = min($row['retirement_e1'], $row['retirement_e2'], $row['retirement_e3'])
-                                + $housing_levy + $shif + $prmf + $owner_occupied_interest;
-
-                    $chargeable = $row['total_gross_pay'] - $deduction;
-                    $paye_tax = $row['tax_charged'] - $row['personal_relief'] - $row['insurance_relief'];
-
-                    $row['housing_levy'] = $housing_levy;
-                    $row['shif'] = $shif;
-                    $row['prmf'] = $prmf;
-                    $row['owner_occupied_interest'] = $owner_occupied_interest;
-                    $row['total_deductions'] = $deduction;
-                    $row['chargeable_pay'] = $chargeable;
-                    $row['paye'] = $paye_tax;
-
-                    foreach ($totalCols as $key => $val) {
-                        $totalCols[$key] += $row[$key] ?? 0;
-                    }
-                @endphp
-
-                <tr>
-                    <td class="text-left">{{ $monthName }}</td>
-                    <td>{{ number_format($row['basic_salary'], 2) }}</td>
-                    <td>{{ number_format($row['benefits_non_cash'], 2) }}</td>
-                    <td>{{ number_format($row['value_of_quarters'], 2) }}</td>
-                    <td>{{ number_format($row['total_gross_pay'], 2) }}</td>
-                    <td>{{ number_format($row['retirement_e1'], 2) }}</td>
-                    <td>{{ number_format($row['retirement_e2'], 2) }}</td>
-                    <td>{{ number_format($row['retirement_e3'], 2) }}</td>
-                    <td>{{ number_format($row['housing_levy'], 2) }}</td>
-                    <td>{{ number_format($row['shif'], 2) }}</td>
-                    <td>{{ number_format($row['prmf'], 2) }}</td>
-                    <td>{{ number_format($row['owner_occupied_interest'], 2) }}</td>
-                    <td>{{ number_format($row['total_deductions'], 2) }}</td>
-                    <td>{{ number_format($row['chargeable_pay'], 2) }}</td>
-                    <td>{{ number_format($row['tax_charged'], 2) }}</td>
-                    <td>{{ number_format($row['personal_relief'], 2) }}</td>
-                    <td>{{ number_format($row['insurance_relief'], 2) }}</td>
-                    <td>{{ number_format($row['paye'], 2) }}</td>
-                </tr>
+            {{-- Allowances --}}
+            @foreach($allowanceRows as $row)
+            <tr @if($row['non_cash']) class="row-noncash" @endif>
+                <td>{{ $row['name'] }}</td>
+                <td></td>
+                <td>{{ $row['amount'] > 0 ? number_format($row['amount'], 2) : '-' }}</td>
+                @if($showFx)
+                {{-- Non-cash employer contributions don't convert (not real cash flow) --}}
+                <td>{{ $row['non_cash'] ? '-' : ($row['amount'] > 0 ? number_format($fx($row['amount']), 2) : '-') }}</td>
+                @endif
+            </tr>
             @endforeach
 
-            <tr>
-                <td class="text-left"><strong>Total</strong></td>
-                @foreach($totalCols as $val)
-                    <td><strong>{{ number_format($val, 2) }}</strong></td>
-                @endforeach
+            {{--
+                ── EMPLOYER PENSION (non cash) ────────────────────────────────────
+                Only shown when employer pension EXCEEDS the KRA 30,000/month exempt
+                limit, meaning there is a taxable excess that inflated the PAYE base.
+
+                If the full employer pension is within the 30,000 exempt limit,
+                it never entered the tax calculation and has zero payslip impact
+                → nothing to display.
+
+                Layout:
+                  Row 1: "Employer pension (non cash)"
+                         Taxation = full employer pension total
+                         Pay      = - (non-cash, no cash movement)
+
+                  Row 2: "↳ Exempt (≤ 30,000/mo)"  [shown when exempt portion > 0]
+                         Taxation = exempt amount (in muted grey)
+                         Pay      = (blank)
+
+                  Row 3: "↳ Taxable excess (> 30,000/mo)"  [shown when taxable > 0]
+                         Taxation = taxable excess (in muted grey)
+                         Pay      = (blank)
+            --}}
+            @if($showEmployerPension)
+            <tr class="row-noncash">
+                <td>Employer pension (non cash)</td>
+                <td>{{ number_format($employerPensionTotal, 2) }}</td>
+                <td>-</td>
+                @if($showFx)<td>-</td>@endif
             </tr>
+            @if($employerPensionExempt > 0)
+            <tr class="row-noncash">
+                <td style="padding-left:10px;color:#999;">↳ Exempt (≤ 30,000/mo)</td>
+                <td style="color:#999;">{{ number_format($employerPensionExempt, 2) }}</td>
+                <td></td>
+                @if($showFx)<td></td>@endif
+            </tr>
+            @endif
+            @if($employerPensionTaxable > 0)
+            <tr class="row-noncash">
+                <td style="padding-left:10px;color:#999;">↳ Taxable excess (> 30,000/mo)</td>
+                <td style="color:#999;">{{ number_format($employerPensionTaxable, 2) }}</td>
+                <td></td>
+                @if($showFx)<td></td>@endif
+            </tr>
+            @endif
+            @endif
+
+            {{--
+                ── GROSS PAY subtotal ─────────────────────────────────────────────
+                Taxation column = taxableGross (cash gross + employer pension taxable
+                                  excess, used as the PAYE calculation base)
+                Pay column      = grossPay (cash only — what the employee actually
+                                  receives; employer pension is non-cash and excluded)
+            --}}
+            <tr class="row-subtotal">
+                <td>Gross pay</td>
+                <td>{{ number_format($taxableGross, 2) }}</td>
+                <td>{{ number_format($grossPay, 2) }}</td>
+                @if($showFx)<td>{{ number_format($fx($grossPay), 2) }}</td>@endif
+            </tr>
+
+            {{-- NSSF --}}
+            @if($nssf > 0)
+            <tr class="row-gap">
+                <td>NSSF</td>
+                <td>{{ number_format($nssf, 2) }}</td>
+                <td>{{ number_format($nssf, 2) }}</td>
+                @if($showFx)<td>{{ number_format($fx($nssf), 2) }}</td>@endif
+            </tr>
+            @endif
+
+            {{-- SHIF --}}
+            @if($shif > 0)
+            <tr @if($nssf == 0) class="row-gap" @endif>
+                <td>SHIF</td>
+                <td>{{ number_format($shif, 2) }}</td>
+                <td>{{ number_format($shif, 2) }}</td>
+                @if($showFx)<td>{{ number_format($fx($shif), 2) }}</td>@endif
+            </tr>
+            @endif
+
+            {{-- Pension custom deduction (pre-tax) --}}
+            @foreach($customDeductions as $cd)
+            @if(str_contains(strtolower($cd['name']), 'pension'))
+            <tr>
+                <td>{{ $cd['name'] }}</td>
+                <td>{{ number_format($cd['amount'], 2) }}</td>
+                <td>{{ number_format($cd['amount'], 2) }}</td>
+                @if($showFx)<td>{{ number_format($fx($cd['amount']), 2) }}</td>@endif
+            </tr>
+            @endif
+            @endforeach
+
+            {{-- Housing Levy --}}
+            @if($housingLevy > 0)
+            <tr>
+                <td>Housing Levy</td>
+                <td>{{ number_format($housingLevy, 2) }}</td>
+                <td>{{ number_format($housingLevy, 2) }}</td>
+                @if($showFx)<td>{{ number_format($fx($housingLevy), 2) }}</td>@endif
+            </tr>
+            @endif
+
+            {{-- Deductions before tax subtotal --}}
+            @if($deductBeforeTax > 0)
+            <tr class="row-subtotal">
+                <td>Deductions before tax</td>
+                <td></td>
+                <td>{{ number_format($deductBeforeTax, 2) }}</td>
+                @if($showFx)<td>{{ number_format($fx($deductBeforeTax), 2) }}</td>@endif
+            </tr>
+            @endif
+
+            {{-- Taxable income & PAYE block --}}
+            @if($taxableIncome > 0)
+            <tr class="row-gap">
+                <td>Deductible relief</td>
+                <td>{{ number_format($deductBeforeTax, 2) }}</td>
+                <td></td>
+                @if($showFx)<td></td>@endif
+            </tr>
+            <tr>
+                <td>Taxable income</td>
+                <td>{{ number_format($taxableIncome, 2) }}</td>
+                <td></td>
+                @if($showFx)<td></td>@endif
+            </tr>
+            @endif
+            @if($payeBeforeRelief > 0)
+            <tr>
+                <td>PAYE</td>
+                <td>{{ number_format($payeBeforeRelief, 2) }}</td>
+                <td></td>
+                @if($showFx)<td></td>@endif
+            </tr>
+            @endif
+            @if($insuranceRelief > 0)
+            <tr>
+                <td>Insurance relief</td>
+                <td>{{ number_format($insuranceRelief, 2) }}</td>
+                <td></td>
+                @if($showFx)<td></td>@endif
+            </tr>
+            @endif
+            @if($personalRelief > 0)
+            <tr>
+                <td>Personal relief</td>
+                <td>{{ number_format($personalRelief, 2) }}</td>
+                <td></td>
+                @if($showFx)<td></td>@endif
+            </tr>
+            @endif
+            @if($paye > 0)
+            <tr class="row-subtotal">
+                <td>PAYE tax</td>
+                <td>{{ number_format($paye, 2) }}</td>
+                <td>{{ number_format($paye, 2) }}</td>
+                @if($showFx)<td>{{ number_format($fx($paye), 2) }}</td>@endif
+            </tr>
+            @endif
+
+            {{-- After-tax deductions --}}
+            @if($helb > 0)
+            <tr class="row-gap">
+                <td>HELB</td>
+                <td></td>
+                <td>{{ number_format($helb, 2) }}</td>
+                @if($showFx)<td>{{ number_format($fx($helb), 2) }}</td>@endif
+            </tr>
+            @endif
+            @if($loanRepayment > 0)
+            <tr @if($helb == 0) class="row-gap" @endif>
+                <td>Loan Repayment</td>
+                <td></td>
+                <td>{{ number_format($loanRepayment, 2) }}</td>
+                @if($showFx)<td>{{ number_format($fx($loanRepayment), 2) }}</td>@endif
+            </tr>
+            @endif
+            @if($advanceRecovery > 0)
+            <tr>
+                <td>Advance Recovery</td>
+                <td></td>
+                <td>{{ number_format($advanceRecovery, 2) }}</td>
+                @if($showFx)<td>{{ number_format($fx($advanceRecovery), 2) }}</td>@endif
+            </tr>
+            @endif
+            @if($absenteeismAmt > 0)
+            <tr>
+                <td>Absenteeism Charge</td>
+                <td></td>
+                <td>{{ number_format($absenteeismAmt, 2) }}</td>
+                @if($showFx)<td>{{ number_format($fx($absenteeismAmt), 2) }}</td>@endif
+            </tr>
+            @endif
+            @foreach($customDeductions as $cd)
+            @if(!str_contains(strtolower($cd['name']), 'pension'))
+            <tr>
+                <td>{{ $cd['name'] }}</td>
+                <td></td>
+                <td>{{ number_format($cd['amount'], 2) }}</td>
+                @if($showFx)<td>{{ number_format($fx($cd['amount']), 2) }}</td>@endif
+            </tr>
+            @endif
+            @endforeach
+
+            {{-- Total deductions --}}
+            <tr class="row-subtotal">
+                <td>Total deductions</td>
+                <td></td>
+                <td><span class="neg">({{ number_format($totalAllDeductions, 2) }})</span></td>
+                @if($showFx)<td>{!! $fxFmt($totalAllDeductions, true) !!}</td>@endif
+            </tr>
+
+            {{-- Net pay --}}
+            <tr class="row-netpay">
+                <td>Net pay</td>
+                <td></td>
+                <td>{{ number_format($netPay, 2) }}</td>
+                @if($showFx)<td>{{ number_format($fx($netPay), 2) }}</td>@endif
+            </tr>
+
         </tbody>
     </table>
 
-    <div class="totals">
-        <p><strong>To be completed by Employer at end of year</strong></p>
-        <p><strong>TOTAL CHARGEABLE PAY (COL. K):</strong> Kshs. {{ number_format($totalCols['chargeable_pay'], 2) }}</p>
-        <p><strong>TOTAL TAX (COL. O):</strong> Kshs. {{ number_format($totalCols['paye'], 2) }}</p>
+    {{-- Exchange rate note (only shown when 4th column is present) --}}
+    @if($showFx)
+    <p class="fx-note">
+        Exchange rate: 1 {{ $fxCurrency }} = {{ $fxRateLabel }} {{ $currency }}
+        &nbsp;|&nbsp; Amounts in {{ $fxCurrency }} column = {{ $currency }} amount ÷ {{ $fxRateLabel }}
+    </p>
+    @endif
+
+    {{-- NSSF contributions to date --}}
+    @if($nssfToDate > 0)
+    <div class="contributions">
+        <p><strong>Contributions to date</strong></p>
+        <p>NSSF: {{ number_format($nssfToDate, 2) }}</p>
+    </div>
+    @endif
+
+    {{-- Bank details --}}
+    @php
+        $paymentDetail = \App\Models\EmployeePaymentDetail::where('employee_id', $employee->id)->first();
+    @endphp
+    @if($paymentDetail && ($paymentDetail->bank_name || $paymentDetail->account_number))
+    <div class="bank-info">
+        <p style="font-weight:bold;margin-bottom:4px;">Salary deposited to:</p>
+        <table>
+            @if($paymentDetail->bank_name)
+            <tr><td class="lbl">Bank:</td><td class="val">{{ $paymentDetail->bank_name }}</td></tr>
+            @endif
+            @if($paymentDetail->bank_branch)
+            <tr><td class="lbl">Branch:</td><td class="val">{{ $paymentDetail->bank_branch }}</td></tr>
+            @endif
+            <tr><td class="lbl">Account name:</td><td class="val">{{ $employee->user->name ?? 'N/A' }}</td></tr>
+            @if($paymentDetail->account_number)
+            <tr><td class="lbl">Account No:</td><td class="val">{{ $paymentDetail->account_number }}</td></tr>
+            @endif
+        </table>
+    </div>
+    @endif
+
+    {{--
+        ── EMPLOYER PENSION NOTE ──────────────────────────────────────────────────
+        Only shown when employer pension exceeds 30,000/month (taxable excess > 0).
+        Explains to the employee why their PAYE is higher than expected even though
+        their take-home pay was not reduced by the employer contribution.
+    --}}
+    @if($showEmployerPension)
+    <div class="pension-note">
+        <strong>Employer Pension Note (KRA — Income Tax Act Cap 470):</strong><br>
+        Employer contributes {{ $currency }} {{ number_format($employerPensionTotal, 2) }} to pension fund.
+        @if($employerPensionExempt > 0)
+            {{ number_format($employerPensionExempt, 2) }} is exempt (≤ KES 30,000/month per KRA rules).
+        @endif
+        @if($employerPensionTaxable > 0)
+            The excess of <strong>{{ $currency }} {{ number_format($employerPensionTaxable, 2) }}</strong>
+            is a taxable benefit in kind — it increases your PAYE base but does
+            <strong>not</strong> reduce your take-home pay.
+        @endif
+    </div>
+    @endif
+
+    <div class="signatures">
+        <p>Employer's signature _________________</p>
+        <p>Employee's signature _________________</p>
     </div>
 
-    <div class="note">
-        <strong>IMPORTANT</strong>
-        <ol type="c">
-            <li>
-                Attach:<br>
-                1. Use P9A<br>
-                &nbsp;&nbsp;&nbsp;&nbsp;(a) For all liable employees and where director/employee received benefits in addition to cash emoluments.<br>
-                &nbsp;&nbsp;&nbsp;&nbsp;(b) Where an employee is eligible to deduction on owner occupier interest.<br>
-                &nbsp;&nbsp;&nbsp;&nbsp;(c) Where an employee contributes to a post retirement medical fund.<br>
-                2. (i) Photostat copy of interest certificate and statement of account from the Financial Institution.<br>
-                &nbsp;&nbsp;&nbsp;&nbsp;(ii) The DECLARATION duly signed by the employee.
-            </li>
-            <li>
-                (a) Deductible interest in respect of any month prior to December 2024 must not exceed Kshs. 25,000/= and commencing December 2024 must not exceed 30,000/=<br>
-                (b) Deductible pension contribution prior to December 2024: max 20,000/=; from December 2024: max 30,000/=<br>
-                (c) Deductible contribution to PRMF from December 2024 must not exceed 15,000/= per month<br>
-                (d) Contributions to SHIF and AHL effective December 2024<br>
-                (e) Personal Relief: Kshs. 2,400/month or 28,800/year<br>
-                (f) Insurance Relief: 15% of premiums up to Kshs. 5,000/month or 60,000/year
-            </li>
-        </ol>
-    </div>
+    <div class="footer">Thank you for your service</div>
+
+</div>
 </body>
 </html>

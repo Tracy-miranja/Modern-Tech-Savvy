@@ -70,14 +70,26 @@ class Application extends Model implements HasMedia
     public function registerMediaCollections(): void
     {
         $this->addMediaCollection('applications');
+          $this->addMediaCollection('application_documents');
     }
 
-    public function getImageUrl()
-    {
-        $media = $this->getFirstMedia('applications');
-        if ($media && File::exists($media->getPath())) {
-            return $media->getUrl();
-        }
-        return asset('media/avatar.png');
-    }
+    public function getCvUrl()
+{
+    return $this->getFirstMediaUrl('applications', 'default') ?: asset('media/avatar.png');
+}
+
+public function getDocumentUrls()
+{
+    return $this->getMedia('application_documents')->map(fn($media) => $media->getUrl());
+}
+
+
+    // public function getImageUrl()
+    // {
+    //     $media = $this->getFirstMedia('applications');
+    //     if ($media && File::exists($media->getPath())) {
+    //         return $media->getUrl();
+    //     }
+    //     return asset('media/avatar.png');
+    // }
 }

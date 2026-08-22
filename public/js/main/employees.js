@@ -1,3 +1,4 @@
+
 import { btn_loader } from "/js/client/config.js";
 import RequestClient from "/js/client/RequestClient.js";
 import EmployeesService from "/js/client/EmployeesService.js";
@@ -22,13 +23,14 @@ function initializeDataTable() {
             url: '/employees/fetch',
             type: 'POST',
             data: function (d) {
-                d.search = {
+                  d.search = {
                     value: $('#search').val()
                 };
-                d.department   = $('#filterDepartment').val();
-                d.location     = $('#filterLocation').val();
+                d.department = $('#filterDepartment').val();
+                d.location = $('#filterLocation').val();
                 d.job_category = $('#filterJobCategory').val();
-                d._token       = $('meta[name="csrf-token"]').attr('content');
+                // Add CSRF token
+                d._token = $('meta[name="csrf-token"]').attr('content');
             },
             beforeSend: function () {
                 $('#loadingRow').show();
@@ -48,22 +50,64 @@ function initializeDataTable() {
             { data: 'department' },
             { data: 'job_category' },
             { data: 'location' },
-            { data: 'monthly_salary' },                               // ← fixed: was 'basic_salary'
-            { data: 'hourly_rate' },                                  // ← new column
+            // { data: 'basic_salary' },
+            { data: 'monthly_salary' },   // ← must match backend key
+    { data: 'hourly_rate' },
             { data: 'actions', orderable: false, searchable: false }
         ]
     });
 }
 
+// function initializeDataTable() {
+//     dataTable = $('#employeesTable').DataTable({
+//         responsive: true,
+//         pageLength: 10,
+//         searching: false,
+//         serverSide: true,
+//         processing: true,
+//         ajax: {
+//             url: '/employees/fetch',
+//             type: 'POST',
+//             data: function (d) {
+//                 d.search = $('#search').val();
+//                 d.department = $('#filterDepartment').val();
+//                 d.location = $('#filterLocation').val();
+//                 d.job_category = $('#filterJobCategory').val();
+//             },
+//             beforeSend: function () {
+//                 $('#loadingRow').show();
+//             },
+//             complete: function () {
+//                 $('#loadingRow').hide();
+//             },
+//             error: function (xhr, error, thrown) {
+//                 $('#loadingRow').hide();
+//                 console.error('DataTables error:', xhr.responseText);
+//                 Swal.fire('Error!', 'Failed to load table data.', 'error');
+//             }
+//         },
+//         columns: [
+//             { data: 'name' },
+//             { data: 'employee_code' },
+//             { data: 'department' },
+//             { data: 'job_category' },
+//             { data: 'location' },
+//             { data: 'basic_salary' },
+//             { data: 'actions', orderable: false, searchable: false }
+//         ]
+//     });
+// }
+
 function setupFilters() {
-    $('#search').on('keyup', function () {
+    // Use separate event listeners for better control
+    $('#search').on('keyup', function() {
         clearTimeout($(this).data('timeout'));
-        $(this).data('timeout', setTimeout(function () {
+        $(this).data('timeout', setTimeout(function() {
             dataTable.ajax.reload();
         }, 300));
     });
 
-    $('#filterDepartment, #filterLocation, #filterJobCategory').on('change', function () {
+    $('#filterDepartment, #filterLocation, #filterJobCategory').on('change', function() {
         dataTable.ajax.reload();
     });
 }
@@ -73,12 +117,10 @@ function debounce(func, wait) {
     return function (...args) {
         clearTimeout(timeout);
         timeout = setTimeout(() => func.apply(this, args), wait);
-    };
-}
+}};
 
 function setupDocumentHandlers() {
     let addDocumentClicked = false;
-
     $('#employeeModal').off('click', '#addDocument').on('click', '#addDocument', function (e) {
         e.preventDefault();
         e.stopPropagation();
@@ -131,18 +173,20 @@ function setupDocumentHandlers() {
     $('#employeeModal').off('change', '.document-input').on('change', '.document-input', function (e) {
         e.preventDefault();
         e.stopPropagation();
-        const input          = e.target;
-        const entry          = input.closest('.document-entry');
+        const input = e.target;
+        const entry = input.closest('.document-entry');
         const previewContainer = entry.querySelector('.document-preview');
-        const fileNameSpan   = previewContainer.querySelector('.file-name');
-        const viewLink       = previewContainer.querySelector('.view-file');
+        const fileNameSpan = previewContainer.querySelector('.file-name');
+        const viewLink = previewContainer.querySelector('.view-file');
 
         if (input.files && input.files[0]) {
             const file = input.files[0];
-            fileNameSpan.textContent    = file.name;
+            fileNameSpan.textContent = file.name;
             previewContainer.style.display = 'block';
+
             const url = URL.createObjectURL(file);
             viewLink.href = url;
+
             previewContainer.dataset.url = url;
         } else {
             previewContainer.style.display = 'none';
@@ -158,8 +202,8 @@ function setupDocumentHandlers() {
     $('#employeeModal').off('click', '.delete-document').on('click', '.delete-document', async function (e) {
         e.preventDefault();
         e.stopPropagation();
-        const button     = $(this);
-        const row        = button.closest('tr');
+        const button = $(this);
+        const row = button.closest('tr');
         const documentId = button.data('document-id');
         const employeeId = button.data('employee-id');
 
@@ -168,17 +212,20 @@ function setupDocumentHandlers() {
             return;
         }
 
+        // Hide the modal
         $('#employeeModal').modal('hide');
 
         Swal.fire({
-            title: 'Are you sure?',
-            text: 'This action cannot be undone!',
-            icon: 'warning',
+            title: "Are you sure?",
+            text: "This action cannot be undone!",
+            icon: "warning",
             showCancelButton: true,
-            confirmButtonColor: '#d33',
-            confirmButtonText: 'Yes, delete it!'
+            confirmButtonColor: "#d33",
+            confirmButtonText: "Yes, delete it!"
         }).then(async (result) => {
+            // Always show the modal again after Swal closes
             $('#employeeModal').modal('show');
+
             if (result.isConfirmed) {
                 try {
                     await employeesService.deleteDocument(employeeId, documentId);
@@ -216,7 +263,7 @@ window.saveEmployee = async function (btn) {
     const formData = new FormData(document.getElementById('employeeForm'));
 
     const documentTypes = formData.getAll('document_types[]').filter(type => type.trim() !== '');
-    const documents     = formData.getAll('documents[]').filter(doc => doc.size > 0);
+    const documents = formData.getAll('documents[]').filter(doc => doc.size > 0);
     formData.delete('document_types[]');
     formData.delete('documents[]');
 
@@ -241,14 +288,10 @@ window.saveEmployee = async function (btn) {
 
         $('#employeeModal').modal('hide');
         dataTable.ajax.reload();
-        Swal.fire(
-            'Success!',
-            formData.has('employee_id') ? 'Employee updated successfully.' : 'Employee created successfully.',
-            'success'
-        );
+        Swal.fire('Success!', formData.has('employee_id') ? 'Employee updated successfully.' : 'Employee created successfully.', 'success');
     } catch (error) {
         console.error('Save Employee Error:', error.response || error);
-        Swal.fire('Error!', error.response?.data?.message || 'Failed to save employee.', 'error');
+        const errorMessage = error.response?.data?.message || 'Failed to save employee.';
         if (error.response?.headers['x-toastr-message']) {
             toastr.error(error.response.headers['x-toastr-message']);
         }
@@ -259,16 +302,13 @@ window.saveEmployee = async function (btn) {
 
 window.editEmployee = async function (id) {
     try {
-        $('#employeeFormContainer').html(
-            '<div class="text-center py-4"><div class="spinner-border text-primary" role="status">' +
-            '<span class="visually-hidden">Loading...</span></div></div>'
-        );
-        $('#employeeModal').modal('show');
-
+        $('#employeeFormContainer').html('<div class="text-center py-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>');
         const response = await employeesService.edit({ employee_id: id });
         if (response) {
             $('#employeeFormContainer').html(response);
             $('#employeeModalLabel').text('Edit Employee');
+            $('#employeeModal').modal('show');
+            // Setup document handlers after modal content is loaded
             setupDocumentHandlers();
         } else {
             throw new Error('No data returned from server');
@@ -281,12 +321,12 @@ window.editEmployee = async function (id) {
 
 window.deleteEmployee = async function (id) {
     Swal.fire({
-        title: 'Are you sure?',
-        text: 'This action cannot be undone!',
-        icon: 'warning',
+        title: "Are you sure?",
+        text: "This action cannot be undone!",
+        icon: "warning",
         showCancelButton: true,
-        confirmButtonColor: '#d33',
-        confirmButtonText: 'Yes, delete it!'
+        confirmButtonColor: "#d33",
+        confirmButtonText: "Yes, delete it!"
     }).then(async (result) => {
         if (result.isConfirmed) {
             try {
@@ -321,25 +361,27 @@ window.viewEmployee = async function (id) {
     }
 };
 
+// Ensure jQuery and Swal are available globally
 const $ = window.jQuery || window.$;
 const Swal = window.Swal || window.sweetAlert;
 
 window.importEmployees = function (btn) {
     btn = $(btn);
     if (typeof btn_loader === 'undefined') {
-        btn.prop('disabled', true);
+        console.warn('btn_loader is not defined. Define it in app.js or pass as a parameter.');
+        btn.prop('disabled', true); // Fallback disable
     } else {
         btn_loader(btn, true);
     }
 
-    const form         = document.getElementById('importEmployeesForm');
-    const formData     = new FormData(form);
-    const loadingDiv   = $('#loading');
-    const resultDiv    = $('#import-result');
+    const form = document.getElementById('importEmployeesForm');
+    const formData = new FormData(form);
+    const loadingDiv = $('#loading');
+    const resultDiv = $('#import-result');
     const progressText = $('#progress');
     const successCount = $('#success-count');
-    const errorCount   = $('#error-count');
-    const errorList    = $('#error-list');
+    const errorCount = $('#error-count');
+    const errorList = $('#error-list');
 
     loadingDiv.show();
     resultDiv.hide();
@@ -359,9 +401,14 @@ window.importEmployees = function (btn) {
             'Accept': 'application/json',
         },
         success: function (result) {
+            console.log('Raw AJAX response:', result); // Log raw response
+            console.log('Response type:', typeof result); // Check type
+            console.log('Response stringified:', JSON.stringify(result)); // Stringify for inspection
+
             loadingDiv.hide();
             resultDiv.show();
 
+            // Enhanced parsing logic
             let successful;
             if (result && typeof result === 'object' && result.hasOwnProperty('successful')) {
                 successful = parseInt(result.successful, 10);
@@ -374,13 +421,16 @@ window.importEmployees = function (btn) {
                     successful = 0;
                 }
             } else {
+                console.warn('Unexpected response format:', result);
                 successful = 0;
             }
+            console.log('Parsed successful value:', successful);
 
-            const errors    = result.errors || [];
-            const message   = result.message || 'An unknown error occurred.';
+            const errors = result.errors || [];
+            const message = result.message || 'An unknown error occurred.';
             const hasErrors = errors.length > 0;
 
+            // Update DOM elements
             successCount.text(`Successfully added ${successful} employees.`);
             errorCount.text(`Errors: ${errors.length}`);
 
@@ -390,14 +440,38 @@ window.importEmployees = function (btn) {
                 });
             }
 
-            if (successful > 0 && !hasErrors) {
-                Swal.fire({ title: 'Success!', text: message, icon: 'success', confirmButtonText: 'OK' });
-            } else if (successful > 0 && hasErrors) {
-                Swal.fire({ title: 'Warning!', text: message, icon: 'warning', confirmButtonText: 'OK' });
+            if (successful > 1 && !hasErrors) {
+                console.log('Triggering success toast:', { title: 'Success!', text: message, icon: 'success' });
+                Swal.fire({
+                    title: 'Success!',
+                    text: message,
+                    icon: 'success',
+                    confirmButtonText: 'OK'
+                });
+            } else if (successful > 1 && hasErrors) {
+                console.log('Triggering warning toast:', { title: 'Warning!', text: message, icon: 'warning' });
+                Swal.fire({
+                    title: 'Warning!',
+                    text: message,
+                    icon: 'warning',
+                    confirmButtonText: 'OK'
+                });
             } else if (successful === 0 && hasErrors) {
-                Swal.fire({ title: 'Error!', text: message, icon: 'error', confirmButtonText: 'OK' });
+                console.log('Triggering error toast:', { title: 'Error!', text: message, icon: 'error' });
+                Swal.fire({
+                    title: 'Error!',
+                    text: message,
+                    icon: 'error',
+                    confirmButtonText: 'OK'
+                });
             } else {
-                Swal.fire({ title: 'Notice!', text: message, icon: 'info', confirmButtonText: 'OK' });
+                console.log('Triggering neutral toast:', { title: 'Notice!', text: message, icon: 'info' });
+                Swal.fire({
+                    title: 'Notice!',
+                    text: message,
+                    icon: 'info',
+                    confirmButtonText: 'OK'
+                });
             }
         },
         error: function (xhr, status, error) {
@@ -423,7 +497,7 @@ window.importEmployees = function (btn) {
 };
 
 window.previewImage = function (event) {
-    const input   = event.target;
+    const input = event.target;
     const preview = document.getElementById('profile_preview');
 
     if (input.files && input.files[0]) {
@@ -445,31 +519,34 @@ window.exportEmployees = async function () {
             title: 'Exporting...',
             text: 'Preparing your employee data for download.',
             allowOutsideClick: false,
-            didOpen: () => { Swal.showLoading(); }
+            didOpen: () => {
+                Swal.showLoading();
+            }
         });
 
         const filters = {
-            search:       $('#search').val(),
-            department:   $('#filterDepartment').val(),
-            location:     $('#filterLocation').val(),
+            search: $('#search').val(),
+            department: $('#filterDepartment').val(),
+            location: $('#filterLocation').val(),
             job_category: $('#filterJobCategory').val()
         };
 
-        const form        = document.createElement('form');
-        form.method       = 'POST';
-        form.action       = '/employees/export';
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/employees/export';
         form.style.display = 'none';
 
-        const csrfInput   = document.createElement('input');
-        csrfInput.type    = 'hidden';
-        csrfInput.name    = '_token';
-        csrfInput.value   = $('meta[name="csrf-token"]').attr('content');
+        const csrfToken = $('meta[name="csrf-token"]').attr('content');
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = '_token';
+        csrfInput.value = csrfToken;
         form.appendChild(csrfInput);
 
         Object.keys(filters).forEach(key => {
             const input = document.createElement('input');
-            input.type  = 'hidden';
-            input.name  = key;
+            input.type = 'hidden';
+            input.name = key;
             input.value = filters[key] || '';
             form.appendChild(input);
         });
@@ -487,7 +564,7 @@ window.exportEmployees = async function () {
         Swal.fire({
             icon: 'error',
             title: 'Export Failed',
-            text: error.message || 'Failed to export employees. Please try again.'
+            text: error.message || 'Failed to export employees. Please try again.',
         });
     }
 };

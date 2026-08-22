@@ -57,7 +57,8 @@ class PayrollFormula extends Model
     {
         return SlugOptions::create()
             ->generateSlugsFrom('name')
-            ->saveSlugsTo('slug');
+            ->saveSlugsTo('slug')
+            ->doNotGenerateSlugsOnUpdate();
     }
 
     public static function calculateForEmployee($employeeId, $payrollId, $basisAmount, $formulaSlug, $businessId = null)

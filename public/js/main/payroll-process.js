@@ -160,18 +160,18 @@
             html += `
             <div class="form-group mb-2" id="allowances-subscribed-${employee.id}-${allowance.item_id}">
                 <div class="form-check">
-                    <input class="form-check-input allowance-checkbox" type="checkbox" 
-                           name="allowances[${employee.id}][${allowance.item_id}]" value="1" checked 
+                    <input class="form-check-input allowance-checkbox" type="checkbox"
+                           name="allowances[${employee.id}][${allowance.item_id}]" value="1" checked
                            data-allowance-id="${allowance.item_id}">
                     <label class="form-check-label">${displayName} ${isTaxable ? '[Taxable]' : '[Non-Taxable]'}</label>
                 </div>
                 ${rate > 0 ? `
-                    <input type="number" class="form-control form-control-sm allowance-rate mt-1" 
-                           name="allowance_rates[${employee.id}][${allowance.item_id}]" value="${rate}" 
+                    <input type="number" class="form-control form-control-sm allowance-rate mt-1"
+                           name="allowance_rates[${employee.id}][${allowance.item_id}]" value="${rate}"
                            min="0" step="0.01" placeholder="Rate (%)" onchange="updateAllowanceDisplay(this, ${employee.id}, ${allowance.item_id}, '${basis}', ${isTaxable})">
                 ` : `
-                    <input type="number" class="form-control form-control-sm allowance-amount amount-input mt-1" 
-                           name="allowance_amounts[${employee.id}][${allowance.item_id}]" value="${amount || 0}" 
+                    <input type="number" class="form-control form-control-sm allowance-amount amount-input mt-1"
+                           name="allowance_amounts[${employee.id}][${allowance.item_id}]" value="${amount || 0}"
                            min="0" step="0.01" placeholder="Amount" onchange="updateAllowanceDisplay(this, ${employee.id}, ${allowance.item_id}, '${basis}', ${isTaxable})">
                 `}
             </div>`;
@@ -193,8 +193,8 @@
                 : formatNumber(amount);
             html += `
             <div class="form-check mb-2" id="allowances-available-${employee.id}-${item.id}">
-                <input class="form-check-input allowance-checkbox" type="checkbox" 
-                       name="allowances[${employee.id}][${item.id}]" value="1" 
+                <input class="form-check-input allowance-checkbox" type="checkbox"
+                       name="allowances[${employee.id}][${item.id}]" value="1"
                        data-allowance-id="${item.id}" onchange="handleAllowanceToggle(this, ${employee.id}, ${item.id})">
                 <label class="form-check-label">${item.name} (${displayValue}) ${isTaxable ? '[Taxable]' : '[Non-Taxable]'}</label>
             </div>`;
@@ -221,18 +221,18 @@
             const subscribedHtml = `
                 <div class="form-group mb-2" id="allowances-subscribed-${employeeId}-${itemId}">
                     <div class="form-check">
-                        <input class="form-check-input allowance-checkbox" type="checkbox" 
-                               name="allowances[${employeeId}][${itemId}]" value="1" checked 
+                        <input class="form-check-input allowance-checkbox" type="checkbox"
+                               name="allowances[${employeeId}][${itemId}]" value="1" checked
                                data-allowance-id="${itemId}">
                         <label class="form-check-label">${itemName} (${defaultRate > 0 ? `${defaultRate.toFixed(2)}% of ${basis}` : formatNumber(defaultAmount)}) ${isTaxable ? '[Taxable]' : '[Non-Taxable]'}</label>
                     </div>
                     ${defaultRate > 0 ? `
-                        <input type="number" class="form-control form-control-sm allowance-rate mt-1" 
-                               name="allowance_rates[${employeeId}][${itemId}]" value="${defaultRate}" 
+                        <input type="number" class="form-control form-control-sm allowance-rate mt-1"
+                               name="allowance_rates[${employeeId}][${itemId}]" value="${defaultRate}"
                                min="0" step="0.01" placeholder="Rate (%)" onchange="updateAllowanceDisplay(this, ${employeeId}, ${itemId}, '${basis}', ${isTaxable})">
                     ` : `
-                        <input type="number" class="form-control form-control-sm allowance-amount amount-input mt-1" 
-                               name="allowance_amounts[${employeeId}][${itemId}]" value="${defaultAmount || 0}" 
+                        <input type="number" class="form-control form-control-sm allowance-amount amount-input mt-1"
+                               name="allowance_amounts[${employeeId}][${itemId}]" value="${defaultAmount || 0}"
                                min="0" step="0.01" placeholder="Amount" onchange="updateAllowanceDisplay(this, ${employeeId}, ${itemId}, '${basis}', ${isTaxable})">
                     `}
                 </div>`;
@@ -241,8 +241,8 @@
         } else {
             const availableHtml = `
                 <div class="form-check mb-2" id="allowances-available-${employeeId}-${itemId}">
-                    <input class="form-check-input allowance-checkbox" type="checkbox" 
-                           name="allowances[${employeeId}][${itemId}]" value="1" 
+                    <input class="form-check-input allowance-checkbox" type="checkbox"
+                           name="allowances[${employeeId}][${itemId}]" value="1"
                            data-allowance-id="${itemId}" onchange="handleAllowanceToggle(this, ${employeeId}, ${itemId})">
                     <label class="form-check-label">${itemName} (${defaultRate > 0 ? `${defaultRate.toFixed(2)}% of ${basis}` : formatNumber(defaultAmount)}) ${isTaxable ? '[Taxable]' : '[Non-Taxable]'}</label>
                 </div>`;
@@ -285,18 +285,18 @@
             html += `
             <div class="form-group mb-2" id="deductions-subscribed-${employee.id}-${deduction.item_id}">
                 <div class="form-check">
-                    <input class="form-check-input deduction-checkbox" type="checkbox" 
-                           name="deductions[${employee.id}][${deduction.item_id}]" value="1" checked 
+                    <input class="form-check-input deduction-checkbox" type="checkbox"
+                           name="deductions[${employee.id}][${deduction.item_id}]" value="1" checked
                            data-deduction-id="${deduction.item_id}">
                     <label class="form-check-label">${displayName} ${isStatutory ? '[Statutory]' : '[Optional]'}</label>
                 </div>
                 ${rate > 0 ? `
-                    <input type="number" class="form-control form-control-sm deduction-rate mt-1" 
-                           name="deduction_rates[${employee.id}][${deduction.item_id}]" value="${rate}" 
+                    <input type="number" class="form-control form-control-sm deduction-rate mt-1"
+                           name="deduction_rates[${employee.id}][${deduction.item_id}]" value="${rate}"
                            min="0" step="0.01" placeholder="Rate (%)" onchange="updateDeductionDisplay(this, ${employee.id}, ${deduction.item_id}, '${basis}', ${isStatutory})">
                 ` : `
-                    <input type="number" class="form-control form-control-sm deduction-amount amount-input mt-1" 
-                           name="deduction_amounts[${employee.id}][${deduction.item_id}]" value="${amount || 0}" 
+                    <input type="number" class="form-control form-control-sm deduction-amount amount-input mt-1"
+                           name="deduction_amounts[${employee.id}][${deduction.item_id}]" value="${amount || 0}"
                            min="0" step="0.01" placeholder="Amount" onchange="updateDeductionDisplay(this, ${employee.id}, ${deduction.item_id}, '${basis}', ${isStatutory})">
                 `}
             </div>`;
@@ -314,8 +314,8 @@
                 : formatNumber(item.amount || 0);
             html += `
             <div class="form-check mb-2" id="deductions-available-${employee.id}-${item.id}">
-                <input class="form-check-input deduction-checkbox" type="checkbox" 
-                       name="deductions[${employee.id}][${item.id}]" value="1" 
+                <input class="form-check-input deduction-checkbox" type="checkbox"
+                       name="deductions[${employee.id}][${item.id}]" value="1"
                        data-deduction-id="${item.id}" onchange="handleDeductionToggle(this, ${employee.id}, ${item.id})">
                 <label class="form-check-label">${item.name} (${displayValue}) ${item.is_statutory ? '[Statutory]' : '[Optional]'}</label>
             </div>`;
@@ -342,18 +342,18 @@
             const subscribedHtml = `
                 <div class="form-group mb-2" id="deductions-subscribed-${employeeId}-${itemId}">
                     <div class="form-check">
-                        <input class="form-check-input deduction-checkbox" type="checkbox" 
-                               name="deductions[${employeeId}][${itemId}]" value="1" checked 
+                        <input class="form-check-input deduction-checkbox" type="checkbox"
+                               name="deductions[${employeeId}][${itemId}]" value="1" checked
                                data-deduction-id="${itemId}">
                         <label class="form-check-label">${itemName} (${defaultRate > 0 ? `${defaultRate.toFixed(2)}% of ${basis}` : formatNumber(defaultAmount)}) ${isStatutory ? '[Statutory]' : '[Optional]'}</label>
                     </div>
                     ${defaultRate > 0 ? `
-                        <input type="number" class="form-control form-control-sm deduction-rate mt-1" 
-                               name="deduction_rates[${employeeId}][${itemId}]" value="${defaultRate}" 
+                        <input type="number" class="form-control form-control-sm deduction-rate mt-1"
+                               name="deduction_rates[${employeeId}][${itemId}]" value="${defaultRate}"
                                min="0" step="0.01" placeholder="Rate (%)" onchange="updateDeductionDisplay(this, ${employeeId}, ${itemId}, '${basis}', ${isStatutory})">
                     ` : `
-                        <input type="number" class="form-control form-control-sm deduction-amount amount-input mt-1" 
-                               name="deduction_amounts[${employeeId}][${itemId}]" value="${defaultAmount || 0}" 
+                        <input type="number" class="form-control form-control-sm deduction-amount amount-input mt-1"
+                               name="deduction_amounts[${employeeId}][${itemId}]" value="${defaultAmount || 0}"
                                min="0" step="0.01" placeholder="Amount" onchange="updateDeductionDisplay(this, ${employeeId}, ${itemId}, '${basis}', ${isStatutory})">
                     `}
                 </div>`;
@@ -362,8 +362,8 @@
         } else {
             const availableHtml = `
                 <div class="form-check mb-2" id="deductions-available-${employeeId}-${itemId}">
-                    <input class="form-check-input deduction-checkbox" type="checkbox" 
-                           name="deductions[${employeeId}][${itemId}]" value="1" 
+                    <input class="form-check-input deduction-checkbox" type="checkbox"
+                           name="deductions[${employeeId}][${itemId}]" value="1"
                            data-deduction-id="${itemId}" onchange="handleDeductionToggle(this, ${employeeId}, ${itemId})">
                     <label class="form-check-label">${itemName} (${defaultRate > 0 ? `${defaultRate.toFixed(2)}% of ${basis}` : formatNumber(defaultAmount)}) ${isStatutory ? '[Statutory]' : '[Optional]'}</label>
                 </div>`;
@@ -396,8 +396,8 @@
         html += `
             <div class="form-group mb-2" id="reliefs-subscribed-${employee.id}-1">
                 <div class="form-check">
-                    <input class="form-check-input relief-checkbox" type="checkbox" 
-                           name="reliefs[${employee.id}][1]" value="1" checked disabled 
+                    <input class="form-check-input relief-checkbox" type="checkbox"
+                           name="reliefs[${employee.id}][1]" value="1" checked disabled
                            data-relief-id="1">
                     <label class="form-check-label">Personal Relief (KES ${formatNumber(2400)})</label>
                 </div>
@@ -413,16 +413,16 @@
             html += `
             <div class="form-group mb-2" id="reliefs-subscribed-${employee.id}-${relief.item_id}">
                 <div class="form-check">
-                    <input class="form-check-input relief-checkbox" type="checkbox" 
-                           name="reliefs[${employee.id}][${relief.item_id}]" value="1" checked 
+                    <input class="form-check-input relief-checkbox" type="checkbox"
+                           name="reliefs[${employee.id}][${relief.item_id}]" value="1" checked
                            data-relief-id="${relief.item_id}">
                     <label class="form-check-label">${displayName}</label>
                 </div>
                 ${relief.item_id === 5 ? '' : `
-                    <input type="number" class="form-control form-control-sm relief-amount amount-input mt-1" 
-                           name="relief_amounts[${employee.id}][${relief.item_id}]" value="${amount || 0}" 
-                           min="0" step="0.01" ${maxLimit ? `max="${maxLimit}"` : ''} 
-                           placeholder="${isInsurance ? 'Premium Paid' : 'Amount'}" 
+                    <input type="number" class="form-control form-control-sm relief-amount amount-input mt-1"
+                           name="relief_amounts[${employee.id}][${relief.item_id}]" value="${amount || 0}"
+                           min="0" step="0.01" ${maxLimit ? `max="${maxLimit}"` : ''}
+                           placeholder="${isInsurance ? 'Premium Paid' : 'Amount'}"
                            onchange="updateReliefAmount(this, ${employee.id}, ${relief.item_id}, ${maxLimit || 'null'})">
                 `}
             </div>`;
@@ -440,8 +440,8 @@
             const displayValue = item.id === 5 ? '100% Tax Exemption' : (item.computation_method === 'percentage' ? `${item.percentage_of_amount}% of Input` : formatNumber(defaultAmount));
             html += `
             <div class="form-check mb-2" id="reliefs-available-${employee.id}-${item.id}">
-                <input class="form-check-input relief-checkbox" type="checkbox" 
-                       name="reliefs[${employee.id}][${item.id}]" value="1" 
+                <input class="form-check-input relief-checkbox" type="checkbox"
+                       name="reliefs[${employee.id}][${item.id}]" value="1"
                        data-relief-id="${item.id}" onchange="handleReliefToggle(this, ${employee.id}, ${item.id})">
                 <label class="form-check-label">${item.name} (${displayValue}${maxLimit ? `, Max KES ${formatNumber(maxLimit)}` : ''})</label>
             </div>`;
@@ -466,16 +466,16 @@
             const subscribedHtml = `
                 <div class="form-group mb-2" id="reliefs-subscribed-${employeeId}-${itemId}">
                     <div class="form-check">
-                        <input class="form-check-input relief-checkbox" type="checkbox" 
-                               name="reliefs[${employeeId}][${itemId}]" value="1" checked 
+                        <input class="form-check-input relief-checkbox" type="checkbox"
+                               name="reliefs[${employeeId}][${itemId}]" value="1" checked
                                data-relief-id="${itemId}">
                         <label class="form-check-label">${item.name} (${formatNumber(defaultAmount)})</label>
                     </div>
                     ${itemId === 5 ? '' : `
-                        <input type="number" class="form-control form-control-sm relief-amount amount-input mt-1" 
-                               name="relief_amounts[${employeeId}][${itemId}]" value="${defaultAmount || 0}" 
-                               min="0" step="0.01" ${maxLimit ? `max="${maxLimit}"` : ''} 
-                               placeholder="${isInsurance ? 'Premium Paid' : 'Amount'}" 
+                        <input type="number" class="form-control form-control-sm relief-amount amount-input mt-1"
+                               name="relief_amounts[${employeeId}][${itemId}]" value="${defaultAmount || 0}"
+                               min="0" step="0.01" ${maxLimit ? `max="${maxLimit}"` : ''}
+                               placeholder="${isInsurance ? 'Premium Paid' : 'Amount'}"
                                onchange="updateReliefAmount(this, ${employeeId}, ${itemId}, ${maxLimit || 'null'})">
                     `}
                 </div>`;
@@ -486,8 +486,8 @@
         } else {
             const availableHtml = `
                 <div class="form-check mb-2" id="reliefs-available-${employeeId}-${itemId}">
-                    <input class="form-check-input relief-checkbox" type="checkbox" 
-                           name="reliefs[${employeeId}][${itemId}]" value="1" 
+                    <input class="form-check-input relief-checkbox" type="checkbox"
+                           name="reliefs[${employeeId}][${itemId}]" value="1"
                            data-relief-id="${itemId}" onchange="handleReliefToggle(this, ${employeeId}, ${itemId})">
                     <label class="form-check-label">${item.name} (${item.id === 5 ? '100% Tax Exemption' : formatNumber(defaultAmount)}${maxLimit ? `, Max KES ${formatNumber(maxLimit)}` : ''})</label>
                 </div>`;
@@ -521,15 +521,15 @@
             html += `
             <div class="form-group mb-2" id="overtime-${employee.id}-${overtime.item_id}">
                 <div class="form-check">
-                    <input class="form-check-input overtime-checkbox" type="checkbox" 
-                           name="overtime[${employee.id}][${overtime.item_id}]" value="1" 
+                    <input class="form-check-input overtime-checkbox" type="checkbox"
+                           name="overtime[${employee.id}][${overtime.item_id}]" value="1"
                            ${isSelected ? 'checked' : ''} data-overtime-id="${overtime.item_id}">
                     <label class="form-check-label">${displayName}</label>
                 </div>
                 <div class="mt-1">
-                    <input type="number" class="form-control form-control-sm overtime-hours" 
-                           name="overtime_hours[${employee.id}][${overtime.item_id}]" value="${hours || 0}" 
-                           min="0" step="0.1" placeholder="Hours Worked" 
+                    <input type="number" class="form-control form-control-sm overtime-hours"
+                           name="overtime_hours[${employee.id}][${overtime.item_id}]" value="${hours || 0}"
+                           min="0" step="0.1" placeholder="Hours Worked"
                            onchange="updateOvertimeDisplay(this, ${employee.id}, ${overtime.item_id})">
                 </div>
             </div>`;
@@ -564,14 +564,14 @@
                 html += `
                 <div class="form-group mb-2" id="loans-subscribed-${employee.id}-${loan.item_id}">
                     <div class="form-check">
-                        <input class="form-check-input loan-checkbox" type="checkbox" 
-                               name="loans[${employee.id}][${loan.item_id}]" value="1" checked 
+                        <input class="form-check-input loan-checkbox" type="checkbox"
+                               name="loans[${employee.id}][${loan.item_id}]" value="1" checked
                                data-loan-id="${loan.item_id}" data-max-amount="${remaining}">
                         <label class="form-check-label">${displayName}</label>
                     </div>
-                    <input type="number" class="form-control form-control-sm loan-amount amount-input mt-1" 
-                           name="loan_amounts[${employee.id}][${loan.item_id}]" value="${amountToRecover || remaining}" 
-                           min="0" max="${remaining}" step="0.01" placeholder="Amount to Recover" 
+                    <input type="number" class="form-control form-control-sm loan-amount amount-input mt-1"
+                           name="loan_amounts[${employee.id}][${loan.item_id}]" value="${amountToRecover || remaining}"
+                           min="0" max="${remaining}" step="0.01" placeholder="Amount to Recover"
                            onchange="updateLoanDisplay(this, ${employee.id}, ${loan.item_id}, ${remaining})">
                 </div>`;
             }
@@ -589,8 +589,8 @@
             const displayName = `Loan on ${formattedDate} (Remaining: ${formatNumber(remaining)})`;
             html += `
             <div class="form-check mb-2" id="loans-available-${employee.id}-${item.id}">
-                <input class="form-check-input loan-checkbox" type="checkbox" 
-                       name="loans[${employee.id}][${item.id}]" value="1" 
+                <input class="form-check-input loan-checkbox" type="checkbox"
+                       name="loans[${employee.id}][${item.id}]" value="1"
                        data-loan-id="${item.id}" data-max-amount="${remaining}" onchange="handleLoanToggle(this, ${employee.id}, ${item.id})">
                 <label class="form-check-label">${displayName}</label>
             </div>`;
@@ -614,14 +614,14 @@
             const subscribedHtml = `
                 <div class="form-group mb-2" id="loans-subscribed-${employeeId}-${itemId}">
                     <div class="form-check">
-                        <input class="form-check-input loan-checkbox" type="checkbox" 
-                               name="loans[${employeeId}][${itemId}]" value="1" checked 
+                        <input class="form-check-input loan-checkbox" type="checkbox"
+                               name="loans[${employeeId}][${itemId}]" value="1" checked
                                data-loan-id="${itemId}" data-max-amount="${remaining}">
                         <label class="form-check-label">Loan on ${formattedDate} (Remaining: ${formatNumber(remaining)})</label>
                     </div>
-                    <input type="number" class="form-control form-control-sm loan-amount amount-input mt-1" 
-                           name="loan_amounts[${employeeId}][${itemId}]" value="${remaining}" 
-                           min="0" max="${remaining}" step="0.01" placeholder="Amount to Recover" 
+                    <input type="number" class="form-control form-control-sm loan-amount amount-input mt-1"
+                           name="loan_amounts[${employeeId}][${itemId}]" value="${remaining}"
+                           min="0" max="${remaining}" step="0.01" placeholder="Amount to Recover"
                            onchange="updateLoanDisplay(this, ${employeeId}, ${itemId}, ${remaining})">
                 </div>`;
             $subscribedContainer.append(subscribedHtml);
@@ -629,8 +629,8 @@
         } else {
             const availableHtml = `
                 <div class="form-check mb-2" id="loans-available-${employeeId}-${itemId}">
-                    <input class="form-check-input loan-checkbox" type="checkbox" 
-                           name="loans[${employeeId}][${itemId}]" value="1" 
+                    <input class="form-check-input loan-checkbox" type="checkbox"
+                           name="loans[${employeeId}][${itemId}]" value="1"
                            data-loan-id="${itemId}" data-max-amount="${remaining}" onchange="handleLoanToggle(this, ${employeeId}, ${itemId})">
                     <label class="form-check-label">Loan on ${formattedDate} (Remaining: ${formatNumber(remaining)})</label>
                 </div>`;
@@ -672,14 +672,14 @@
             html += `
             <div class="form-group mb-2" id="advances-subscribed-${employee.id}-${advance.item_id}">
                 <div class="form-check">
-                    <input class="form-check-input advance-checkbox" type="checkbox" 
-                           name="advances[${employee.id}][${advance.item_id}]" value="1" checked 
+                    <input class="form-check-input advance-checkbox" type="checkbox"
+                           name="advances[${employee.id}][${advance.item_id}]" value="1" checked
                            data-advance-id="${advance.item_id}" data-max-amount="${amount}">
                     <label class="form-check-label">${displayName}</label>
                 </div>
-                <input type="number" class="form-control form-control-sm advance-amount amount-input mt-1" 
-                       name="advance_amounts[${employee.id}][${advance.item_id}]" value="${amountToRecover || amount}" 
-                       min="0" max="${amount}" step="0.01" placeholder="Amount to Recover" 
+                <input type="number" class="form-control form-control-sm advance-amount amount-input mt-1"
+                       name="advance_amounts[${employee.id}][${advance.item_id}]" value="${amountToRecover || amount}"
+                       min="0" max="${amount}" step="0.01" placeholder="Amount to Recover"
                        onchange="updateAdvanceDisplay(this, ${employee.id}, ${advance.item_id}, ${amount})">
             </div>`;
         });
@@ -696,8 +696,8 @@
             const displayName = `Advance on ${formattedDate} (Amount: ${formatNumber(amount)})`;
             html += `
             <div class="form-check mb-2" id="advances-available-${employee.id}-${item.id}">
-                <input class="form-check-input advance-checkbox" type="checkbox" 
-                       name="advances[${employee.id}][${item.id}]" value="1" 
+                <input class="form-check-input advance-checkbox" type="checkbox"
+                       name="advances[${employee.id}][${item.id}]" value="1"
                        data-advance-id="${item.id}" data-max-amount="${amount}" onchange="handleAdvanceToggle(this, ${employee.id}, ${item.id})">
                 <label class="form-check-label">${displayName}</label>
             </div>`;
@@ -721,14 +721,14 @@
             const subscribedHtml = `
                 <div class="form-group mb-2" id="advances-subscribed-${employeeId}-${itemId}">
                     <div class="form-check">
-                        <input class="form-check-input advance-checkbox" type="checkbox" 
-                               name="advances[${employeeId}][${itemId}]" value="1" checked 
+                        <input class="form-check-input advance-checkbox" type="checkbox"
+                               name="advances[${employeeId}][${itemId}]" value="1" checked
                                data-advance-id="${itemId}" data-max-amount="${amount}">
                         <label class="form-check-label">Advance on ${formattedDate} (Amount: ${formatNumber(amount)})</label>
                     </div>
-                    <input type="number" class="form-control form-control-sm advance-amount amount-input mt-1" 
-                           name="advance_amounts[${employeeId}][${itemId}]" value="${amount}" 
-                           min="0" max="${amount}" step="0.01" placeholder="Amount to Recover" 
+                    <input type="number" class="form-control form-control-sm advance-amount amount-input mt-1"
+                           name="advance_amounts[${employeeId}][${itemId}]" value="${amount}"
+                           min="0" max="${amount}" step="0.01" placeholder="Amount to Recover"
                            onchange="updateAdvanceDisplay(this, ${employeeId}, ${itemId}, ${amount})">
                 </div>`;
             $subscribedContainer.append(subscribedHtml);
@@ -736,8 +736,8 @@
         } else {
             const availableHtml = `
                 <div class="form-check mb-2" id="advances-available-${employeeId}-${itemId}">
-                    <input class="form-check-input advance-checkbox" type="checkbox" 
-                           name="advances[${employeeId}][${itemId}]" value="1" 
+                    <input class="form-check-input advance-checkbox" type="checkbox"
+                           name="advances[${employeeId}][${itemId}]" value="1"
                            data-advance-id="${itemId}" data-max-amount="${amount}" onchange="handleAdvanceToggle(this, ${employeeId}, ${itemId})">
                     <label class="form-check-label">Advance on ${formattedDate} (Amount: ${formatNumber(amount)})</label>
                 </div>`;
@@ -804,107 +804,247 @@
         $checkbox.prop('checked', isChecked);
     }
 
-    window.savePayrollSettings = function () {
-        const formData = new FormData(document.getElementById("payrollForm"));
-        const year = formData.get('year');
-        const month = formData.get('month');
-        const employees = {};
-        let allZeroAmountItems = [];
+window.savePayrollSettings = function () {
+    const year = $('#payrollForm #year').val() || $('select[name="year"]').val();
+    const month = $('#payrollForm #month').val() || $('select[name="month"]').val();
 
-        const collectAllItems = (type, tableBody, checkboxClasses, amountClasses, rateClass, idAttrs) => {
-            const itemsByEmployee = {};
-            const zeroAmountItems = [];
-            $(tableBody).find('tr[data-employee-id]').each(function () {
-                const employeeId = $(this).data('employee-id');
-                if (!itemsByEmployee[employeeId]) itemsByEmployee[employeeId] = {};
+    if (!year || !month) {
+        Swal.fire('Error!', 'Year and Month are required.', 'error');
+        return;
+    }
 
-                const $checkboxes = $(this).find(`#subscribed-${type}-${employeeId} .${checkboxClasses.join(', .')}, #available-${type}-${employeeId} .${checkboxClasses.join(', .')}`);
-                $checkboxes.each(function () {
-                    const itemId = $(this).data(idAttrs[0]) || $(this).data(idAttrs[1]);
-                    if (!itemId) return;
+    const employeesArray = [];
 
-                    const isActive = $(this).is(':checked');
-                    const $group = $(this).closest('.form-group');
-                    const $amountInput = $group.find(`.${amountClasses.join(', .')}`);
-                    const $rateInput = rateClass ? $group.find(`.${rateClass}`) : null;
-                    let amount = $amountInput.length ? parseFloat($amountInput.val() || 0) : 0;
-                    const rate = $rateInput ? parseFloat($rateInput.val() || 0) : 0;
-                    const itemName = $(this).next('label').text().trim();
+    $('#payrollSettingsSection tr[data-employee-id]').each(function () {
+        const employeeId = parseInt($(this).data('employee-id'));
+        if (!employeeId) return;
 
-                    // Enforce Personal Relief (item_id = 1) to always be 2400 when active
-                    if (type === 'reliefs' && itemId === '1' && isActive) {
-                        amount = 2400; // Fixed value for Personal Relief
-                    }
+        const allowances = {};
+        const deductions = {};
+        const reliefs = {};
+        const overtime = {};
+        const loans = {};
+        const advances = {};
+        let absenteeismCharge = 0;
 
-                    itemsByEmployee[employeeId][itemId] = { is_active: isActive, amount: amount, rate: rate };
+        const empIdStr = employeeId.toString();
 
-                    // Skip Personal Relief from zero amount check since it's enforced to 2400
-                    if (isActive && amount === 0 && (!rateClass || rate === 0) && !(type === 'reliefs' && itemId === '1')) {
-                        zeroAmountItems.push(`${itemName} for Employee ID: ${employeeId}`);
-                    }
-                });
-            });
-            return { itemsByEmployee, zeroAmountItems };
-        };
+        // ALLOWANCES
+        $(`#subscribed-allowances-${empIdStr} .allowance-checkbox:checked`).each(function () {
+            const itemId = $(this).data('allowance-id');
+            if (!itemId) return;
+            const $group = $(this).closest('.form-group');
+            const $rateInput = $group.find('.allowance-rate');
+            const $amountInput = $group.find('.allowance-amount');
+            const value = parseFloat($rateInput.length ? $rateInput.val() : $amountInput.val()) || 0;
+            const isRateBased = $rateInput.length > 0;
 
-        const tables = [
-            { type: 'allowances', tableBody: '#allowancesTableBody', checkboxClasses: ['allowance-checkbox'], amountClasses: ['allowance-amount'], rateClass: 'allowance-rate', idAttrs: ['allowance-id'] },
-            { type: 'deductions', tableBody: '#deductionsTableBody', checkboxClasses: ['deduction-checkbox'], amountClasses: ['deduction-amount'], rateClass: 'deduction-rate', idAttrs: ['deduction-id'] },
-            { type: 'reliefs', tableBody: '#reliefsTableBody', checkboxClasses: ['relief-checkbox'], amountClasses: ['relief-amount'], rateClass: null, idAttrs: ['relief-id'] },
-            { type: 'loans', tableBody: '#loansTableBody', checkboxClasses: ['loan-checkbox'], amountClasses: ['loan-amount'], rateClass: null, idAttrs: ['loan-id'] },
-            { type: 'advances', tableBody: '#advancesTableBody', checkboxClasses: ['advance-checkbox'], amountClasses: ['advance-amount'], rateClass: null, idAttrs: ['advance-id'] },
-            { type: 'absenteeism', tableBody: '#absenteeismTableBody' },
-            { type: 'overtime', tableBody: '#overtimeTableBody', checkboxClasses: ['overtime-checkbox'], amountClasses: ['overtime-hours'], rateClass: null, idAttrs: ['overtime-id'] },
-        ];
-
-        tables.forEach(({ type, tableBody, checkboxClasses, amountClasses, rateClass, idAttrs }) => {
-            $(tableBody).find('tr[data-employee-id]').each(function () {
-                const employeeId = $(this).data('employee-id');
-                if (!employees[employeeId]) {
-                    employees[employeeId] = {
-                        employee_id: employeeId,
-                        allowances: {}, deductions: {}, reliefs: {},
-                        absenteeism_charge: 0, overtime: {}, loans: {}, advances: {}
-                    };
-                }
-
-                if (type === 'absenteeism') {
-                    const charge = parseFloat($(this).find(`input[name="absenteeism_charge[${employeeId}]"]`).val() || 0);
-                    employees[employeeId].absenteeism_charge = charge;
-                } else {
-                    const { itemsByEmployee, zeroAmountItems } = collectAllItems(type, tableBody, checkboxClasses || [], amountClasses || [], rateClass, idAttrs || []);
-                    Object.assign(employees[employeeId][type], itemsByEmployee[employeeId] || {});
-                    allZeroAmountItems = allZeroAmountItems.concat(zeroAmountItems);
-                }
-            });
+            allowances[itemId] = {
+                amount: isRateBased ? 0 : value,
+                rate: isRateBased ? value : 0,
+                is_active: true
+            };
         });
 
-        const employeesArray = Object.values(employees).map(employee => ({
-            id: employee.employee_id,
-            allowances: employee.allowances,
-            deductions: employee.deductions,
-            reliefs: employee.reliefs,
-            overtime: employee.overtime,
-            loans: employee.loans,
-            advances: employee.advances,
-            absenteeism_charge: { amount: employee.absenteeism_charge }
-        }));
+        // DEDUCTIONS
+        $(`#subscribed-deductions-${empIdStr} .deduction-checkbox:checked`).each(function () {
+            const itemId = $(this).data('deduction-id');
+            if (!itemId) return;
+            const $group = $(this).closest('.form-group');
+            const $rateInput = $group.find('.deduction-rate');
+            const $amountInput = $group.find('.deduction-amount');
+            const value = parseFloat($rateInput.length ? $rateInput.val() : $amountInput.val()) || 0;
+            const isRateBased = $rateInput.length > 0;
 
-        if (allZeroAmountItems.length > 0) {
-            Swal.fire({
-                title: 'Zero Amount Detected',
-                html: `The following items have zero amounts/rates:<ul>${allZeroAmountItems.map(item => `<li>${item}</li>`).join('')}</ul>Proceed?`,
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: 'Yes, Save',
-                cancelButtonText: 'No, Edit'
-            }).then((result) => {
-                if (result.isConfirmed) saveData(year, month, employeesArray);
-            });
-        } else {
-            saveData(year, month, employeesArray);
+            deductions[itemId] = {
+                amount: isRateBased ? 0 : value,
+                rate: isRateBased ? value : 0,
+                is_active: true
+            };
+        });
+
+        // RELIEFS (including Personal Relief)
+        $(`#subscribed-reliefs-${empIdStr} .relief-checkbox:checked`).each(function () {
+            const itemId = $(this).data('relief-id');
+            if (!itemId) return;
+            const $amountInput = $(this).closest('.form-group').find('.relief-amount');
+            let value = parseFloat($amountInput.val()) || 0;
+            if (parseInt(itemId) === 1) value = 2400; // Force Personal Relief
+
+            reliefs[itemId] = { amount: value, is_active: true };
+        });
+
+        // OVERTIME
+        $(`#subscribed-overtime-${empIdStr} .overtime-checkbox:checked`).each(function () {
+            const itemId = $(this).data('overtime-id');
+            if (!itemId) return;
+            const hours = parseFloat($(this).closest('.form-group').find('.overtime-hours').val()) || 0;
+            overtime[itemId] = { amount: hours, is_active: true };
+        });
+
+        // LOANS
+        $(`#subscribed-loans-${empIdStr} .loan-checkbox:checked`).each(function () {
+            const itemId = $(this).data('loan-id');
+            if (!itemId) return;
+            const amount = parseFloat($(this).closest('.form-group').find('.loan-amount').val()) || 0;
+            loans[itemId] = { amount: amount, is_active: true };
+        });
+
+        // ADVANCES
+        $(`#subscribed-advances-${empIdStr} .advance-checkbox:checked`).each(function () {
+            const itemId = $(this).data('advance-id');
+            if (!itemId) return;
+            const amount = parseFloat($(this).closest('.form-group').find('.advance-amount').val()) || 0;
+            advances[itemId] = { amount: amount, is_active: true };
+        });
+
+        // ABSENTEEISM CHARGE
+        const absInput = $(`#absenteeismTableBody input[name="absenteeism_charge[${empIdStr}]"]`);
+        if (absInput.length) {
+            absenteeismCharge = parseFloat(absInput.val()) || 0;
         }
-    };
+
+        employeesArray.push({
+            id: employeeId,
+            allowances: allowances,
+            deductions: deductions,
+            reliefs: reliefs,
+            overtime: overtime,
+            loans: loans,
+            advances: advances,
+            absenteeism_charge: { amount: absenteeismCharge }
+        });
+    });
+
+    console.log('FULL SETTINGS BEING SAVED →', employeesArray);
+
+    $.ajax({
+        url: '/payroll/save-settings',
+        method: 'POST',
+         contentType: 'application/json',
+    data: JSON.stringify({
+        year: year,
+        month: month,
+        employees: employeesArray,
+        _token: $('meta[name="csrf-token"]').attr('content')
+    }),
+        success: function (response) {
+            if (response.message === 'success' || response.status === 'success') {
+                Swal.fire('Success!', 'Settings saved successfully.', 'success').then(() => {
+                    togglePayrollSettings();
+                });
+            } else {
+                Swal.fire('Error!', response.message || 'Failed to save settings.', 'error');
+            }
+        },
+        error: function (xhr) {
+            console.error(xhr.responseJSON);
+            Swal.fire('Error!', xhr.responseJSON?.message || 'Failed to save settings.', 'error');
+        }
+    });
+};
+
+    // window.savePayrollSettings = function () {
+    //     const formData = new FormData(document.getElementById("payrollForm"));
+    //     const year = formData.get('year');
+    //     const month = formData.get('month');
+    //     const employees = {};
+    //     let allZeroAmountItems = [];
+
+    //     const collectAllItems = (type, tableBody, checkboxClasses, amountClasses, rateClass, idAttrs) => {
+    //         const itemsByEmployee = {};
+    //         const zeroAmountItems = [];
+    //         $(tableBody).find('tr[data-employee-id]').each(function () {
+    //             const employeeId = $(this).data('employee-id');
+    //             if (!itemsByEmployee[employeeId]) itemsByEmployee[employeeId] = {};
+
+    //             const $checkboxes = $(this).find(`#subscribed-${type}-${employeeId} .${checkboxClasses.join(', .')}, #available-${type}-${employeeId} .${checkboxClasses.join(', .')}`);
+    //             $checkboxes.each(function () {
+    //                 const itemId = $(this).data(idAttrs[0]) || $(this).data(idAttrs[1]);
+    //                 if (!itemId) return;
+
+    //                 const isActive = $(this).is(':checked');
+    //                 const $group = $(this).closest('.form-group');
+    //                 const $amountInput = $group.find(`.${amountClasses.join(', .')}`);
+    //                 const $rateInput = rateClass ? $group.find(`.${rateClass}`) : null;
+    //                 let amount = $amountInput.length ? parseFloat($amountInput.val() || 0) : 0;
+    //                 const rate = $rateInput ? parseFloat($rateInput.val() || 0) : 0;
+    //                 const itemName = $(this).next('label').text().trim();
+
+    //                 // Enforce Personal Relief (item_id = 1) to always be 2400 when active
+    //                 if (type === 'reliefs' && itemId === '1' && isActive) {
+    //                     amount = 2400; // Fixed value for Personal Relief
+    //                 }
+
+    //                 itemsByEmployee[employeeId][itemId] = { is_active: isActive, amount: amount, rate: rate };
+
+    //                 // Skip Personal Relief from zero amount check since it's enforced to 2400
+    //                 if (isActive && amount === 0 && (!rateClass || rate === 0) && !(type === 'reliefs' && itemId === '1')) {
+    //                     zeroAmountItems.push(`${itemName} for Employee ID: ${employeeId}`);
+    //                 }
+    //             });
+    //         });
+    //         return { itemsByEmployee, zeroAmountItems };
+    //     };
+
+    //     const tables = [
+    //         { type: 'allowances', tableBody: '#allowancesTableBody', checkboxClasses: ['allowance-checkbox'], amountClasses: ['allowance-amount'], rateClass: 'allowance-rate', idAttrs: ['allowance-id'] },
+    //         { type: 'deductions', tableBody: '#deductionsTableBody', checkboxClasses: ['deduction-checkbox'], amountClasses: ['deduction-amount'], rateClass: 'deduction-rate', idAttrs: ['deduction-id'] },
+    //         { type: 'reliefs', tableBody: '#reliefsTableBody', checkboxClasses: ['relief-checkbox'], amountClasses: ['relief-amount'], rateClass: null, idAttrs: ['relief-id'] },
+    //         { type: 'loans', tableBody: '#loansTableBody', checkboxClasses: ['loan-checkbox'], amountClasses: ['loan-amount'], rateClass: null, idAttrs: ['loan-id'] },
+    //         { type: 'advances', tableBody: '#advancesTableBody', checkboxClasses: ['advance-checkbox'], amountClasses: ['advance-amount'], rateClass: null, idAttrs: ['advance-id'] },
+    //         { type: 'absenteeism', tableBody: '#absenteeismTableBody' },
+    //         { type: 'overtime', tableBody: '#overtimeTableBody', checkboxClasses: ['overtime-checkbox'], amountClasses: ['overtime-hours'], rateClass: null, idAttrs: ['overtime-id'] },
+    //     ];
+
+    //     tables.forEach(({ type, tableBody, checkboxClasses, amountClasses, rateClass, idAttrs }) => {
+    //         $(tableBody).find('tr[data-employee-id]').each(function () {
+    //             const employeeId = $(this).data('employee-id');
+    //             if (!employees[employeeId]) {
+    //                 employees[employeeId] = {
+    //                     employee_id: employeeId,
+    //                     allowances: {}, deductions: {}, reliefs: {},
+    //                     absenteeism_charge: 0, overtime: {}, loans: {}, advances: {}
+    //                 };
+    //             }
+
+    //             if (type === 'absenteeism') {
+    //                 const charge = parseFloat($(this).find(`input[name="absenteeism_charge[${employeeId}]"]`).val() || 0);
+    //                 employees[employeeId].absenteeism_charge = charge;
+    //             } else {
+    //                 const { itemsByEmployee, zeroAmountItems } = collectAllItems(type, tableBody, checkboxClasses || [], amountClasses || [], rateClass, idAttrs || []);
+    //                 Object.assign(employees[employeeId][type], itemsByEmployee[employeeId] || {});
+    //                 allZeroAmountItems = allZeroAmountItems.concat(zeroAmountItems);
+    //             }
+    //         });
+    //     });
+
+    //     const employeesArray = Object.values(employees).map(employee => ({
+    //         id: employee.employee_id,
+    //         allowances: employee.allowances,
+    //         deductions: employee.deductions,
+    //         reliefs: employee.reliefs,
+    //         overtime: employee.overtime,
+    //         loans: employee.loans,
+    //         advances: employee.advances,
+    //         absenteeism_charge: { amount: employee.absenteeism_charge }
+    //     }));
+
+    //     if (allZeroAmountItems.length > 0) {
+    //         Swal.fire({
+    //             title: 'Zero Amount Detected',
+    //             html: `The following items have zero amounts/rates:<ul>${allZeroAmountItems.map(item => `<li>${item}</li>`).join('')}</ul>Proceed?`,
+    //             icon: 'warning',
+    //             showCancelButton: true,
+    //             confirmButtonText: 'Yes, Save',
+    //             cancelButtonText: 'No, Edit'
+    //         }).then((result) => {
+    //             if (result.isConfirmed) saveData(year, month, employeesArray);
+    //         });
+    //     } else {
+    //         saveData(year, month, employeesArray);
+    //     }
+    // };
 
     function saveData(year, month, employeesArray) {
         const data = {

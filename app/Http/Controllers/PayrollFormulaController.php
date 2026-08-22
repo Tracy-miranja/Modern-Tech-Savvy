@@ -209,9 +209,9 @@ class PayrollFormulaController extends Controller
             return RequestResponse::badRequest('Business not found.');
         }
 
-        // Restrict edit for non-krest businesses
-        if ($business->slug !== 'krest') {
-            return RequestResponse::forbidden('Only krest can edit payroll formulas.');
+        // Restrict edit to the platform business
+        if ($business->slug !== config('business.main_slug')) {
+            return RequestResponse::forbidden('Only the platform business can edit payroll formulas.');
         }
 
         $formula = null;
@@ -234,7 +234,7 @@ class PayrollFormulaController extends Controller
             'South Africa' => 'South Africa',
             'Ethiopia' => 'Ethiopia'
         ];
-        $form = view('payroll-formulas._form', compact('formula', 'countries'))->render();
+      $form = view('payroll-formulas._form', compact('formula', 'countries', 'business'))->render();
         return RequestResponse::ok('Payroll formula form loaded successfully.', $form);
     }
 
@@ -268,8 +268,8 @@ class PayrollFormulaController extends Controller
             return RequestResponse::badRequest('Business not found.');
         }
 
-        if ($business->slug !== 'krest') {
-            return RequestResponse::forbidden('Only krest can update payroll formulas.');
+        if ($business->slug !== config('business.main_slug')) {
+            return RequestResponse::forbidden('Only the platform business can update payroll formulas.');
         }
 
         $formula = PayrollFormula::where('id', $id)
@@ -371,9 +371,9 @@ class PayrollFormulaController extends Controller
     //             return RequestResponse::badRequest('Business not found.');
     //         }
 
-    //         // Restrict update for non-krest businesses
-    //         if ($business->slug !== 'krest') {
-    //             return RequestResponse::forbidden('Onlykrest can update payroll formulas.');
+    //         // Restrict update to the platform business
+    //         if ($business->slug !== config('business.main_slug')) {
+    //             return RequestResponse::forbidden('Only the platform business can update payroll formulas.');
     //         }
 
     //         $formula = PayrollFormula::where('id', $id)
@@ -435,9 +435,9 @@ class PayrollFormulaController extends Controller
                 return RequestResponse::badRequest('Business not found.');
             }
 
-            // Restrict delete for non-krestl businesses
-            if ($business->slug !== 'krest') {
-                return RequestResponse::forbidden('Only krest can delete payroll formulas.');
+            // Restrict delete to the platform business
+            if ($business->slug !== config('business.main_slug')) {
+                return RequestResponse::forbidden('Only the platform business can delete payroll formulas.');
             }
 
             $formula = PayrollFormula::where('id', $id)
@@ -501,9 +501,10 @@ class PayrollFormulaController extends Controller
     {
         $index = $request->input('index', 0);
         $bracket = new PayrollFormulaBracket();
-        return response()->json([
-            'html' => view('payroll-formulas._bracket', compact('index', 'bracket'))->render()
-        ]);
+        // return response()->json([
+        //     'html' => view('payroll-formulas._bracket', compact('index', 'bracket'))->render()
+        // ]);
+         return view('payroll-formulas._bracket', compact('index', 'bracket'));
     }
 
     /**
@@ -511,12 +512,12 @@ class PayrollFormulaController extends Controller
      */
     protected function getFormulasForBusiness(Business $business)
     {
-        if ($business->slug === 'krest') {
-            // krest fetches all formulas
+        if ($business->slug === config('business.main_slug')) {
+            // The platform business fetches all formulas
             return PayrollFormula::with('brackets')->get();
         }
 
-        // Non-krest businesses fetch formulas matching their country
+        // Other businesses fetch formulas matching their country
         return PayrollFormula::with('brackets')
             ->where(function ($query) use ($business) {
                 $query->where('business_id', $business->id)

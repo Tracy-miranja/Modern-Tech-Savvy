@@ -1,5 +1,6 @@
 <x-app-layout>
     <div class="container">
+        @include('clients._access_nav')
         <div class="row justify-content-center">
             <div class="col-md-10">
                 <div class="card">

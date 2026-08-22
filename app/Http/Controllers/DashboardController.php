@@ -17,8 +17,9 @@ use App\Models\Warning;
 use App\Models\Department;
 use App\Models\JobCategory;
 use Illuminate\Http\Request;
+use App\Http\RequestResponse;
 use App\Models\PayrollFormula;
-use Spatie\Permission\Models\Role;
+use App\Models\Role;
 use Illuminate\Support\Facades\Log;
 use App\Models\Location;
 use App\Models\Shift;
@@ -34,10 +35,7 @@ class DashboardController extends Controller
         $business_employees = $business->employees->count();
         $on_leave_employees = $business->employees()->onLeave()->count();
         $locations = $business->locations()->count();
-        $clients = $business->managedBusinesses()->count();
-        $active_loans_count = $business->activeLoanCount();
         $pending_leave_requests = $business->leaveRequestsByStatus('pending')->count();
-        $active_advances = $business->advancesByStatus('approved')->count();
         $employee_turnover = $business->employeesByStatus('resigned')->count();
 
         $cards = [
@@ -68,66 +66,111 @@ class DashboardController extends Controller
                 'trend_value' => '+5.15%',
                 'time_period' => 'Month',
             ],
-            [
+        ];
+
+        // "Total Clients" is the platform business's own platform-operator
+        // metric (managedBusinesses() - how many client tenants this
+        // business manages) - meaningless (always 0) for every client
+        // business, so it only belongs on the platform business's own
+        // dashboard, not personalized by role alone (a super-admin
+        // impersonating a client would otherwise still see it).
+        if ($business->slug === config('business.main_slug')) {
+            $cards[] = [
                 'title' => 'Total Clients',
                 'icon' => 'fa-solid fa-users-gear', // or fa-solid fa-user-group
-                'value' => number_format($clients),
+                'value' => number_format($business->managedBusinesses()->count()),
                 'trend_class' => 'text-success',
                 'trend_icon' => 'fa-solid fa-arrow-up',
                 'trend_value' => '+2.15%',
                 'time_period' => 'Month',
-            ],
-            [
+            ];
+        }
+
+        // Loans/advances are a Payroll Management feature - showing them
+        // to a business that hasn't subscribed to that module means
+        // showing a permanently-zero card for something they can't
+        // actually use.
+        if ($business->hasModule('payroll-management')) {
+            $cards[] = [
                 'title' => 'Active Loans',
                 'icon' => 'fa-solid fa-hand-holding-dollar', // or fa-solid fa-money-bill-transfer
-                'value' => number_format($active_loans_count),
+                'value' => number_format($business->activeLoanCount()),
                 'trend_class' => 'text-danger',
                 'trend_icon' => 'fa-solid fa-arrow-down',
                 'trend_value' => '-5.5%',
                 'time_period' => 'Month',
-            ],
-            [
+            ];
+            $cards[] = [
                 'title' => 'Active Advances',
                 'icon' => 'fa-solid fa-arrow-trend-up', // or fa-solid fa-coins
-                'value' => number_format($active_advances),
+                'value' => number_format($business->advancesByStatus('approved')->count()),
                 'trend_class' => 'text-success',
                 'trend_icon' => 'fa-solid fa-arrow-up',
                 'trend_value' => '+2.15%',
                 'time_period' => 'Month',
-            ],
-            [
-                'title' => 'Leave Requests',
-                'icon' => 'fa-solid fa-calendar-plus', // or fa-solid fa-file-pen
-                'value' => number_format($pending_leave_requests),
-                'trend_class' => 'text-success',
-                'trend_icon' => 'fa-solid fa-arrow-up',
-                'trend_value' => '+2.15%',
-                'time_period' => 'Month',
-            ],
-            [
-                'title' => 'Employee Turnover',
-                'icon' => 'fa-solid fa-right-left', // or fa-solid fa-user-minus
-                'value' => number_format($employee_turnover),
-                'trend_class' => 'text-danger',
-                'trend_icon' => 'fa-solid fa-arrow-down',
-                'trend_value' => '-3%',
-                'time_period' => 'Year',
-            ],
+            ];
+        }
+
+        $cards[] = [
+            'title' => 'Leave Requests',
+            'icon' => 'fa-solid fa-calendar-plus', // or fa-solid fa-file-pen
+            'value' => number_format($pending_leave_requests),
+            'trend_class' => 'text-success',
+            'trend_icon' => 'fa-solid fa-arrow-up',
+            'trend_value' => '+2.15%',
+            'time_period' => 'Month',
+        ];
+        $cards[] = [
+            'title' => 'Employee Turnover',
+            'icon' => 'fa-solid fa-right-left', // or fa-solid fa-user-minus
+            'value' => number_format($employee_turnover),
+            'trend_class' => 'text-danger',
+            'trend_icon' => 'fa-solid fa-arrow-down',
+            'trend_value' => '-3%',
+            'time_period' => 'Year',
         ];
 
-        return view('business.index', compact('cards', 'page'));
+        return view('business.index', compact('cards', 'page', 'business'));
+    }
+
+    /**
+     * "Getting Started" checklist data for the dashboard panel - see
+     * GUIDE.md and App\Services\BusinessSetupProgressService.
+     */
+    public function fetchSetupProgress(Request $request, Business $business)
+    {
+        $service = app(\App\Services\BusinessSetupProgressService::class);
+
+        return RequestResponse::ok('Setup progress fetched successfully.', [
+            'dismissed' => (bool) $business->setup_guide_dismissed_at,
+            'steps' => $service->progressFor($business),
+        ]);
+    }
+
+    public function dismissSetupGuide(Request $request, Business $business)
+    {
+        $business->update(['setup_guide_dismissed_at' => now()]);
+
+        return RequestResponse::ok('Setup guide dismissed.');
+    }
+
+    public function reopenSetupGuide(Request $request, Business $business)
+    {
+        $business->update(['setup_guide_dismissed_at' => null]);
+
+        return RequestResponse::ok('Setup guide reopened.');
     }
 
     function requestAccess(Request $request)
     {
         $page = 'Request Access';
-        $description = 'Choose this option if there is another krestworks account you would like to manage. A request email will be sent to the email address you provide, allowing the account owner to grant access to the system.';
+        $description = 'Choose this option if there is another account you would like to manage. A request email will be sent to the email address you provide, allowing the account owner to grant access to the system.';
         return view('clients.access', compact('page', 'description'));
     }
     function grantAccess(Request $request)
     {
         $page = 'Grant Access';
-        $description = 'Select this option if you wish to grant access to your krestworks account to another user. You will need to confirm their email address, and they will receive an email with access details.';
+        $description = 'Select this option if you wish to grant access to your account to another user. You will need to confirm their email address, and they will receive an email with access details.';
         $modules = Module::all();
         return view('clients.access', compact('page', 'description', 'modules'));
     }
@@ -166,7 +209,7 @@ class DashboardController extends Controller
         $departments = $business->departments;
         $job_categories = $business->job_categories;
         $shifts = $business->shifts;
-        $roles = Role::where('name', '!=', 'admin')->get();
+        $roles = Role::where('name', '!=', 'admin')->businessAssignable()->get();
         $locations = $business->locations;
 
         $employee = new Employee();
@@ -180,7 +223,7 @@ class DashboardController extends Controller
         $business = Business::findBySlug(session('active_business_slug'));
         $description = 'Fill out the form below to update employee record.';
         $departments = auth()->user()->business->departments;
-        $roles = Role::where('name', '!=', 'admin')->get();
+        $roles = Role::where('name', '!=', 'admin')->businessAssignable()->get();
         $locations = $business->locations;
         return view('employees.create', compact('page', 'description', 'departments', 'roles', 'locations'));
     }
@@ -405,8 +448,9 @@ class DashboardController extends Controller
         $locations  = $business->locations;
         $leaveTypes = $business->leaveTypes;
         $employees  = $business->employees;
+        $colleagues = $employees;
 
-        return view('leave.create', compact('page', 'description', 'leaveTypes', 'employees', 'locations'));
+        return view('leave.create', compact('page', 'description', 'leaveTypes', 'employees', 'colleagues', 'locations'));
     }
 
     public function leaveApplication(Request $request, string $business_slug, string $reference_number)
@@ -430,7 +474,16 @@ class DashboardController extends Controller
     {
         $page        = 'Leave Applications';
         $description = '';
-        return view('leave.index', compact('page', 'description'));
+
+        $business = Business::findBySlug(session('active_business_slug'));
+
+        $departments = Department::where('business_id', $business->id)->orderBy('name')->get(['id', 'name']);
+        $locations = Location::where('business_id', $business->id)->orderBy('name')->get(['id', 'name', 'country']);
+        $leaveTypes = LeaveType::where('business_id', $business->id)->orderBy('name')->get(['id', 'name']);
+        $leavePeriods = $business->leavePeriods()->orderByDesc('start_date')->get(['id', 'name']);
+        $jobCategories = JobCategory::where('business_id', $business->id)->orderBy('name')->get(['id', 'name']);
+
+        return view('leave.index', compact('page', 'description', 'departments', 'locations', 'leaveTypes', 'leavePeriods', 'jobCategories'));
     }
 
 
@@ -447,7 +500,11 @@ class DashboardController extends Controller
     {
         $page = 'Leave Periods';
         $description = '';
-        return view('leave.periods', compact('page', 'description'));
+        $business = Business::findBySlug(session('active_business_slug'));
+        $leavePeriods = $business
+            ? $business->leavePeriods()->orderByDesc('is_active')->orderByDesc('start_date')->get(['id', 'name', 'slug', 'is_active'])
+            : collect();
+        return view('leave.periods', compact('page', 'description', 'leavePeriods'));
     }
 
     public function leaveEntitlements(Request $request)
@@ -456,9 +513,19 @@ class DashboardController extends Controller
     $description = '';
     $currentBusiness = $request->route('business');
     $business = Business::findBySlug(session('active_business_slug'));
-    $leave_periods = $business->leavePeriods;
-    $initialLeavePeriodSlug = $leave_periods->first()->slug ?? null; // Default to first period
-    return view('leave.entitlements', compact('page', 'description', 'leave_periods', 'initialLeavePeriodSlug'));
+    // Active period first (then most recent) so both the default tab and
+    // the export modal's default selection land on the CURRENT period,
+    // not whichever one happens to have the lowest id.
+    $leave_periods = $business->leavePeriods()
+        ->orderByDesc('is_active')
+        ->orderByDesc('start_date')
+        ->get();
+    $initialLeavePeriodSlug = $leave_periods->first()->slug ?? null;
+    $departments = Department::where('business_id', $business->id)->orderBy('name')->get(['id', 'name']);
+    $leaveTypes = LeaveType::where('business_id', $business->id)->orderBy('name')->get(['id', 'name']);
+    $jobCategories = JobCategory::where('business_id', $business->id)->orderBy('name')->get(['id', 'name']);
+    $employees = Employee::where('business_id', $business->id)->with('user')->get(['id', 'user_id', 'department_id']);
+    return view('leave.entitlements', compact('page', 'description', 'leave_periods', 'initialLeavePeriodSlug', 'departments', 'leaveTypes', 'jobCategories', 'employees'));
     }
 
 
@@ -470,7 +537,10 @@ class DashboardController extends Controller
     $description = '';
     $employees = $business->employees()->with('leaveEntitlements')->get();
     $leaveTypes = $business->leaveTypes;
-    $leavePeriods = $business->leavePeriods;
+    $leavePeriods = $business->leavePeriods()
+        ->orderByDesc('is_active')
+        ->orderByDesc('start_date')
+        ->get();
     $departments = $business->departments;
     $jobCategories = $business->job_categories;
     $locations = $business->locations;
@@ -480,7 +550,8 @@ class DashboardController extends Controller
     public function holidays(Business $business)
     {
         $page = 'Holidays';
-        return view('attendances.holidays_index', compact('page', 'business'));
+        $locations = Location::where('business_id', $business->id)->orderBy('name')->get(['id', 'name', 'country']);
+        return view('attendances.holidays_index', compact('page', 'business', 'locations'));
     }
 
 
@@ -509,7 +580,35 @@ class DashboardController extends Controller
     {
         $page = 'Leave Settings';
         $description = '';
-        return view('leave.settings', compact('page', 'description'));
+        $business = Business::findBySlug(session('active_business_slug'));
+        $leaveTypes = LeaveType::where('business_id', $business->id)->orderBy('name')->get();
+        return view('leave.settings', compact('page', 'description', 'business', 'leaveTypes'));
+    }
+
+    /**
+     * The business-wide weekly rest days (e.g. Saturday/Sunday) - shown on
+     * the leave calendar and excluded from every leave-day calculation.
+     */
+    public function updateLeaveSettings(Request $request)
+    {
+        $business = Business::findBySlug(session('active_business_slug'));
+        if (!$business) {
+            return RequestResponse::badRequest('Active business not found in session.');
+        }
+
+        $validated = $request->validate([
+            'non_working_days' => 'nullable|array',
+            'non_working_days.*' => 'integer|min:0|max:6',
+            'leave_planner_capacity_warning_percent' => 'nullable|integer|min:1|max:100',
+        ]);
+
+        $business->update([
+            'non_working_days' => array_values($validated['non_working_days'] ?? []),
+            'leave_planner_capacity_warning_percent' => $validated['leave_planner_capacity_warning_percent']
+                ?? $business->leave_planner_capacity_warning_percent,
+        ]);
+
+        return RequestResponse::ok('Leave settings updated successfully.', $business->fresh());
     }
 
     public function applicants(Request $request)
@@ -624,7 +723,10 @@ class DashboardController extends Controller
     {
         $page = 'Manage Attendances';
         $description = '';
-        return view('attendances.index', compact('page', 'description'));
+        $business = Business::findBySlug(session('active_business_slug'));
+        $departments = $business ? Department::where('business_id', $business->id)->orderBy('name')->get(['id', 'name']) : collect();
+        $jobCategories = $business ? JobCategory::where('business_id', $business->id)->orderBy('name')->get(['id', 'name']) : collect();
+        return view('attendances.index', compact('page', 'description', 'departments', 'jobCategories'));
     }
 
     public function monthlyAttendances(Request $request)
@@ -675,29 +777,29 @@ class DashboardController extends Controller
         return view('kpis.create', compact('page', 'description'));
     }
 
-    public function roster(Request $request)
-    {
-        $page = 'Roster';
-        $description = 'Manage your staff rota and attendance schedule.';
+public function roster(Request $request)
+{
+    $page = 'Roster';
+    $description = 'Manage your staff rota and attendance schedule.';
 
-        $employees = Employee::with('user')->get(); // Load related user name for each employee
-        $departments = Department::all();
-        $jobCategories = JobCategory::all(); 
-        $locations = Location::all(); 
-        $shifts = Shift::all(); 
-        $leaveTypes = LeaveType::all();
+    $employees = Employee::with('user')->get(); // Load related user name for each employee
+    $departments = Department::all();
+    $jobCategories = JobCategory::all(); // ✅ Include this
+    $locations = Location::all(); // ✅ Include this
+    $shifts = Shift::all(); // ✅ Include this
+    $leaveTypes = LeaveType::all(); // ✅ Include this
 
-        return view('roster.index', compact(
-            'page',
-            'description',
-            'employees',
-            'departments',
-            'jobCategories',
-            'locations',
-            'shifts',
-            'leaveTypes'
-        ));
-    }
+    return view('roster.index', compact(
+        'page',
+        'description',
+        'employees',
+        'departments',
+        'jobCategories',
+        'locations',
+        'shifts',
+        'leaveTypes'
+    ));
+}
 
 
     public function contracts()

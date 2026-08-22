@@ -16,6 +16,7 @@
                 <div class="row g-3">
                     <div class="col-6"><strong>Entitled Days:</strong> {{ number_format((float)$entitlement->entitled_days,2) }}</div>
                     <div class="col-6"><strong>Accrued Days:</strong> {{ number_format((float)$entitlement->accrued_days,2) }}</div>
+                    <div class="col-6"><strong>Carried Over Days:</strong> {{ number_format((float)$entitlement->carryover_days,2) }}</div>
                     <div class="col-6"><strong>Total Days:</strong> {{ number_format((float)$entitlement->total_days,2) }}</div>
                     <div class="col-6"><strong>Days Taken:</strong> {{ number_format((float)$entitlement->days_taken,2) }}</div>
                     <div class="col-6"><strong>Days Remaining:</strong> {{ number_format((float)$entitlement->days_remaining,2) }}</div>

@@ -373,8 +373,38 @@ window.resetWorkScheduleFilters = function () {
     window.getWorkSchedules();
 };
 
+window.loadScheduleTimelineFromFilteredEmployee = function () {
+    const emp = document.getElementById("filterEmployee");
+    if (!emp) {
+        Swal.fire("Error!", "Employee filter dropdown not found.", "error");
+        return;
+    }
+    const employeeId = emp.value;
+    if (!employeeId) {
+        Swal.fire("Error!", "Please select an employee from the filter to view timeline.", "warning");
+        return;
+    }
+    loadScheduleTimeline(employeeId);
+};
+
 document.addEventListener("change", function (e) {
-    if (e.target && (e.target.id === "filterEmployee" || e.target.id === "filterShift")) {
+    if (!e.target) return;
+
+    if (e.target.id === "filterEmployee") {
+        const employeeId = (e.target.value || "").trim();
+
+        window.getWorkSchedules();
+
+        // only call when a real employee is selected
+        if (employeeId && employeeId !== "all") {
+            loadScheduleTimeline(employeeId);
+        } else {
+            const c = document.getElementById("scheduleTimelineContainer");
+            if (c) c.innerHTML = `<div class="alert alert-info">Select an employee to view timeline.</div>`;
+        }
+    }
+
+    if (e.target.id === "filterShift") {
         window.getWorkSchedules();
     }
 });
@@ -485,6 +515,18 @@ window.updatePickerLabel = function (id, fallback = "Selected") {
     else label.textContent = `${checked.length} selected`;
 };
 
+window.loadScheduleTimeline = async function (employee_id) {
+    if (!employee_id) {
+        throw new Error("Employee id missing when loading timeline.");
+    }
+
+    const slug = window.businessSlug;
+    const url  = `/business/${slug}/work-schedules/timeline`;
+
+    const res = await requestClient.post(url, { employee_id });
+    document.getElementById("scheduleTimelineContainer").innerHTML = res.data;
+};
+
 function escapeHtml(str) {
     return String(str ?? "")
       .replaceAll("&","&amp;")
@@ -494,4 +536,3 @@ function escapeHtml(str) {
       .replaceAll("'","&#039;");
 }
 
-console.log(" work-schedule.js loaded");

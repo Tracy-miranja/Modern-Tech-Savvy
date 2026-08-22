@@ -27,7 +27,7 @@
                     </td>
                     <td>{{ $overtime->employee->user->name ?? 'N/A' }}</td>
                     <td>{{ $overtime->date->format('jS M Y') }}</td>
-                    <td>{{ number_format($overtime->overtime_hours, 2) }}</td>
+                    <td>{{ \App\Support\TimeFmt::hoursToHm($overtime->overtime_hours) }}</td>
                     <td>
                         @if($overtime->overtime_type === 'regular')
                             <span class="badge bg-primary">Regular OT</span>

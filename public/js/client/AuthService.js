@@ -71,21 +71,21 @@ class AuthService {
         }
     }
 
-    async bsImpersonate(data) {
-        try {
-            const response = await this.requestClient.post('/client-businesses/access', data);
-            await Swal.fire({
-                icon: 'success',
-                title: 'Logged In',
-                text: response.message,
-                confirmButtonText: 'OK'
-            });
-            this.handleRedirect(response.data.redirect_url);
-        } catch (error) {
-            console.log(error);
-            throw error;
-        }
-    }
+    // async bsImpersonate(data) {
+    //     try {
+    //         const response = await this.requestClient.post('/client-businesses/access', data);
+    //         await Swal.fire({
+    //             icon: 'success',
+    //             title: 'Logged In',
+    //             text: response.message,
+    //             confirmButtonText: 'OK'
+    //         });
+    //         this.handleRedirect(response.data.redirect_url);
+    //     } catch (error) {
+    //         console.log(error);
+    //         throw error;
+    //     }
+    // }
 
     handleRedirect(route) {
         if (route) {

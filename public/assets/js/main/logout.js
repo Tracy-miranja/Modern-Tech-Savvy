@@ -13,14 +13,14 @@ window.logout = async function (btn) {
     }
 };
 
-window.bsImpersonate = async function (btn) {
-    btn = $(btn);
-    btn_loader(btn, true);
-    const business_slug = btn.data("business");
-    const data = { business_slug: business_slug };
-    try {
-        await authService.bsImpersonate(data);
-    } finally {
-        btn_loader(btn, false);
-    }
-};
+// window.bsImpersonate = async function (btn) {
+//     btn = $(btn);
+//     btn_loader(btn, true);
+//     const business_slug = btn.data("business");
+//     const data = { business_slug: business_slug };
+//     try {
+//         await authService.bsImpersonate(data);
+//     } finally {
+//         btn_loader(btn, false);
+//     }
+// };

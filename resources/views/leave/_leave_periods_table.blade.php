@@ -14,6 +14,7 @@
                         <th>Restrict <br> Applications <br> Within Dates</th>
                         <th>Can Accrue</th>
                         <th>Status</th>
+                        <th>Lock</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -52,14 +53,26 @@
                                 @endif
                             </td>
                             <td>
+                                @if ($leavePeriod->isClosed())
+                                    <span class="badge bg-dark"><i class="bi bi-lock-fill"></i> Closed</span>
+                                @else
+                                    <span class="badge bg-success"><i class="bi bi-unlock-fill"></i> Open</span>
+                                @endif
+                            </td>
+                            <td>
                                 <div class="btn-group" role="group">
-                                    <button class="btn btn-info btn-sm" onclick="viewLeavePeriods(this)" data-id="{{ $leavePeriod->id }}">
+                                    <button class="btn btn-info" onclick="viewLeavePeriod(this)" data-id="{{ $leavePeriod->id }}">
                                         <i class="fas fa-eye"></i>
                                     </button>
-                                    <button class="btn btn-warning btn-sm" onclick="editLeavePeriods(this)" data-id="{{ $leavePeriod->id }}">
+                                    <button class="btn btn-warning" onclick="editLeavePeriod(this)" data-slug="{{ $leavePeriod->slug }}">
                                         <i class="fas fa-edit"></i>
                                     </button>
-                                    <button class="btn btn-danger btn-sm" onclick="deleteLeavePeriods(this)" data-leave-period-slug="{{ $leavePeriod->slug }}">
+                                    @if (!$leavePeriod->isClosed())
+                                        <button class="btn btn-outline-dark" onclick="closeLeavePeriod(this)" data-slug="{{ $leavePeriod->slug }}" title="Close this period - blocks new leave requests and computes carryover into the next period">
+                                            <i class="bi bi-lock"></i>
+                                        </button>
+                                    @endif
+                                    <button class="btn btn-danger" onclick="deleteLeavePeriod(this)" data-slug="{{ $leavePeriod->slug }}">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                 </div>

@@ -22,7 +22,7 @@ class SystemAlertNotification extends Notification implements ShouldQueue
 
     public function via($notifiable)
     {
-        return ['database', 'email'];
+        return ['database', 'mail'];
     }
 
     public function toDatabase($notifiable)

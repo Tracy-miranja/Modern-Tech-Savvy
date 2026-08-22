@@ -41,8 +41,8 @@
                                         <a href="{{ $campaign->target_url }}" target="_blank"
                                             class="text-primary">{{ $campaign->target_url }}</a>
                                     </p>
-                                    <p class="mb-2"><strong>Start Date:</strong> {{ $campaign->start_date }}</p>
-                                    <p class="mb-2"><strong>End Date:</strong> {{ $campaign->end_date ?? 'N/A' }}</p>
+                                    <p class="mb-2"><strong>Start Date:</strong> {{ optional($campaign->start_date)->format('d M Y') ?? 'N/A' }}</p>
+                                    <p class="mb-2"><strong>End Date:</strong> {{ optional($campaign->end_date)->format('d M Y') ?? 'N/A' }}</p>
                                     <p class="mb-2"><strong>Status:</strong>
                                         <span
                                             class="badge rounded-pill {{ $campaign->status === 'active' ? 'bg-success' : ($campaign->status === 'inactive' ? 'bg-secondary' : 'bg-warning text-dark') }}">

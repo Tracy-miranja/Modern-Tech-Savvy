@@ -46,11 +46,12 @@
         </div>
         <div class="col-12">
             <label for="is_active" class="form-label fw-medium text-dark">Active</label>
-            <div class="form-check">
-                <input type="checkbox" name="is_active" id="is_active" class="form-check-input" value="1"
-                    {{ isset($employeeRelief) && $employeeRelief->is_active ? 'checked' : '' }}>
-                <label for="is_active" class="form-check-label">Is Active</label>
-            </div>
+           <div class="form-check">
+    <input type="hidden" name="is_active" value="0">
+    <input type="checkbox" name="is_active" id="is_active" class="form-check-input" value="1"
+        {{ isset($employeeRelief) && $employeeRelief->is_active ? 'checked' : '' }}>
+    <label for="is_active" class="form-check-label">Is Active</label>
+</div>
         </div>
         <div class="col-12">
             <label for="start_date" class="form-label fw-medium text-dark">Start Date (Optional)</label>

@@ -20,7 +20,7 @@
                     <li><strong>Issued By:</strong> {{ optional($contractAction->issuedBy)->name ?? 'N/A' }}</li>
                 </ul>
             </div>
-            @if($contractAction->action_type === 'termination')
+            @if(in_array($contractAction->action_type, ['termination', 'suspension']))
             <div class="card-footer bg-transparent border-top-0 pt-0">
                 <div class="d-flex justify-content-end gap-2">
                     <button class="btn btn-sm btn-outline-warning" data-contract-action="{{ $contractAction->id }}"

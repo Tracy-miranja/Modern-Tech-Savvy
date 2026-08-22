@@ -59,6 +59,17 @@ class LeaveService {
         }
     }
 
+    async cancel(data) {
+        try {
+            const response = await this.requestClient.post('/leave/cancel', data);
+            toastr.success(response.message, "Success");
+        } catch (error) {
+            console.error('Cancel error:', error);
+            this.handleError(error, 'Failed to cancel leave request');
+            throw error;
+        }
+    }
+
     async delete(data) {
         try {
             const response = await this.requestClient.post('/leave/delete', data);

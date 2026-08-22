@@ -85,6 +85,28 @@
         <textarea class="form-control" id="reason" name="reason" rows="4" placeholder="Provide a brief reason..."></textarea>
     </div>
 
+    <div class="mb-3">
+        <label for="reliever_employee_id" class="form-label">Reliever (optional)</label>
+        <select class="form-select" id="reliever_employee_id" name="reliever_employee_id">
+            <option value="">— None —</option>
+            @foreach (($colleagues ?? $employees ?? collect()) as $colleague)
+                <option value="{{ $colleague->id }}">{{ $colleague->user->name ?? 'N/A' }}</option>
+            @endforeach
+        </select>
+        <small class="text-muted d-block mt-1">
+            They'll be notified by email and on their portal, and can accept or decline.
+        </small>
+    </div>
+
+    <div class="mb-3">
+        <label for="handover_notes" class="form-label">Handover Notes (optional)</label>
+        <textarea class="form-control" id="handover_notes" name="handover_notes" rows="3"
+            placeholder="What were you working on? Anything your manager or reliever should know..."></textarea>
+        <label for="handover_attachment" class="form-label mt-2">Handover Attachment (optional)</label>
+        <input type="file" class="form-control" id="handover_attachment" name="handover_attachment" accept=".pdf,.jpg,.png,.doc,.docx">
+        <small class="text-muted d-block mt-1">A document to go with your handover notes - a status report, ongoing task list, etc.</small>
+    </div>
+
     <div class="text-center">
         <button type="button" onclick="saveLeave(this)" class="btn btn-primary w-100">
             <i class="bi bi-check-circle"></i> Submit Leave Request

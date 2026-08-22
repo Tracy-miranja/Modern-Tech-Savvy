@@ -12,7 +12,7 @@ use App\Services\LeavePolicyService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
-use Symfony\Component\Console\Output\OutputInterface; // <-- add this
+use Symfony\Component\Console\Output\OutputInterface; 
 
 class SyncLeavePolicies extends Command
 {
@@ -110,7 +110,7 @@ class SyncLeavePolicies extends Command
                 ->when(Schema::hasColumn('employees', 'is_active'), fn ($q) => $q->where('is_active', 1))
                 ->when(Schema::hasColumn('employees', 'status'), fn ($q) => $q->where('status', 'active'))
                 ->when(Schema::hasColumn('employees', 'deleted_at'), fn ($q) => $q->whereNull('deleted_at'))
-                ->with(['department', 'jobCategory', 'user', 'employmentDetail'])
+                ->with(['department', 'jobCategory', 'user', 'employmentDetails'])
                 ->get();
 
             $this->info("  Found {$leaveTypes->count()} leave types and {$employees->count()} employees");
@@ -289,7 +289,7 @@ class SyncLeavePolicies extends Command
         // Minimum service check
         if ($policy->minimum_service_days_required > 0) {
             $employmentDate = $employee->employment_date
-                ?? optional($employee->employmentDetail)->employment_date
+                ?? optional($employee->employmentDetails)->employment_date
                 ?? null;
 
             if (!$employmentDate) {

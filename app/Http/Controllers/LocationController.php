@@ -33,6 +33,7 @@ class LocationController extends Controller
             'tax_pin_no' => 'nullable|string',
             'business_license_no' => 'nullable|string',
             'address' => 'required|string',
+            'country' => 'nullable|string|max:255',
         ]);
 
         return $this->handleTransaction(function () use ($request, $validatedData) {
@@ -45,6 +46,7 @@ class LocationController extends Controller
                 'tax_pin_no' => $validatedData['tax_pin_no'] ?? null,
                 'business_license_no' => $validatedData['business_license_no'] ?? null,
                 'physical_address' => $validatedData['address'] ?? null,
+                'country' => $validatedData['country'] ?? null,
             ]);
 
             $location->setStatus(Status::ACTIVE);
@@ -75,6 +77,7 @@ class LocationController extends Controller
             'tax_pin_no' => 'nullable|string',
             'business_license_no' => 'nullable|string',
             'address' => 'required|string',
+            'country' => 'nullable|string|max:255',
         ]);
 
         return $this->handleTransaction(function () use ($validatedData) {
@@ -87,6 +90,7 @@ class LocationController extends Controller
                 'tax_pin_no' => $validatedData['tax_pin_no'] ?? null,
                 'business_license_no' => $validatedData['business_license_no'] ?? null,
                 'physical_address' => $validatedData['address'] ?? null,
+                'country' => $validatedData['country'] ?? null,
             ]);
 
             $location->setStatus(Status::ACTIVE);

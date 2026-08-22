@@ -3,7 +3,7 @@
 
 Hello {{ $leave->employee->name }},
 
-Your leave request from **{{ $leave->start_date }}** to **{{ $leave->end_date }}**
+Your leave request from **{{ optional($leave->start_date)->format('d M Y') }}** to **{{ optional($leave->end_date)->format('d M Y') }}**
 has been **{{ strtoupper($leave->status) }}**.
 
 <x-mail::panel>

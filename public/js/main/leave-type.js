@@ -6,6 +6,132 @@ import LeaveTypeService from "/js/client/LeaveTypeService.js";
 const requestClient = new RequestClient();
 const leaveTypeService = new LeaveTypeService(requestClient);
 
+const APPROVAL_TYPE_LABELS = {
+    organogram: "Employee's Manager",
+    hr: 'HR',
+    department_head: 'Department Head',
+};
+
+function approvalTypeOptions(selected) {
+    return Object.entries(APPROVAL_TYPE_LABELS)
+        .map(([value, label]) => `<option value="${value}" ${value === selected ? 'selected' : ''}>${label}</option>`)
+        .join('');
+}
+
+function renderApprovalChainRows(container, levels, existingChain) {
+    if (!container) return;
+    const rows = [];
+    for (let i = 0; i < levels; i++) {
+        const selected = existingChain[i] || 'organogram';
+        rows.push(`
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-muted small" style="min-width:52px;">Level ${i + 1}</span>
+                <select name="approval_chain[]" class="form-select form-select-sm" style="width:180px;">
+                    ${approvalTypeOptions(selected)}
+                </select>
+            </div>
+        `);
+    }
+    container.innerHTML = rows.join('');
+}
+
+// Wires the "Approval Levels" number/select input to a live-rendered set of
+// "who approves this level" dropdowns underneath it. `root` MUST be the
+// actual container element the form was injected into (not looked up by
+// id) - the create form and an AJAX-injected edit form can legitimately
+// share element ids (e.g. both id="leaveTypeForm") when the edit modal is
+// open alongside the create form, so id-based global lookups are unsafe
+// here. The existing chain (for edit) is read from the rows container's
+// own data-approval-chain attribute, set server-side.
+window.initApprovalChainUI = function (root) {
+    root = root || document;
+    const levelsInput = root.querySelector('#approval_levels');
+    const rowsContainer = root.querySelector('#approval_chain_rows');
+    if (!levelsInput || !rowsContainer) return;
+
+    let existingChain = [];
+    try {
+        existingChain = JSON.parse(rowsContainer.dataset.approvalChain || '[]');
+    } catch (e) {
+        existingChain = [];
+    }
+
+    renderApprovalChainRows(rowsContainer, parseInt(levelsInput.value, 10) || 0, existingChain);
+    levelsInput.addEventListener('change', function () {
+        renderApprovalChainRows(rowsContainer, parseInt(this.value, 10) || 0, []);
+    });
+};
+
+document.addEventListener('DOMContentLoaded', function () {
+    window.initApprovalChainUI(document);
+});
+
+// Wires the "Name" select (standard leave type list + "Other (specify)...")
+// to the companion free-text input: exactly one of the two ever carries
+// name="name" at a time, so FormData(form) always picks up a single plain
+// string regardless of which path was used. `root` must be the actual
+// injected container, same reasoning as initApprovalChainUI above (the
+// create form and an AJAX-injected edit form can share ids).
+window.initLeaveTypeNameUI = function (root) {
+    root = root || document;
+    const select = root.querySelector('#name_select');
+    const custom = root.querySelector('#name_custom');
+    if (!select || !custom) return;
+
+    function sync() {
+        if (select.value === '__other__') {
+            select.removeAttribute('name');
+            custom.setAttribute('name', 'name');
+            custom.classList.remove('d-none');
+            custom.required = true;
+        } else {
+            select.setAttribute('name', 'name');
+            custom.removeAttribute('name');
+            custom.classList.add('d-none');
+            custom.required = false;
+        }
+    }
+
+    select.addEventListener('change', sync);
+    sync();
+};
+
+document.addEventListener('DOMContentLoaded', function () {
+    window.initLeaveTypeNameUI(document);
+});
+
+// Wires the "Carryover type" select to the "Carryover value" input: hides/
+// disables the value entirely for 'full' (the whole unused balance carries
+// over, no number needed), and swaps the input-group suffix between
+// "days" and "%" for 'fixed'/'percent' so the field's meaning is obvious
+// without needing separate help text. `root` follows the same
+// actual-injected-container reasoning as the other init*UI helpers above.
+window.initCarryoverTypeUI = function (root) {
+    root = root || document;
+    const typeSelect = root.querySelector('#carryover_type');
+    const valueInput = root.querySelector('#carryover_value');
+    const suffix = root.querySelector('#carryover_value_suffix');
+    if (!typeSelect || !valueInput) return;
+
+    function sync() {
+        const type = typeSelect.value;
+        if (type === 'full') {
+            valueInput.value = '';
+            valueInput.disabled = true;
+        } else {
+            valueInput.disabled = false;
+        }
+        if (suffix) suffix.textContent = type === 'percent' ? '%' : 'days';
+    }
+
+    typeSelect.addEventListener('change', sync);
+    sync();
+};
+
+document.addEventListener('DOMContentLoaded', function () {
+    window.initCarryoverTypeUI(document);
+});
+
 // Helper: ensure a modal exists to show the form if the inline container isn't present
 function ensureEditModal() {
   let $modal = $('#leaveTypeEditModal');
@@ -122,10 +248,16 @@ window.editLeaveType = async function (btn) {
       $container.html(form);
       // Scroll into view (nice UX)
       window.scrollTo({ top: $container.offset().top - 80, behavior: 'smooth' });
+      window.initApprovalChainUI($container[0]);
+      window.initLeaveTypeNameUI($container[0]);
+      window.initCarryoverTypeUI($container[0]);
     } else {
       const $modal = ensureEditModal();
       $('#leaveTypeEditModalBody').html(form);
       $modal.modal('show');
+      window.initApprovalChainUI(document.getElementById('leaveTypeEditModalBody'));
+      window.initLeaveTypeNameUI(document.getElementById('leaveTypeEditModalBody'));
+      window.initCarryoverTypeUI(document.getElementById('leaveTypeEditModalBody'));
     }
   } catch (err) {
     console.error(err);
@@ -177,4 +309,3 @@ window.deleteLeaveType = async function (btn) {
     }
   });
 };
-

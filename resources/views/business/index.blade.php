@@ -14,6 +14,29 @@
 
     <input type="hidden" id="active_business_slug" value="{{ session('active_business_slug') }}">
 
+    <div class="row g-20 mb-2" id="settingUpGuideRow" style="display:none;">
+        <div class="col-12">
+            <div class="card__wrapper border" id="settingUpGuideCard">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <h6 class="mb-1"><i class="bi bi-rocket-takeoff me-1"></i> Getting Started</h6>
+                        <small class="text-muted" id="settingUpGuideProgressLabel"></small>
+                    </div>
+                    <button type="button" class="btn-close" id="dismissSetupGuideBtn" title="Hide this checklist" aria-label="Hide"></button>
+                </div>
+                <div class="progress mb-3" style="height:6px;">
+                    <div class="progress-bar bg-success" id="settingUpGuideProgressBar" style="width:0%"></div>
+                </div>
+                <div id="settingUpGuideSteps" class="row g-2"></div>
+            </div>
+        </div>
+    </div>
+    <div class="mb-2" id="reopenSetupGuideRow" style="display:none;">
+        <button type="button" class="btn btn-link btn-sm p-0" id="reopenSetupGuideBtn">
+            <i class="bi bi-rocket-takeoff me-1"></i> Show setup guide
+        </button>
+    </div>
+
     <div class="row g-20">
 
         {{-- ------------------------------------------------ --}}
@@ -279,6 +302,80 @@
                 logActivities();
                 loadTrends(new Date().getFullYear());
             });
+        </script>
+
+        <script>
+        (function () {
+            const csrf = document.querySelector('meta[name="csrf-token"]').content;
+            const businessSlug = @json($business->slug);
+            const fetchUrl = @json(route('business.setup-progress.fetch', ['business' => $business->slug]));
+            const dismissUrl = @json(route('business.setup-progress.dismiss', ['business' => $business->slug]));
+            const reopenUrl = @json(route('business.setup-progress.reopen', ['business' => $business->slug]));
+
+            async function loadSetupGuide() {
+                try {
+                    const resp = await fetch(fetchUrl, { headers: { 'Accept': 'application/json' } });
+                    if (!resp.ok) return;
+                    const payload = await resp.json();
+                    const { dismissed, steps } = payload.data;
+
+                    const allDone = steps.every(s => s.done);
+
+                    if (dismissed || allDone) {
+                        document.getElementById('settingUpGuideRow').style.display = 'none';
+                        document.getElementById('reopenSetupGuideRow').style.display = dismissed && !allDone ? 'block' : 'none';
+                        return;
+                    }
+
+                    document.getElementById('reopenSetupGuideRow').style.display = 'none';
+                    document.getElementById('settingUpGuideRow').style.display = '';
+
+                    const doneCount = steps.filter(s => s.done).length;
+                    document.getElementById('settingUpGuideProgressLabel').textContent =
+                        `${doneCount} of ${steps.length} steps done`;
+                    document.getElementById('settingUpGuideProgressBar').style.width =
+                        `${Math.round((doneCount / steps.length) * 100)}%`;
+
+                    document.getElementById('settingUpGuideSteps').innerHTML = steps.map(step => `
+                        <div class="col-md-6 col-lg-4">
+                            <div class="d-flex align-items-start gap-2 p-2 border rounded ${step.done ? 'bg-light' : ''}">
+                                <i class="bi ${step.done ? 'bi-check-circle-fill text-success' : 'bi-circle text-muted'} mt-1"></i>
+                                <div class="flex-grow-1">
+                                    <div class="fw-semibold small">${step.label}</div>
+                                    <div class="text-muted" style="font-size:0.78rem;">${step.description}</div>
+                                    ${step.done ? '' : `<a href="${step.route}" class="btn btn-sm btn-outline-primary mt-1">Go</a>`}
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                } catch (e) {
+                    console.error('Could not load setup guide:', e);
+                }
+            }
+
+            document.getElementById('dismissSetupGuideBtn').addEventListener('click', async function () {
+                document.getElementById('settingUpGuideRow').style.display = 'none';
+                document.getElementById('reopenSetupGuideRow').style.display = 'block';
+                try {
+                    await fetch(dismissUrl, {
+                        method: 'POST',
+                        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
+                    });
+                } catch (e) { console.error(e); }
+            });
+
+            document.getElementById('reopenSetupGuideBtn').addEventListener('click', async function () {
+                try {
+                    await fetch(reopenUrl, {
+                        method: 'POST',
+                        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
+                    });
+                } catch (e) { console.error(e); }
+                loadSetupGuide();
+            });
+
+            loadSetupGuide();
+        })();
         </script>
     @endpush
 

@@ -110,7 +110,6 @@
             padding: 4px 3px;
             border: 1px solid #ddd;
             vertical-align: middle;
-            /* Allow wrapping so numbers are never clipped */
             white-space: normal;
             word-break: break-word;
             overflow: visible;
@@ -119,7 +118,6 @@
         .data-row.even td { background: #FFFFFF; }
         .data-row td.num {
             text-align: right;
-            /* Keep numbers on one line but never clip them */
             white-space: nowrap;
             overflow: visible;
         }
@@ -134,7 +132,6 @@
             padding: 5px 3px;
             border: 1px solid #888;
             text-align: right;
-            /* Never clip totals — let them wrap if needed */
             white-space: normal;
             word-break: break-word;
             overflow: visible;
@@ -144,9 +141,7 @@
         /* NET PAY standout */
         .netpay-cell { font-weight: bold; font-size: 8.5px; }
 
-        /* ── Column widths optimised for A3 landscape (~404mm usable) ── */
-        /* A3 landscape = 420mm total; minus 16mm margins = 404mm usable         */
-        /* Approx column count with 6 allowances + 3 deductions = ~28 columns    */
+        /* ── Column widths ── */
         .w-num    { width: 1.5%; }
         .w-name   { width: 8.0%; }
         .w-code   { width: 4.0%; }
@@ -178,7 +173,8 @@
 </div>
 
 @php
-    $statutory = ['SHIF', 'NSSF', 'Housing Levy', 'Taxable Income', 'PAYE'];
+    // Statutory columns — personal relief and insurance relief now included here
+    $statutory = ['SHIF', 'NSSF', 'Housing Levy', 'Taxable Income', 'PAYE', 'Personal Relief', 'Ins. Relief'];
 
     $totals = [];
 
@@ -255,22 +251,33 @@
     };
 
     $fmt = fn($v) => $v == 0 ? '-' : number_format((float)$v, 2);
+
+    // Statutory column count = 5 original + 2 reliefs = 7
+    $statutoryCount = 7;
 @endphp
 
 <table>
     <thead>
     <tr class="group-row">
         <th colspan="5" class="group-employee">EMPLOYEE INFO</th>
+
         @if(count($allowanceSlugs))
         <th colspan="{{ count($allowanceSlugs) }}" class="group-allowance">ALLOWANCES</th>
         @endif
+
         <th colspan="1" class="group-overtime">OVERTIME</th>
         <th colspan="1" class="group-gross">GROSS PAY</th>
-        <th colspan="{{ count($statutory) }}" class="group-statutory">STATUTORY DEDUCTIONS</th>
+
+        {{-- Statutory now includes personal relief + insurance relief (+2) --}}
+        <th colspan="{{ $statutoryCount }}" class="group-statutory">STATUTORY DEDUCTIONS</th>
+
         @if(count($deductionSlugs))
         <th colspan="{{ count($deductionSlugs) }}" class="group-custom">CUSTOM DEDUCTIONS</th>
         @endif
-        <th colspan="5" class="group-other">OTHER DEDUCTIONS &amp; RELIEFS</th>
+
+        {{-- Other deductions: now only 3 (absenteeism, loan, advance) --}}
+        <th colspan="3" class="group-other">OTHER DEDUCTIONS</th>
+
         <th colspan="1" class="group-netpay">NET PAY</th>
         <th colspan="5" class="group-attend">ATTENDANCE &amp; BANK</th>
     </tr>
@@ -289,19 +296,25 @@
         <th class="w-ot   ch-overtime">Overtime ({{ $currency }})</th>
         <th class="w-gross ch-gross">Gross Pay ({{ $currency }})</th>
 
-        @foreach($statutory as $s)
-        <th class="w-stat ch-statutory">{{ $s }} ({{ $currency }})</th>
-        @endforeach
+        {{-- Original 5 statutory columns --}}
+        <th class="w-stat ch-statutory">SHIF ({{ $currency }})</th>
+        <th class="w-stat ch-statutory">NSSF ({{ $currency }})</th>
+        <th class="w-stat ch-statutory">Housing Levy ({{ $currency }})</th>
+        <th class="w-stat ch-statutory">Taxable Income ({{ $currency }})</th>
+         <th class="w-stat ch-statutory">Personal Relief ({{ $currency }})</th>
+        <th class="w-stat ch-statutory">Ins. Relief ({{ $currency }})</th>
+        <th class="w-stat ch-statutory">PAYE ({{ $currency }})</th>
+        {{-- Personal relief and insurance relief now under statutory --}}
+
 
         @foreach($deductionSlugs as $slug => $name)
         <th class="w-ded ch-custom">{{ $name }} ({{ $currency }})</th>
         @endforeach
 
+        {{-- Other deductions: absenteeism, loan, advance only --}}
         <th class="w-other ch-other">Absenteeism ({{ $currency }})</th>
         <th class="w-other ch-other">Loan Repay ({{ $currency }})</th>
         <th class="w-other ch-other">Adv. Recovery ({{ $currency }})</th>
-        <th class="w-other ch-other">Personal Relief ({{ $currency }})</th>
-        <th class="w-other ch-other">Ins. Relief ({{ $currency }})</th>
 
         <th class="w-net  ch-netpay">NET PAY ({{ $currency }})</th>
 
@@ -327,21 +340,21 @@
             ?? $ep->employee?->employmentDetails?->basic_salary
             ?? $ep->employee?->employmentDetails?->salary ?? 0);
 
-        $grossPay       = $val($ep, 'gross_pay');
-        $shif           = $val($ep, 'shif');
-        $nssf           = $val($ep, 'nssf');
-        $housingLevy    = $val($ep, 'housing_levy');
-        $helb           = $val($ep, 'helb');
-        $paye           = $val($ep, 'paye');
-        $loanRepayment  = $val($ep, 'loan_repayment');
-        $advanceRecovery= $val($ep, 'advance_recovery');
-        $taxableIncome  = $val($ep, 'taxable_income');
-        $personalRelief = $val($ep, 'personal_relief') ?: $reliefs['personal'];
-        $insRelief      = $val($ep, 'insurance_relief') ?: $reliefs['insurance'];
-        $netPay         = $val($ep, 'net_pay');
-        $daysPresent    = (int)($ep->attendance_present ?? 0);
-        $daysAbsent     = (int)($ep->attendance_absent  ?? 0);
-        $daysInMonth    = (int)($ep->days_in_month      ?? 0);
+        $grossPay        = $val($ep, 'gross_pay');
+        $shif            = $val($ep, 'shif');
+        $nssf            = $val($ep, 'nssf');
+        $housingLevy     = $val($ep, 'housing_levy');
+        $helb            = $val($ep, 'helb');
+        $paye            = $val($ep, 'paye');
+        $loanRepayment   = $val($ep, 'loan_repayment');
+        $advanceRecovery = $val($ep, 'advance_recovery');
+        $taxableIncome   = $val($ep, 'taxable_income');
+        $personalRelief  = $val($ep, 'personal_relief') ?: $reliefs['personal'];
+        $insRelief       = $val($ep, 'insurance_relief') ?: $reliefs['insurance'];
+        $netPay          = $val($ep, 'net_pay');
+        $daysPresent     = (int)($ep->attendance_present ?? 0);
+        $daysAbsent      = (int)($ep->attendance_absent  ?? 0);
+        $daysInMonth     = (int)($ep->days_in_month      ?? 0);
 
         $totals['basic']    = ($totals['basic']    ?? 0) + $basicSalary;
         $totals['gross']    = ($totals['gross']    ?? 0) + $grossPay;
@@ -350,12 +363,12 @@
         $totals['housing']  = ($totals['housing']  ?? 0) + $housingLevy;
         $totals['helb']     = ($totals['helb']     ?? 0) + $helb;
         $totals['paye']     = ($totals['paye']     ?? 0) + $paye;
+        $totals['personal'] = ($totals['personal'] ?? 0) + $personalRelief;
+        $totals['ins']      = ($totals['ins']      ?? 0) + $insRelief;
         $totals['ab']       = ($totals['ab']       ?? 0) + $abAmt;
         $totals['loan']     = ($totals['loan']     ?? 0) + $loanRepayment;
         $totals['advance']  = ($totals['advance']  ?? 0) + $advanceRecovery;
         $totals['taxable']  = ($totals['taxable']  ?? 0) + $taxableIncome;
-        $totals['personal'] = ($totals['personal'] ?? 0) + $personalRelief;
-        $totals['ins']      = ($totals['ins']      ?? 0) + $insRelief;
         $totals['net']      = ($totals['net']      ?? 0) + $netPay;
         $totals['ot']       = ($totals['ot']       ?? 0) + $otAmt;
 
@@ -384,21 +397,25 @@
         <td class="num">{{ $fmt($otAmt) }}</td>
         <td class="num">{{ $fmt($grossPay) }}</td>
 
+        {{-- Statutory: 5 original + personal relief + insurance relief --}}
         <td class="num">{{ $fmt($shif) }}</td>
         <td class="num">{{ $fmt($nssf) }}</td>
         <td class="num">{{ $fmt($housingLevy) }}</td>
         <td class="num">{{ $fmt($taxableIncome) }}</td>
+        <td class="num">{{ $fmt($personalRelief) }}</td>
+        <td class="num">{{ $fmt($insRelief) }}</td>
         <td class="num">{{ $fmt($paye) }}</td>
+
 
         @foreach($deductionSlugs as $slug => $name)
         <td class="num">{{ $fmt($dMap[strtolower($name)] ?? 0) }}</td>
         @endforeach
 
+        {{-- Other deductions: absenteeism, loan, advance only --}}
         <td class="num">{{ $fmt($abAmt) }}</td>
         <td class="num">{{ $fmt($loanRepayment) }}</td>
         <td class="num">{{ $fmt($advanceRecovery) }}</td>
-        <td class="num">{{ $fmt($personalRelief) }}</td>
-        <td class="num">{{ $fmt($insRelief) }}</td>
+
         <td class="num netpay-cell">{{ $fmt($netPay) }}</td>
 
         <td class="ctr">{{ $daysPresent }}</td>
@@ -422,21 +439,25 @@
         <td>{{ $fmt($totals['ot'] ?? 0) }}</td>
         <td>{{ $fmt($totals['gross'] ?? 0) }}</td>
 
+        {{-- Statutory totals: 5 original + personal relief + insurance relief --}}
         <td>{{ $fmt($totals['shif'] ?? 0) }}</td>
         <td>{{ $fmt($totals['nssf'] ?? 0) }}</td>
         <td>{{ $fmt($totals['housing'] ?? 0) }}</td>
         <td>{{ $fmt($totals['taxable'] ?? 0) }}</td>
+        <td>{{ $fmt($totals['personal'] ?? 0) }}</td>
+        <td>{{ $fmt($totals['ins'] ?? 0) }}</td>
         <td>{{ $fmt($totals['paye'] ?? 0) }}</td>
+
 
         @foreach($deductionSlugs as $slug => $name)
         <td>{{ $fmt($totals['d_'.strtolower($name)] ?? 0) }}</td>
         @endforeach
 
+        {{-- Other deductions totals --}}
         <td>{{ $fmt($totals['ab'] ?? 0) }}</td>
         <td>{{ $fmt($totals['loan'] ?? 0) }}</td>
         <td>{{ $fmt($totals['advance'] ?? 0) }}</td>
-        <td>{{ $fmt($totals['personal'] ?? 0) }}</td>
-        <td>{{ $fmt($totals['ins'] ?? 0) }}</td>
+
         <td class="netpay-cell">{{ $fmt($totals['net'] ?? 0) }}</td>
 
         <td colspan="5"></td>

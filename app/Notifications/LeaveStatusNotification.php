@@ -10,7 +10,7 @@ use Illuminate\Notifications\Messages\MailMessage;
 
 class LeaveStatusNotification extends Notification implements ShouldQueue
 {
-    // use Queueable;
+    use Queueable;
 
     public $leave;
 

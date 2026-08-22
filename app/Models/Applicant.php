@@ -6,14 +6,23 @@ use App\Traits\LogsActivity;
 use Spatie\ModelStatus\HasStatuses;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Models\Experience;
 
 class Applicant extends Model
 {
     use HasFactory, HasStatuses, LogsActivity;
 
+    protected $casts = [
+    'professional_qualifications' => 'array',
+    'professional_membership' => 'array',
+    'pwd_details' => 'array',
+    'salary_expectation' => 'decimal:2',
+    'age' => 'integer',
+];
+
+
     protected $fillable = [
         'user_id',
-        'fullname',
         'idnumber',
         'phone',
         'whatsapp_no',
@@ -23,11 +32,12 @@ class Applicant extends Model
         'state',
         'zip_code',
         'country',
+        'gender',
         'specialization',
         'academic_level',
-        'company1',
-        'company2',
-        'company3',
+        'professional_qualifications',
+    'professional_membership',
+    'pwd',
         'salary_expectation',
         'linkedin_profile',
         'portfolio_url',
@@ -49,6 +59,12 @@ class Applicant extends Model
     {
         return $this->hasMany(Application::class);
     }
+
+    public function experiences()
+    {
+        return $this->hasMany(Experience::class);
+    }
+
 
     public function skills()
     {

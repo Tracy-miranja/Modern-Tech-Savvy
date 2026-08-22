@@ -34,8 +34,13 @@
 
 
 
+        @push('styles')
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intro.js/minified/introjs.min.css">
+        @endpush
+
         @push('scripts')
         <script src="{{ asset('js/main/locations.js') }}" type="module"></script>
+        <script src="https://cdn.jsdelivr.net/npm/intro.js/minified/intro.min.js"></script>
         <script>
             $(document).ready(() => {
                 getLocations()

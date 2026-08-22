@@ -58,18 +58,19 @@
                     @endif
                 </td>
                 <td>
-                    <strong>{{ number_format($attendance->regular_hours, 2) }}</strong>
+                    <strong>{{ \App\Support\TimeFmt::hoursToHm($attendance->regular_hours) }}</strong>
                 </td>
                 <td>
                     @if($attendance->overtime_regular > 0)
-                        <span class="text-primary fw-bold">{{ number_format($attendance->overtime_regular, 2) }}</span>
+                    <span class="text-primary fw-bold">{{ \App\Support\TimeFmt::hoursToHm($attendance->overtime_regular) }}</span>
                     @else
-                        -
+                    -
                     @endif
+
                 </td>
                 <td>
                     @if($attendance->overtime_holiday > 0)
-                        <span class="text-warning fw-bold">{{ number_format($attendance->overtime_holiday, 2) }}</span>
+                        <span class="text-warning fw-bold">{{ \App\Support\TimeFmt::hoursToHm($attendance->overtime_holiday) }}</span>
                     @else
                         -
                     @endif
@@ -119,9 +120,9 @@
                 Absent: {{ $absentDays }}
             </td>
             <td colspan="2"></td>
-            <td>{{ number_format($totalRegular, 2) }} hrs</td>
-            <td>{{ number_format($totalOTRegular, 2) }} hrs</td>
-            <td>{{ number_format($totalOTHoliday, 2) }} hrs</td>
+            <td>{{ \App\Support\TimeFmt::hoursToHm($totalRegular) }}</td>
+            <td>{{ \App\Support\TimeFmt::hoursToHm($totalOTRegular) }}</td>
+            <td>{{ \App\Support\TimeFmt::hoursToHm($totalOTHoliday) }}</td>
             <td colspan="3"></td>
         </tr>
     </tfoot>

@@ -12,22 +12,27 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('leave_entitlements', function (Blueprint $table) {
-            // Add new fields
-            $table->decimal('carryover_days', 8, 2)
-                ->default(0)
-                ->after('accrued_days');
+            // Add carryover_days only if it doesn't exist
+            if (!Schema::hasColumn('leave_entitlements', 'carryover_days')) {
+                $table->decimal('carryover_days', 8, 2)
+                    ->default(0)
+                    ->after('accrued_days');
+            }
 
-            $table->json('policy_snapshot')
-                ->nullable()
-                ->after('carryover_days');
+            // Add policy_snapshot only if it doesn't exist
+            if (!Schema::hasColumn('leave_entitlements', 'policy_snapshot')) {
+                $table->json('policy_snapshot')
+                    ->nullable()
+                    ->after('carryover_days');
+            }
 
-            // Create last_accrued_at column since it does NOT exist
-            $table->timestamp('last_accrued_at')
-                ->nullable()
-                ->after('policy_snapshot');
+            // Add last_accrued_at only if it doesn't exist
+            if (!Schema::hasColumn('leave_entitlements', 'last_accrued_at')) {
+                $table->timestamp('last_accrued_at')
+                    ->nullable()
+                    ->after('policy_snapshot');
+            }
         });
-
-
     }
 
     /**
@@ -36,14 +41,16 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('leave_entitlements', function (Blueprint $table) {
-
-
-           // Drop columns
-            $table->dropColumn([
-                'carryover_days',
-                'policy_snapshot',
-                'last_accrued_at'
-            ]);
+            // Drop columns only if they exist
+            if (Schema::hasColumn('leave_entitlements', 'carryover_days')) {
+                $table->dropColumn('carryover_days');
+            }
+            if (Schema::hasColumn('leave_entitlements', 'policy_snapshot')) {
+                $table->dropColumn('policy_snapshot');
+            }
+            if (Schema::hasColumn('leave_entitlements', 'last_accrued_at')) {
+                $table->dropColumn('last_accrued_at');
+            }
         });
     }
 };

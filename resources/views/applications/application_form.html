@@ -1,0 +1,118 @@
+<form action="https://your-domain.com/api/external/apply" method="POST" enctype="multipart/form-data">
+
+  <!-- API + Job -->
+  <input type="hidden" name="api_token" value="YOUR_API_TOKEN" />
+  <input type="text" name="jobId" placeholder="job slug e.g. senior-dev" required />
+
+  <!-- Part 1: Personal -->
+  <input type="text" name="full_name" placeholder="Full Name" required />
+  <input type="text" name="id_number" placeholder="ID Number" required />
+  <input type="email" name="email" placeholder="Email" required />
+  <input type="tel" name="phone" placeholder="+2547..." required />
+
+  <select name="gender" required>
+    <option value="">Select gender</option>
+    <option value="male">Male</option>
+    <option value="female">Female</option>
+    <option value="other">Other</option>
+    <option value="prefer_not_say">Prefer not to say</option>
+  </select>
+
+  <input type="date" name="dob" required />
+  <input type="text" name="nationality" placeholder="Nationality (e.g. Kenya)" required />
+
+  <select name="plwd" required>
+    <option value="">PLWD?</option>
+    <option value="1">Yes</option>
+    <option value="0">No</option>
+  </select>
+
+  <hr />
+
+  <!-- Part 2: Academic Experience #1 -->
+  <h3>Academic 1</h3>
+  <select name="academics[0][qualification_level]" required>
+    <option value="">Qualification level</option>
+    <option value="certificate">Certificate</option>
+    <option value="diploma">Diploma</option>
+    <option value="higher_diploma">Higher Diploma</option>
+    <option value="bachelor">Bachelor</option>
+    <option value="master">Master</option>
+    <option value="phd">PhD</option>
+  </select>
+
+  <input type="text" name="academics[0][institution_name]" placeholder="Institution Name" required />
+  <input type="text" name="academics[0][institution_country]" placeholder="Country" />
+  <input type="text" name="academics[0][qualification_name]" placeholder="Qualification Name" required />
+  <input type="text" name="academics[0][certificate_number]" placeholder="Certification Number" />
+  <input type="number" name="academics[0][year_completed]" placeholder="Year Completed" />
+
+  <!-- Multiple files for academic 1 -->
+  <label>Attach certificate/transcript (multiple):</label>
+  <input type="file" name="academics_attachments[0][]" multiple required />
+
+  <hr />
+
+  <!-- Academic #2 (repeat index 1) -->
+  <h3>Academic 2</h3>
+  <select name="academics[1][qualification_level]">
+    <option value="">Qualification level</option>
+    <option value="diploma">Diploma</option>
+    <option value="bachelor">Bachelor</option>
+  </select>
+
+  <input type="text" name="academics[1][institution_name]" placeholder="Institution Name" />
+  <input type="text" name="academics[1][institution_country]" placeholder="Country" />
+  <input type="text" name="academics[1][qualification_name]" placeholder="Qualification Name" />
+  <input type="text" name="academics[1][certificate_number]" placeholder="Certification Number" />
+  <input type="number" name="academics[1][year_completed]" placeholder="Year Completed" />
+
+  <input type="file" name="academics_attachments[1][]" multiple />
+
+  <hr />
+
+  <!-- Part 3: Work Experience #1 -->
+  <h3>Work Experience 1</h3>
+  <input type="text" name="work_experiences[0][employer_name]" placeholder="Employer Name" required />
+  <input type="text" name="work_experiences[0][employer_contact]" placeholder="Employer Contact" />
+  <input type="text" name="work_experiences[0][location]" placeholder="Location" />
+  <input type="text" name="work_experiences[0][job_title]" placeholder="Job Title" required />
+  <input type="date" name="work_experiences[0][start_date]" required />
+  <input type="date" name="work_experiences[0][end_date]" />
+  <label>
+    <input type="checkbox" name="work_experiences[0][is_current]" value="1" />
+    Current
+  </label>
+  <textarea name="work_experiences[0][achievements]" placeholder="Achievements & responsibilities"></textarea>
+
+  <hr />
+
+  <!-- Part 4: Membership #1 -->
+  <h3>Membership 1</h3>
+  <input type="text" name="memberships[0][organization_name]" placeholder="Organization Name" />
+  <input type="text" name="memberships[0][membership_number]" placeholder="Membership Number" />
+  <select name="memberships[0][membership_type]">
+    <option value="">Membership Type</option>
+    <option value="associate">Associate</option>
+    <option value="member">Member</option>
+    <option value="fellow">Fellow</option>
+  </select>
+  <input type="number" name="memberships[0][year_joined]" placeholder="Year Joined" />
+
+  <!-- Required if membership exists -->
+  <input type="file" name="membership_certificate[0]" />
+
+  <hr />
+
+  <!-- Part 5: Upload Documents -->
+  <label>CV (required)</label>
+  <input type="file" name="cv" required />
+
+  <label>National ID (required)</label>
+  <input type="file" name="national_id" required />
+
+  <label>Other documents (optional multiple)</label>
+  <input type="file" name="other_documents[]" multiple />
+
+  <button type="submit">Submit Application</button>
+</form>

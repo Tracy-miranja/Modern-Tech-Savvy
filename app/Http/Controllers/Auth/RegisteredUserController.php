@@ -85,22 +85,21 @@ class RegisteredUserController extends Controller
             $user->assignRole('business-admin'); //business_owner
             $user->setStatus(Status::SETUP);
 
-            $krest = Business::where('slug', 'krest')->first();
-if (!$krest) {
-    throw new \Exception('Krest business not found');
-}
+            $platformBusiness = Business::where('slug', config('business.main_slug'))->first();
+            if (!$platformBusiness) {
+                throw new \Exception('Platform business not found');
+            }
 
-           $leadData = [
-    'business_id' => $krest->id,
-    'user_id' => $user->id,
-    'name' => $user->name,
-    'email' => $user->email,
-    'phone' => $user->phone,
-    'source' => 'business_account',
-    'status' => 'new',
-    'label' => 'Business Admin',
-];
-
+            $leadData = [
+                'business_id' => $platformBusiness->id,
+                'user_id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'source' => 'business_account',
+                'status' => 'new',
+                'label' => 'Business Admin',
+            ];
 
             try {
                 $lead = Lead::create($leadData);

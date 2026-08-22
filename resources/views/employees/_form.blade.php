@@ -132,6 +132,10 @@
                 <h6 class="text-muted fw-semibold mb-2">Identification</h6>
                 <div class="row g-2">
                     <div class="col-md-4">
+                        <input type="text" name="file_number" id="file_number" class="form-control border-primary"
+                            value="{{ isset($employee) ? $employee->file_number : '' }}" placeholder="File Number">
+                    </div>
+                    <div class="col-md-4">
                         <input type="text" name="national_id" id="national_id" class="form-control border-primary"
                             value="{{ isset($employee) ? $employee->national_id : '' }}" placeholder="National ID">
                     </div>
@@ -251,6 +255,18 @@
                         </select>
                     </div>
                     <div class="col-md-4">
+                        <select name="organogram_role_id" id="organogram_role_id" class="form-select border-primary">
+                            <option value="">Select Organogram Role (optional)</option>
+                            @foreach (($organogramRoles ?? []) as $organogramRole)
+                            <option value="{{ $organogramRole->id }}"
+                                {{ isset($employee) && $employee->organogram_role_id == $organogramRole->id ? 'selected' : '' }}>
+                                {{ $organogramRole->name }}
+                            </option>
+                            @endforeach
+                        </select>
+                        <small class="text-muted">Used with department to compute this employee's default manager in the organogram.</small>
+                    </div>
+                    <div class="col-md-4">
                         <select name="employment_term" id="employment_term" class="form-select border-primary" required>
                             <option value="">Select Contract Type</option>
                             <option value="permanent"
@@ -265,12 +281,14 @@
                             <option value="internship"
                                 {{ isset($employee) && optional($employee->employmentDetails)->employment_term === 'internship' ? 'selected' : '' }}>
                                 Internship</option>
-                                <option value="internship"
-                                {{ isset($employee) && optional($employee->employmentDetails)->employment_term === 'consultant' ? 'selected' : '' }}>
-                                Consultant</option>
-                                 <option value="internship"
-                                {{ isset($employee) && optional($employee->employmentDetails)->employment_term === 'locum' ? 'selected' : '' }}>
-                                Locum</option>
+                               <option value="consultant"
+    {{ isset($employee) && optional($employee->employmentDetails)->employment_term === 'consultant' ? 'selected' : '' }}>
+    Consultant
+</option>
+<option value="locum"
+    {{ isset($employee) && optional($employee->employmentDetails)->employment_term === 'locum' ? 'selected' : '' }}>
+    Locum
+</option>
                         </select>
                     </div>
                     <div class="col-md-4 position-relative">
@@ -351,11 +369,12 @@
             <div class="mb-3">
                 <h6 class="text-muted fw-semibold mb-2">Payroll Exemption</h6>
                 <div class="form-check">
-                    <input type="checkbox" name="is_exempt_from_payroll" id="is_exempt_from_payroll"
-                        class="form-check-input"
-                        {{ isset($employee) && $employee->is_exempt_from_payroll ? 'checked' : '' }} value="1">
-                    <label class="form-check-label" for="is_exempt_from_payroll">Exempt from Payroll</label>
-                </div>
+    <input type="hidden" name="is_exempt_from_payroll" value="0">
+    <input type="checkbox" name="is_exempt_from_payroll" id="is_exempt_from_payroll"
+        class="form-check-input"
+        {{ isset($employee) && $employee->is_exempt_from_payroll ? 'checked' : '' }} value="1">
+    <label class="form-check-label" for="is_exempt_from_payroll">Exempt from Payroll</label>
+</div>
             </div>
             <!-- PWD Tax Exemption -->
 <div class="mb-3">
@@ -548,6 +567,224 @@
             </div>
         </div>
     </div>
+    <!-- WHT SECTION — only visible for consultants -->
+<!-- WHT SECTION — only visible for consultants/locums -->
+<div class="mb-3 border rounded p-3 bg-light"
+     id="wht_section"
+     style="display: {{ isset($employee) && in_array(optional($employee->employmentDetails)->employment_term, ['consultant', 'locum']) ? 'block' : 'none' }};">
+
+    <h6 class="fw-semibold mb-2">
+        <i class="fa fa-percent me-1 text-warning"></i>
+        Withholding Tax Settings
+    </h6>
+
+    <div class="alert alert-warning py-2 small">
+        <i class="fa fa-info-circle"></i>
+        WHT replaces PAYE for consultants. The company deducts it
+        from the gross fee before paying the consultant,
+        then remits it to KRA by the 20th of the following month.
+    </div>
+
+    <div class="row g-2">
+
+        {{-- WHT Category --}}
+        <div class="col-md-4">
+            <label class="form-label small fw-semibold">WHT Category</label>
+            <select name="wht_payment_type" id="wht_payment_type"
+                class="form-select border-primary">
+                <option value="professional_fees"
+                    {{ isset($employee) && optional($employee->paymentDetails)->wht_payment_type === 'professional_fees' ? 'selected' : '' }}>
+                    Professional / Consultancy Fees (5%)
+                </option>
+                <option value="training_fees"
+                    {{ isset($employee) && optional($employee->paymentDetails)->wht_payment_type === 'training_fees' ? 'selected' : '' }}>
+                    Training Fees (5%)
+                </option>
+                <option value="contractual"
+                    {{ isset($employee) && optional($employee->paymentDetails)->wht_payment_type === 'contractual' ? 'selected' : '' }}>
+                    Contractual Payments (3%)
+                </option>
+                <option value="commissions"
+                    {{ isset($employee) && optional($employee->paymentDetails)->wht_payment_type === 'commissions' ? 'selected' : '' }}>
+                    Commissions (5%)
+                </option>
+            </select>
+        </div>
+
+        {{-- Residency Status --}}
+        <div class="col-md-4">
+            <label class="form-label small fw-semibold">Residency Status</label>
+            <select name="wht_residency" id="wht_residency"
+                class="form-select border-primary">
+                <option value="resident"
+                    {{ isset($employee) && optional($employee->paymentDetails)->wht_residency !== 'non_resident' ? 'selected' : '' }}>
+                    Resident (5% / 3%)
+                </option>
+                <option value="non_resident"
+                    {{ isset($employee) && optional($employee->paymentDetails)->wht_residency === 'non_resident' ? 'selected' : '' }}>
+                    Non-Resident (20%)
+                </option>
+            </select>
+        </div>
+
+        {{-- Payee KRA PIN --}}
+        <div class="col-md-4">
+            <label class="form-label small fw-semibold">Payee KRA PIN</label>
+            <input type="text" name="wht_pin" id="wht_pin"
+                class="form-control border-primary"
+                value="{{ isset($employee) ? (optional($employee->paymentDetails)->wht_pin ?? '') : '' }}"
+                placeholder="A0123456789B">
+            <small class="text-muted">Required for WHT certificate on iTax</small>
+        </div>
+
+        {{-- SHIF toggle --}}
+        <div class="col-md-6">
+            <div class="card border p-2">
+                <div class="form-check">
+                    <input type="checkbox"
+                        name="consultant_shif_covered"
+                        id="consultant_shif_covered"
+                        class="form-check-input"
+                        value="1"
+                        {{ isset($employee) && optional($employee->paymentDetails)->consultant_shif_covered ? 'checked' : '' }}
+                        onchange="toggleShifDetail(this)">
+                    <label class="form-check-label fw-semibold" for="consultant_shif_covered">
+                        Deduct SHIF from consultant pay
+                    </label>
+                </div>
+                <small class="text-muted d-block mt-1">
+                    Company remits SHIF on consultant's behalf (deducted from their fee)
+                </small>
+
+                <div id="shif_detail"
+                    style="display: {{ isset($employee) && optional($employee->paymentDetails)->consultant_shif_covered ? 'block' : 'none' }};"
+                    class="mt-2">
+                    <label class="form-label small">Calculation Basis</label>
+                    <select name="consultant_shif_basis" id="consultant_shif_basis"
+                        class="form-select form-select-sm border-primary"
+                        onchange="toggleShifAmount(this)">
+                        <option value="statutory"
+                            {{ isset($employee) && optional($employee->paymentDetails)->consultant_shif_basis !== 'fixed' ? 'selected' : '' }}>
+                            Statutory (2.75% of gross, min KES 300)
+                        </option>
+                        <option value="fixed"
+                            {{ isset($employee) && optional($employee->paymentDetails)->consultant_shif_basis === 'fixed' ? 'selected' : '' }}>
+                            Fixed Amount
+                        </option>
+                    </select>
+                    <input type="number"
+                        name="consultant_shif_fixed_amount"
+                        id="consultant_shif_fixed_amount"
+                        class="form-control form-control-sm border-primary mt-1"
+                        value="{{ isset($employee) ? (optional($employee->paymentDetails)->consultant_shif_fixed_amount ?? '') : '' }}"
+                        placeholder="Fixed SHIF amount (KES)"
+                        step="0.01" min="0"
+                        style="display: {{ isset($employee) && optional($employee->paymentDetails)->consultant_shif_basis === 'fixed' ? 'block' : 'none' }};">
+                </div>
+            </div>
+        </div>
+
+        {{-- NSSF toggle --}}
+        <div class="col-md-6">
+            <div class="card border p-2">
+                <div class="form-check">
+                    <input type="checkbox"
+                        name="consultant_nssf_covered"
+                        id="consultant_nssf_covered"
+                        class="form-check-input"
+                        value="1"
+                        {{ isset($employee) && optional($employee->paymentDetails)->consultant_nssf_covered ? 'checked' : '' }}
+                        onchange="toggleNssfDetail(this)">
+                    <label class="form-check-label fw-semibold" for="consultant_nssf_covered">
+                        Deduct NSSF from consultant pay
+                    </label>
+                </div>
+                <small class="text-muted d-block mt-1">
+                    Company remits NSSF on consultant's behalf (deducted from their fee)
+                </small>
+
+                <div id="nssf_detail"
+                    style="display: {{ isset($employee) && optional($employee->paymentDetails)->consultant_nssf_covered ? 'block' : 'none' }};"
+                    class="mt-2">
+                    <label class="form-label small">Calculation Basis</label>
+                    <select name="consultant_nssf_basis" id="consultant_nssf_basis"
+                        class="form-select form-select-sm border-primary"
+                        onchange="toggleNssfAmount(this)">
+                        <option value="statutory"
+                            {{ isset($employee) && optional($employee->paymentDetails)->consultant_nssf_basis !== 'fixed' ? 'selected' : '' }}>
+                            Statutory Rate (Year 4 — max KES 6,480)
+                        </option>
+                        <option value="fixed"
+                            {{ isset($employee) && optional($employee->paymentDetails)->consultant_nssf_basis === 'fixed' ? 'selected' : '' }}>
+                            Fixed Amount
+                        </option>
+                    </select>
+                    <input type="number"
+                        name="consultant_nssf_fixed_amount"
+                        id="consultant_nssf_fixed_amount"
+                        class="form-control form-control-sm border-primary mt-1"
+                        value="{{ isset($employee) ? (optional($employee->paymentDetails)->consultant_nssf_fixed_amount ?? '') : '' }}"
+                        placeholder="Fixed NSSF amount (KES)"
+                        step="0.01" min="0"
+                        style="display: {{ isset($employee) && optional($employee->paymentDetails)->consultant_nssf_basis === 'fixed' ? 'block' : 'none' }};">
+                </div>
+            </div>
+        </div>
+
+        {{-- Summary box showing what will be deducted --}}
+        @if(isset($employee) && optional($employee->paymentDetails)->is_consultant)
+        <div class="col-12 mt-2">
+            <div class="alert alert-secondary py-2 small mb-0">
+                {{-- <strong><i class="fa fa-calculator me-1"></i> Deduction Summary</strong> --}}
+                <div class="row mt-1">
+                    @php
+                        $grossFee   = floatval(optional($employee->paymentDetails)->basic_salary ?? 0);
+                        $whtType    = optional($employee->paymentDetails)->wht_payment_type ?? 'professional_fees';
+                        $whtRes     = optional($employee->paymentDetails)->wht_residency ?? 'resident';
+                        $rateMap    = [
+                            'professional_fees' => ['resident' => 5,  'non_resident' => 20],
+                            'training_fees'     => ['resident' => 5,  'non_resident' => 20],
+                            'contractual'       => ['resident' => 3,  'non_resident' => 20],
+                            'commissions'       => ['resident' => 5,  'non_resident' => 20],
+                        ];
+                        $whtRate    = $rateMap[$whtType][$whtRes] ?? 5;
+                        $whtAmt     = round($grossFee * $whtRate / 100, 2);
+                        $shifAmt    = optional($employee->paymentDetails)->consultant_shif_covered
+                            ? (optional($employee->paymentDetails)->consultant_shif_basis === 'fixed'
+                                ? floatval(optional($employee->paymentDetails)->consultant_shif_fixed_amount ?? 0)
+                                : max(300, round($grossFee * 0.0275, 2)))
+                            : 0;
+                        $lel = 9000; $uel = 108000;
+                        $nssfAmt = 0;
+                        if (optional($employee->paymentDetails)->consultant_nssf_covered) {
+                            if (optional($employee->paymentDetails)->consultant_nssf_basis === 'fixed') {
+                                $nssfAmt = floatval(optional($employee->paymentDetails)->consultant_nssf_fixed_amount ?? 0);
+                            } else {
+                                if ($grossFee <= $lel) {
+                                    $nssfAmt = round($grossFee * 0.06, 2);
+                                } else {
+                                    $t1 = round($lel * 0.06, 2);
+                                    $t2 = round(min($grossFee - $lel, $uel - $lel) * 0.06, 2);
+                                    $nssfAmt = $t1 + $t2;
+                                }
+                            }
+                        }
+                        $netPay = $grossFee - $whtAmt - $shifAmt - $nssfAmt;
+                    @endphp
+                    {{-- <div class="col-6 col-md-3">Gross Fee: <strong>KES {{ number_format($grossFee, 2) }}</strong></div>
+                    <div class="col-6 col-md-3 text-danger">WHT ({{ $whtRate }}%): -KES {{ number_format($whtAmt, 2) }}</div>
+                    <div class="col-6 col-md-3 text-danger">SHIF: -KES {{ number_format($shifAmt, 2) }}</div>
+                    <div class="col-6 col-md-3 text-danger">NSSF: -KES {{ number_format($nssfAmt, 2) }}</div>
+                    <div class="col-12 mt-1 text-success fw-semibold">
+                        Net to Consultant: KES {{ number_format($netPay, 2) }}
+                    </div> --}}
+                </div>
+            </div>
+        </div>
+        @endif
+
+    </div>
+</div>
 </div>
 
         <!-- Documents Tab -->
@@ -757,6 +994,42 @@
             });
         });
     });
+
+    // Show/hide WHT section based on employment term
+document.getElementById('employment_term')
+    .addEventListener('change', function() {
+        const isConsultant = ['consultant', 'locum'].includes(this.value);
+        document.getElementById('wht_section').style.display =
+            isConsultant ? 'block' : 'none';
+
+        // Also hide PAYE-related fields if consultant
+        // (optional — depends on your form layout)
+    });
+
+function toggleShifDetail(cb) {
+    document.getElementById('shif_detail').style.display =
+        cb.checked ? 'block' : 'none';
+}
+function toggleShifAmount(select) {
+    document.getElementById('consultant_shif_fixed_amount').style.display =
+        select.value === 'fixed' ? 'block' : 'none';
+}
+function toggleNssfDetail(cb) {
+    document.getElementById('nssf_detail').style.display =
+        cb.checked ? 'block' : 'none';
+}
+function toggleNssfAmount(select) {
+    document.getElementById('consultant_nssf_fixed_amount').style.display =
+        select.value === 'fixed' ? 'block' : 'none';
+}
+
+// Run on page load for edit mode
+document.addEventListener('DOMContentLoaded', function() {
+    const term = document.getElementById('employment_term').value;
+    if (['consultant', 'locum'].includes(term)) {
+        document.getElementById('wht_section').style.display = 'block';
+    }
+});
 
     function previewImage(event) {
         const input = event.target;

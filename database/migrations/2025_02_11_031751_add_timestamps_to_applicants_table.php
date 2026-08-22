@@ -11,6 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // create_applicants_table already calls $table->timestamps() on a
+        // fresh install - this migration only still applies on an older
+        // database that predates those columns being added there.
+        if (Schema::hasColumn('applicants', 'created_at')) {
+            return;
+        }
+
         Schema::table('applicants', function (Blueprint $table) {
             $table->timestamps();
         });
@@ -21,6 +28,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (!Schema::hasColumn('applicants', 'created_at')) {
+            return;
+        }
+
         Schema::table('applicants', function (Blueprint $table) {
             $table->dropTimestamps();
         });

@@ -267,7 +267,13 @@ class Kpi extends Model
         if ($this->comparison_operator === '>=') {
             return min(100, ($result / $target) * 100);
         } elseif ($this->comparison_operator === '<=') {
-            return min(100, (($target - $result) / $target) * 100 + 50);
+            // "Stay at or below target" - fully met (100%) anywhere at or
+            // under the ceiling, not just when result is exactly 0; then
+            // scales back down the further result overshoots the target.
+            if ($result <= $target) {
+                return 100.0;
+            }
+            return max(0.0, 100 - (($result - $target) / $target) * 100);
         } elseif ($this->comparison_operator === '=') {
             return abs($result - $target) < 0.01 ? 100 : min(100, ($result / $target) * 100);
         }

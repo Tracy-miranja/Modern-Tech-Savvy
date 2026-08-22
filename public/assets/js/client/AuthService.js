@@ -47,16 +47,16 @@ class AuthService {
         }
     }
 
-    async bsImpersonate(data) {
-        try {
-            const response = await this.requestClient.post('/client-businesses/access', data);
-            Swal.fire('Logged In!', response.message, 'success');
-            this.handleRedirect(response.data.redirect_url);
-        } catch (error) {
-            console.log(error)
-            throw error;
-        }
-    }
+    // async bsImpersonate(data) {
+    //     try {
+    //         const response = await this.requestClient.post('/client-businesses/access', data);
+    //         Swal.fire('Logged In!', response.message, 'success');
+    //         this.handleRedirect(response.data.redirect_url);
+    //     } catch (error) {
+    //         console.log(error)
+    //         throw error;
+    //     }
+    // }
 
     handleRedirect(route) {
         if (route) {

@@ -3,6 +3,16 @@ class LeavePeriodsService {
         this.requestClient = requestClient;
     }
 
+    async create() {
+        try {
+            const response = await this.requestClient.post('/leave-periods/create', {});
+            return response.data;
+        } catch (error) {
+            console.log(error)
+            throw error;
+        }
+    }
+
     async fetch(data) {
         try {
             const response = await this.requestClient.post('/leave-periods/fetch', data);
@@ -38,13 +48,28 @@ class LeavePeriodsService {
         }
     }
 
-    async show(leavePeriodId) {
+    // The "View" button sends { id }, POSTing to the flat AJAX route
+    // (LeavePeriodController::show()) - matches editLeavePeriod()'s
+    // { leave_period_slug } / edit() pairing below, not the RESTful
+    // GET /{id}/details route (showDetails()), which nothing calls.
+    async show(data) {
         try {
-            const response = await this.requestClient.get(`/leave-periods/${leavePeriodId}/details`);
-            // Return the data property which contains the HTML
+            const response = await this.requestClient.post('/leave-periods/show', data);
             return response.data || response;
         } catch (error) {
             console.error('Show leave period error:', error);
+            throw error;
+        }
+    }
+
+    // The "Edit" button sends { leave_period_slug }, POSTing to the flat
+    // AJAX route (LeavePeriodController::edit()) for the prefilled form.
+    async edit(data) {
+        try {
+            const response = await this.requestClient.post('/leave-periods/edit', data);
+            return response.data || response;
+        } catch (error) {
+            console.error('Edit leave period error:', error);
             throw error;
         }
     }
@@ -65,6 +90,16 @@ class LeavePeriodsService {
             toastr.info(response.message || 'Leave period deleted.', 'Success');
         } catch (error) {
             console.error('Delete leave period error:', error);
+            throw error;
+        }
+    }
+
+    async close(leave_period_slug) {
+        try {
+            const response = await this.requestClient.post('/leave-periods/close', { leave_period_slug });
+            toastr.success(response.message || 'Leave period closed.', 'Success');
+        } catch (error) {
+            console.error('Close leave period error:', error);
             throw error;
         }
     }

@@ -15,7 +15,7 @@
             @forelse ($employeeReliefs as $employeeRelief)
             <tr>
                 <td>{{ $employeeRelief->employee->user->name }}</td>
-                <td>{{ $employeeRelief->relief->name }}</td>
+                <td>{{ $employeeRelief->relief?->name ?? 'Relief Deleted' }}</td>
                 <td>{{ $employeeRelief->amount ? number_format($employeeRelief->amount, 2) : 'Default' }}</td>
                 <td>{{ $employeeRelief->is_active ? 'Yes' : 'No' }}</td>
                 <td>{{ $employeeRelief->start_date ?? 'N/A' }}</td>

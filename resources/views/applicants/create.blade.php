@@ -1,4 +1,5 @@
 <x-app-layout>
+    @include('components.phone-input-assets')
 
     <div class="card">
         <div class="card-body" id="applicantFormContainer">

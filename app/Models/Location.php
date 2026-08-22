@@ -18,6 +18,7 @@ class Location extends Model
     protected $fillable = [
         'business_id',
         'name',
+        'country',
         'slug',
         'company_size',
         'registration_no',
@@ -33,6 +34,20 @@ class Location extends Model
     {
         return $this->hasMany(Employee::class);
     }
+    public function holidays(): HasMany
+    {
+        return $this->hasMany(Holiday::class);
+    }
+
+    /**
+     * This location's own country if set, else the business's - so a
+     * location doesn't have to explicitly repeat the country when the
+     * business only operates in one place.
+     */
+    public function resolvedCountry(): ?string
+    {
+        return $this->country ?: optional($this->business)->country;
+    }
     public function payrolls(): HasMany
     {
         return $this->hasMany(Payroll::class);
@@ -47,6 +62,6 @@ class Location extends Model
     }
     public function getSlugOptions(): SlugOptions
     {
-        return SlugOptions::create()->generateSlugsFrom('name')->saveSlugsTo('slug');
+        return SlugOptions::create()->generateSlugsFrom('name')->saveSlugsTo('slug')->doNotGenerateSlugsOnUpdate();
     }
 }

@@ -1,4 +1,6 @@
 <?php
+ini_set('memory_limit', '256M');
+
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\LoanController;
@@ -6,12 +8,14 @@ use App\Http\Controllers\TaskController;
 use App\Http\Controllers\ShiftController;
 use App\Http\Controllers\TrendController;
 use App\Http\Controllers\ClientController;
+use App\Http\Controllers\PlatformAdminController;
 use App\Http\Controllers\ReliefsController;
 use App\Http\Controllers\AdvanceController;
 use App\Http\Controllers\JobPostController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\BusinessController;
+use App\Http\Controllers\BusinessSwitchController;
 use App\Http\Controllers\DownloadController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\LocationController;
@@ -34,6 +38,9 @@ use App\Http\Controllers\LeaveEntitlementController;
 use App\Http\Controllers\EmployeeDeductionController;
 use App\Http\Controllers\KPIsController;
 use App\Http\Controllers\WarningController;
+use App\Http\Controllers\DisciplinaryStageTypeController;
+use App\Http\Controllers\DisciplinaryInvestigationController;
+use App\Http\Controllers\DisciplinaryMinutesController;
 use App\Http\Controllers\PayGradesController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SurveyController;
@@ -48,22 +55,67 @@ Route::post('/business/{businessSlug}/generate-token', [BusinessController::clas
 Route::middleware(['auth'])->group(function () {
 
     Route::name('businesses.')->prefix('businesses')->group(function () {
-        Route::post('store', [BusinessController::class, 'store'])->name('store');
+        // business-admin only: closes a self-elevation gap (this endpoint
+        // used to be reachable, unguarded, by any authenticated user, who
+        // would then be unconditionally granted business-admin by
+        // BusinessController::store()). Real first-time signups already
+        // hold business-admin from RegisteredUserController::store()
+        // before they ever reach the setup-business form that posts here.
+        Route::middleware(['role:business-admin'])->post('store', [BusinessController::class, 'store'])->name('store');
         Route::post('fetch', [BusinessController::class, 'fetch'])->name('fetch');
         Route::post('destroy', [BusinessController::class, 'destroy'])->name('destroy');
         Route::post('update', [BusinessController::class, 'update'])->name('update');
         Route::post('modules/store', [BusinessController::class, 'saveModules'])->name('modules.store');
+        Route::post('/{business}/switch-back', [BusinessController::class, 'switchBackToAdmin'])->name('business.switch-back');
+        // Peer "Switch Business" (own account's other businesses) - not
+        // super-admin impersonation, see BusinessSwitchController.
+        Route::post('/switch/{business_slug}', [BusinessSwitchController::class, 'switchTo'])->name('switch');
     });
 
     Route::prefix('businesses/{business_slug}')->name('business.clients.')->group(function () {
-        Route::prefix('clients')->group(function () {
+        // Day-to-day client operation: viewing the client list and
+        // switching into (impersonating) a client business to work in it.
+        // (kept for symmetry with the impersonation bypass).
+        Route::prefix('clients')->middleware(['role:super-admin'])->group(function () {
             Route::post('fetch', [ClientController::class, 'fetch'])->name('fetch');
+            Route::post('managed-businesses', [ClientController::class, 'managedBusinessesList'])->name('managed-businesses');
             Route::post('{client_business_slug}/impersonate', [ClientController::class, 'impersonateManagedBusiness'])->name('impersonate');
+        });
+
+        // Platform-governance actions (approving/suspending a tenant,
+        // controlling which paid modules it has) - super-admin only.
+        Route::prefix('clients')->middleware(['role:super-admin'])->group(function () {
             Route::post('{client_business_slug}/verify', [ClientController::class, 'verifyBusiness'])->name('verify');
             Route::post('{client_business_slug}/deactivate', [ClientController::class, 'deactivateBusiness'])->name('deactivate');
             Route::post('{client_business_slug}/modules/assign', [ClientController::class, 'assignModules'])->name('modules.assign');
+
+            // Manual client payment ledger - same governance tier as
+            // verify/deactivate/modules (financial/subscription control).
+            Route::get('{client_business_slug}/payments/fetch', [\App\Http\Controllers\ClientPaymentController::class, 'fetch'])->name('payments.fetch');
+            Route::post('{client_business_slug}/payments/store', [\App\Http\Controllers\ClientPaymentController::class, 'store'])->name('payments.store');
+        });
+
+        // Account Sharing actions (invite a colleague / approve their
+        // request) - reads the business from session('active_business_slug')
+        // rather than the URL, matching the page views in web.php. Named
+        // distinctly from business.clients.request-access/grant-access
+        // (the GET page routes) to avoid a route-name collision.
+        Route::prefix('access')->middleware(['role:super-admin|business-admin'])->group(function () {
+            Route::post('request', [ClientController::class, 'requestAccess'])->name('access.request');
+            Route::post('grant', [ClientController::class, 'grantAccess'])->name('access.grant');
         });
     });
+
+    // Creating/revoking platform-admin (super-admin) accounts - super-admin only.
+    Route::prefix('businesses/{business_slug}/platform-admins')
+        ->name('business.platform-admins.')
+        ->middleware(['role:super-admin'])
+        ->group(function () {
+            Route::post('/', [PlatformAdminController::class, 'store'])->name('store');
+            Route::post('{userId}/revoke', [PlatformAdminController::class, 'destroy'])->name('revoke');
+        });
+
+
 
     Route::name('job-categories.')->prefix('job-categories')->group(function () {
         Route::post('edit', [JobCategoryController::class, 'edit'])->name('edit');
@@ -133,6 +185,9 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/edit', [EmployeeController::class, 'edit'])->name('edit');
         Route::post('/{id}/update', [EmployeeController::class, 'update'])->name('update');
         Route::post('/{id}/destroy', [EmployeeController::class, 'destroy'])->name('destroy');
+        Route::post('/{id}/send-welcome-email', [EmployeeController::class, 'sendWelcomeEmail'])->name('send-welcome-email');
+        Route::post('/{id}/login-as', [EmployeeController::class, 'loginAsEmployee'])->name('login-as');
+        Route::post('/stop-impersonating', [EmployeeController::class, 'stopImpersonatingEmployee'])->name('stop-impersonating');
         Route::post('/view', [EmployeeController::class, 'view'])->name('view');
         Route::post('/export', [EmployeeController::class, 'export'])->name('employees.export');
         Route::post('/{employeeId}/documents/upload', [EmployeeController::class, 'uploadDocument'])->name('documents.upload');
@@ -158,11 +213,19 @@ Route::middleware(['auth'])->group(function () {
         Route::post('store',  [LeaveTypeController::class, 'store'])->name('store');
         Route::post('fetch',  [LeaveTypeController::class, 'fetch'])->name('fetch');
         Route::post('show',   [LeaveTypeController::class, 'show'])->name('show');
-        Route::post('destroy',[LeaveTypeController::class, 'destroy'])->name('delete');
+        Route::post('delete', [LeaveTypeController::class, 'destroy'])->name('delete');
         Route::post('update', [LeaveTypeController::class, 'update'])->name('update');
         Route::post('suggestions', [LeaveTypeListController::class, 'suggestions'])->name('suggestions');
 
         Route::post('remaining-days', [LeaveTypeController::class, 'getRemainingDays'])->name('remaining-days');
+    });
+
+    // Leave Policies (AJAX) - consolidated read-only view of every policy
+    // applied across the business, shown on the Leave Settings "Leave
+    // Policies" tab. Policies themselves are still edited from within each
+    // Leave Type's own form (leave-types.update above).
+    Route::name('leave-policies.')->prefix('leave-policies')->group(function () {
+        Route::post('fetch', [\App\Http\Controllers\LeavePolicyController::class, 'fetch'])->name('fetch');
     });
 
 
@@ -174,6 +237,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('delete', [LeaveRequestController::class, 'destroy'])->name('delete');
         Route::post('update', [LeaveRequestController::class, 'update'])->name('update');
         Route::post('status', [LeaveRequestController::class, 'status'])->name('status');
+        Route::post('cancel', [LeaveRequestController::class, 'cancel'])->name('cancel');
 
         //  Allow employees to upload required docs later
         Route::post('upload-document', [LeaveRequestController::class, 'uploadDocument'])->name('upload-document');
@@ -181,12 +245,18 @@ Route::middleware(['auth'])->group(function () {
 
     // Leave Periods (AJAX)
     Route::name('leave-periods.')->prefix('leave-periods')->group(function () {
+        Route::post('create', [LeavePeriodController::class, 'create'])->name('create');
         Route::post('edit', [LeavePeriodController::class, 'edit'])->name('edit');
         Route::post('store', [LeavePeriodController::class, 'store'])->name('store');
         Route::post('fetch', [LeavePeriodController::class, 'fetch'])->name('fetch');
         Route::post('show', [LeavePeriodController::class, 'show'])->name('show');
         Route::post('delete', [LeavePeriodController::class, 'destroy'])->name('delete');
         Route::post('update', [LeavePeriodController::class, 'update'])->name('update');
+        Route::post('close', [LeavePeriodController::class, 'close'])->name('close');
+        // Reopening undoes a lock without undoing the carryover already
+        // computed when it was closed - restricted to super-admin as a
+        // rare, support-only action (see LeavePeriodController::reopen()).
+        Route::middleware(['role:super-admin'])->post('reopen', [LeavePeriodController::class, 'reopen'])->name('reopen');
     });
 
     // Leave Entitlements (AJAX)
@@ -195,8 +265,10 @@ Route::middleware(['auth'])->group(function () {
         Route::post('store', [LeaveEntitlementController::class, 'store'])->name('store');
         Route::post('fetch', [LeaveEntitlementController::class, 'fetch'])->name('fetch');
         Route::post('show', [LeaveEntitlementController::class, 'show'])->name('show');
-        Route::post('destroy', [LeaveEntitlementController::class, 'destroy'])->name('destroy');
+        Route::post('delete', [LeaveEntitlementController::class, 'delete'])->name('delete');
         Route::post('update', [LeaveEntitlementController::class, 'update'])->name('update');
+        Route::post('adjust', [LeaveEntitlementController::class, 'adjust'])->name('adjust');
+        Route::post('process-carryover', [LeaveEntitlementController::class, 'processCarryover'])->name('process-carryover');
     });
 
     Route::name('reliefs.')->prefix('reliefs')->group(function () {
@@ -388,6 +460,28 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/edit', [WarningController::class, 'edit'])->name('edit');
         Route::post('/{id}/update', [WarningController::class, 'update'])->name('update');
         Route::post('/{id}/destroy', [WarningController::class, 'destroy'])->name('destroy');
+        Route::post('/{id}/escalate', [WarningController::class, 'escalate'])->name('escalate');
+
+        Route::name('investigations.')->prefix('{warningId}/investigations')->group(function () {
+            Route::post('/store', [DisciplinaryInvestigationController::class, 'store'])->name('store');
+            Route::post('/{investigation}/update', [DisciplinaryInvestigationController::class, 'update'])->name('update');
+            Route::post('/{investigation}/destroy', [DisciplinaryInvestigationController::class, 'destroy'])->name('destroy');
+        });
+
+        Route::name('minutes.')->prefix('{warningId}/minutes')->group(function () {
+            Route::post('/store', [DisciplinaryMinutesController::class, 'store'])->name('store');
+            Route::post('/{minute}/update', [DisciplinaryMinutesController::class, 'update'])->name('update');
+            Route::post('/{minute}/destroy', [DisciplinaryMinutesController::class, 'destroy'])->name('destroy');
+        });
+    });
+
+    // "Configure" - fully business-configurable disciplinary stages (GUIDE plan Phase 3).
+    Route::name('disciplinary-stage-types.')->prefix('disciplinary-stage-types')->group(function () {
+        Route::get('/fetch', [DisciplinaryStageTypeController::class, 'fetch'])->name('fetch');
+        Route::post('/store', [DisciplinaryStageTypeController::class, 'store'])->name('store');
+        Route::post('/{stageType}/update', [DisciplinaryStageTypeController::class, 'update'])->name('update');
+        Route::delete('/{stageType}/destroy', [DisciplinaryStageTypeController::class, 'destroy'])->name('destroy');
+        Route::post('/reorder', [DisciplinaryStageTypeController::class, 'reorder'])->name('reorder');
     });
 
     Route::name('pay-grades.')->prefix('pay-grades')->group(function () {
@@ -400,6 +494,7 @@ Route::middleware(['auth'])->group(function () {
 
     // roles
     Route::name('roles.')->prefix('roles')->group(function () {
+        Route::get('modules', [RoleController::class, 'modulesForMatrix'])->name('modules');
         Route::post('fetch', [RoleController::class, 'fetch'])->name('fetch');
         Route::post('store', [RoleController::class, 'store'])->name('store');
         Route::post('edit', [RoleController::class, 'edit'])->name('edit');

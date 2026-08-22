@@ -28,7 +28,7 @@
                 <button class="btn btn-primary btn-sm edit-interview" data-id="{{ $interview->id }}">Edit</button>
                 <form action="" method="POST" class="d-inline">
                     @csrf @method('DELETE')
-                    <button class="btn btn-danger btn-sm" onclick="return confirm('Are you sure?')">Delete</button>
+                    <button type="button" class="btn btn-danger btn-sm" onclick="confirmDeleteInterview(this)">Delete</button>
                 </form>
             </td>
         </tr>

@@ -25,11 +25,11 @@ class ClientController extends Controller
     public function index(Request $request)
     {
         $business = Business::findBySlug(session('active_business_slug'));
-        if (!$business || $business->slug !== 'krest') {
-            return redirect()->route('business.index', $business->slug)->with('error', 'Only krest can manage clients.');
+        if (!$business || $business->slug !== config('business.main_slug')) {
+            return redirect()->route('business.index', $business->slug)->with('error', 'Only the platform business can manage clients.');
         }
 
-        $businesses = Business::where('slug', '!=', 'krest')
+        $businesses = Business::where('slug', '!=', config('business.main_slug'))
             ->with(['media', 'user'])
             ->paginate(10);
 
@@ -41,11 +41,11 @@ class ClientController extends Controller
         $business_slug = session('active_business_slug');
         $business = Business::findBySlug($business_slug);
 
-        if (!$business || $business->slug !== 'krest') {
-            return RequestResponse::forbidden('Only krest can fetch clients.');
+        if (!$business || $business->slug !== config('business.main_slug')) {
+            return RequestResponse::forbidden('Only the platform business can fetch clients.');
         }
 
-        $businesses = Business::where('slug', '!=', 'krest')
+        $businesses = Business::where('slug', '!=', config('business.main_slug'))
             ->with(['media', 'user'])
             ->paginate(10);
 
@@ -57,8 +57,8 @@ class ClientController extends Controller
     public function view(Request $request, $business_slug, $client_business_slug)
     {
         $business = Business::findBySlug($business_slug);
-        if (!$business || $business->slug !== 'krest') {
-            return redirect()->route('business.index', $business->slug)->with('error', 'Only krest can view client details.');
+        if (!$business || $business->slug !== config('business.main_slug')) {
+            return redirect()->route('business.index', $business->slug)->with('error', 'Only the platform business can view client details.');
         }
 
         $clientBusiness = Business::findBySlug($client_business_slug);
@@ -84,7 +84,7 @@ class ClientController extends Controller
             return redirect()->route('business.index', $business->slug)->with('error', 'Business not found.');
         }
         $requests = AccessRequest::where('business_id', $business->id)
-            ->where('status', Status::PENDING)
+            ->currentStatus(Status::PENDING)
             ->with('requester')
             ->get();
 
@@ -105,14 +105,14 @@ class ClientController extends Controller
                 return RequestResponse::badRequest('Business not found.');
             }
 
-            if ($business->company_name !== 'krest') {
-                $krest = Business::where('company_name', 'krest')->first();
-                if ($krest && $krest->managingBusinesses()->where('client_business', $business->id)->exists()) {
+            if ($business->slug !== config('business.main_slug')) {
+                $platformBusiness = Business::where('slug', config('business.main_slug'))->first();
+                if ($platformBusiness && $platformBusiness->managingBusinesses()->where('client_business', $business->id)->exists()) {
                     return RequestResponse::forbidden('Clients cannot share accounts.');
                 }
             }
 
-            if (AccessRequest::where('business_id', $business->id)->where('email', $email)->where('status', Status::PENDING)->exists()) {
+            if (AccessRequest::where('business_id', $business->id)->where('email', $email)->currentStatus(Status::PENDING)->exists()) {
                 return RequestResponse::badRequest('An access request is already pending for this email.');
             }
 
@@ -129,7 +129,7 @@ class ClientController extends Controller
             $accessRequest->setStatus(Status::PENDING);
 
             if ($existingUser) {
-                if ($existingUser->businesses()->where('business_id', $business->id)->exists()) {
+                if (Client::where('business_id', $business->id)->where('employee_id', $existingUser->id)->exists()) {
                     return RequestResponse::badRequest('User already has access to this business.');
                 }
                 $tempPassword = Str::random(12);
@@ -154,9 +154,9 @@ class ClientController extends Controller
             $accessRequest = AccessRequest::findOrFail($request->request_id);
             $business = Business::findOrFail($accessRequest->business_id);
 
-            if ($business->company_name !== 'krest') {
-                $krest = Business::where('slug', 'krest')->first();
-                if ($krest && $krest->managingBusinesses()->where('client_business', $business->id)->exists()) {
+            if ($business->slug !== config('business.main_slug')) {
+                $platformBusiness = Business::where('slug', config('business.main_slug'))->first();
+                if ($platformBusiness && $platformBusiness->managingBusinesses()->where('client_business', $business->id)->exists()) {
                     return RequestResponse::forbidden('Clients cannot grant access.');
                 }
             }
@@ -164,6 +164,15 @@ class ClientController extends Controller
             $user = User::where('email', $accessRequest->email)->first();
             if (!$user) {
                 return RequestResponse::badRequest('User not found.');
+            }
+
+            // The Spatie role, not just the pivot's own 'role' column below,
+            // is what every permission check in the app actually reads
+            // (hasRole()) - without this, a platform-granted client admin
+            // could never actually use the business-admin features they
+            // were just granted.
+            if (!$user->hasRole($request->role)) {
+                $user->assignRole($request->role);
             }
 
             Client::create([
@@ -186,37 +195,110 @@ class ClientController extends Controller
         });
     }
 
-    public function impersonateManagedBusiness(Request $request, $business_slug, $client_business_slug)
-    {
-        $business = Business::findBySlug($business_slug);
-        if (!$business || $business->slug !== 'krest') {
-            return RequestResponse::forbidden('Only krest can impersonate businesses.');
-        }
+//    public function impersonateManagedBusiness(Request $request, $business_slug, $client_business_slug)
+// {
+//     $business = Business::findBySlug($business_slug);
+//     if (!$business || $business->slug !== config('business.main_slug')) {
+//         return RequestResponse::forbidden('Only the platform business can impersonate businesses.');
+//     }
 
-        $managedBusiness = Business::findBySlug($client_business_slug);
-        if (!$managedBusiness) {
-            return RequestResponse::badRequest('Managed business not found.');
-        }
+//     $managedBusiness = Business::findBySlug($client_business_slug);
+//     if (!$managedBusiness) {
+//         return RequestResponse::badRequest('Managed business not found.');
+//     }
 
-        session(['active_business_slug' => $managedBusiness->slug]);
-        View::share('currentBusiness', $managedBusiness);
+//     // Store the original business slug before switching
+//     session(['original_business_slug' => $business_slug]);
+//     session(['active_business_slug' => $managedBusiness->slug]);
 
-        activity()
-            ->causedBy($request->user())
-            ->performedOn($managedBusiness)
-            ->log('Impersonated business');
+//     activity()
+//         ->causedBy($request->user())
+//         ->performedOn($managedBusiness)
+//         ->log('Impersonated business');
 
-        return RequestResponse::ok(
-            message: "Welcome to {$managedBusiness->company_name} dashboard",
-            data: ['redirect_url' => route('business.index', ['business' => $managedBusiness->slug])]
-        );
+//     return RequestResponse::ok(
+//         message: "Welcome to {$managedBusiness->company_name} dashboard",
+//         data: ['redirect_url' => route('business.index', ['business' => $managedBusiness->slug])]
+//     );
+// }
+public function impersonateManagedBusiness(Request $request, $business_slug, $client_business_slug)
+{
+    $currentlyImpersonating = session()->has('original_business_slug');
+    $isPlatformBusiness = $business_slug === config('business.main_slug');
+
+    $allowed = $isPlatformBusiness || ($currentlyImpersonating && $business_slug === session('active_business_slug'));
+
+    if (!$allowed) {
+        return RequestResponse::forbidden('Only the platform business can impersonate businesses.');
     }
+
+    $managedBusiness = Business::findBySlug($client_business_slug);
+    if (!$managedBusiness) {
+        return RequestResponse::badRequest('Managed business not found.');
+    }
+
+    if (!$currentlyImpersonating) {
+        session([
+            'original_business_slug' => $business_slug,
+            'original_active_role' => session('active_role'),
+        ]);
+    }
+
+    session([
+        'active_business_slug' => $managedBusiness->slug,
+        'active_role' => 'business-admin',
+    ]);
+
+    activity()
+        ->causedBy($request->user())
+        ->performedOn($managedBusiness)
+        ->log('Impersonated business');
+
+    return RequestResponse::ok(
+        message: "Welcome to {$managedBusiness->company_name} dashboard",
+        data: ['redirect_url' => route('business.index', ['business' => $managedBusiness->slug])]
+    );
+}
+
+public function managedBusinessesList(Request $request)
+{
+    if (!session()->has('original_business_slug')) {
+        return RequestResponse::forbidden('Not currently impersonating.');
+    }
+
+    $businesses = Business::where('slug', '!=', config('business.main_slug'))
+        ->where('slug', '!=', session('active_business_slug'))
+        ->get(['id', 'company_name', 'slug']);
+
+    return RequestResponse::ok('OK', $businesses);
+}
+
+public function switchBackToAdmin(Request $request, $business_slug)
+{
+    $originalBusinessSlug = session('original_business_slug', config('business.main_slug'));
+    $originalActiveRole = session('original_active_role');
+
+    session(['active_business_slug' => $originalBusinessSlug]);
+    if ($originalActiveRole) {
+        session(['active_role' => $originalActiveRole]);
+    }
+    session()->forget(['original_business_slug', 'original_active_role']);
+
+    activity()
+        ->causedBy($request->user())
+        ->log('Switched back from impersonated business');
+
+    return RequestResponse::ok(
+        message: "Switched back to admin dashboard",
+        data: ['redirect_url' => route('business.index', ['business' => $originalBusinessSlug])]
+    );
+}
 
     public function verifyBusiness(Request $request, $business_slug, $client_business_slug)
     {
         $business = Business::findBySlug($business_slug);
-        if (!$business || $business->slug !== 'krest') {
-            return RequestResponse::forbidden('Only krest can verify clients.');
+        if (!$business || $business->slug !== config('business.main_slug')) {
+            return RequestResponse::forbidden('Only the platform business can verify clients.');
         }
 
         $clientBusiness = Business::findBySlug($client_business_slug);
@@ -227,6 +309,10 @@ class ClientController extends Controller
         $request->validate([
             'remarks' => 'required|string|max:500',
         ]);
+
+        if ($clientBusiness->verified) {
+            return RequestResponse::ok('Business is already verified.');
+        }
 
         return $this->handleTransaction(function () use ($clientBusiness, $request) {
             $clientBusiness->update(['verified' => true]);
@@ -246,8 +332,8 @@ class ClientController extends Controller
     public function deactivateBusiness(Request $request, $business_slug, $client_business_slug)
     {
         $business = Business::findBySlug($business_slug);
-        if (!$business || $business->slug !== 'krest') {
-            return RequestResponse::forbidden('Only krest can deactivate clients.');
+        if (!$business || $business->slug !== config('business.main_slug')) {
+            return RequestResponse::forbidden('Only the platform business can deactivate clients.');
         }
 
         $clientBusiness = Business::findBySlug($client_business_slug);
@@ -258,6 +344,10 @@ class ClientController extends Controller
         $request->validate([
             'remarks' => 'required|string|max:500',
         ]);
+
+        if (!$clientBusiness->verified && $clientBusiness->status === Status::DEACTIVATED) {
+            return RequestResponse::ok('Business is already deactivated.');
+        }
 
         return $this->handleTransaction(function () use ($clientBusiness, $request) {
             $clientBusiness->update(['verified' => false]);
@@ -277,8 +367,8 @@ class ClientController extends Controller
     public function assignModules(Request $request, $business_slug, $client_business_slug)
     {
         $business = Business::findBySlug($business_slug);
-        if (!$business || $business->slug !== 'krest') {
-            return RequestResponse::forbidden('Only krest can manage modules.');
+        if (!$business || $business->slug !== config('business.main_slug')) {
+            return RequestResponse::forbidden('Only the platform business can manage modules.');
         }
 
         $clientBusiness = Business::findBySlug($client_business_slug);
@@ -292,7 +382,31 @@ class ClientController extends Controller
         ]);
 
         return $this->handleTransaction(function () use ($clientBusiness, $request) {
-            $clientBusiness->modules()->sync($request->input('modules', []));
+            $selectedIds = array_map('intval', $request->input('modules', []));
+
+            // A bare sync($ids) recreates every pivot row from column
+            // defaults, silently wiping subscription_ends_at (no default,
+            // nullable) back to null even for a module that stays checked
+            // and already had a payment-extended expiry. Preserve it
+            // instead, and soft-disable (is_active=false) rather than
+            // detach anything unchecked, so payment history recorded
+            // against that module_id stays meaningful.
+            $existing = $clientBusiness->modules()->withPivot('subscription_ends_at')->get()->keyBy('id');
+
+            foreach ($selectedIds as $moduleId) {
+                $clientBusiness->modules()->syncWithoutDetaching([
+                    $moduleId => [
+                        'is_active' => true,
+                        'subscription_ends_at' => $existing->get($moduleId)?->pivot?->subscription_ends_at,
+                    ],
+                ]);
+            }
+
+            $toDisable = $existing->keys()->diff($selectedIds);
+            if ($toDisable->isNotEmpty()) {
+                $clientBusiness->modules()->updateExistingPivot($toDisable->all(), ['is_active' => false]);
+            }
+
             activity()
                 ->causedBy($request->user())
                 ->performedOn($clientBusiness)

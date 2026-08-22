@@ -21,6 +21,21 @@
             @enderror
         </div>
         <div class="col-12">
+            <label for="stage_type_id" class="form-label fw-medium text-dark">Stage</label>
+            <select name="stage_type_id" id="stage_type_id" class="form-select"
+                data-current-stage-id="{{ isset($warning) ? (int) $warning->stage_type_id : '' }}">
+                <option value="">Loading stages…</option>
+            </select>
+        </div>
+        <div class="col-12">
+            <label for="severity" class="form-label fw-medium text-dark">Severity</label>
+            <select name="severity" id="severity" class="form-select">
+                <option value="low" {{ isset($warning) && $warning->severity === 'low' ? 'selected' : '' }}>Low</option>
+                <option value="medium" {{ !isset($warning) || $warning->severity === 'medium' ? 'selected' : '' }}>Medium</option>
+                <option value="high" {{ isset($warning) && $warning->severity === 'high' ? 'selected' : '' }}>High</option>
+            </select>
+        </div>
+        <div class="col-12">
             <label for="issue_date" class="form-label fw-medium text-dark">Issue Date</label>
             <input type="date" name="issue_date" id="issue_date" class="form-control"
                 value="{{ isset($warning) ? $warning->issue_date->toDateString() : now()->toDateString() }}" required>
@@ -63,22 +78,13 @@
         </button>
     </div>
 </form>
-
-@push('scripts')
-<script>
-(function() {
-    'use strict';
-    var forms = document.querySelectorAll('.needs-validation');
-    Array.prototype.slice.call(forms).forEach(function(form) {
-        form.addEventListener('submit', function(event) {
-            event.stopPropagation();
-            if (form.checkValidity()) {
-                saveWarning(form.querySelector(
-                    'button[type="button"]'));
-            }
-            form.classList.add('was-validated');
-        }, false);
-    });
-})();
-</script>
-@endpush
+{{--
+    No script here on purpose - this partial is also rendered standalone
+    (WarningController::edit(), see warningService.edit() in warnings.js)
+    outside of any layout that consumes @stack('scripts'), so anything
+    pushed here would silently never render for an AJAX-loaded copy of
+    this form (the stage dropdown would sit on "Loading stages…"
+    forever). See window.initWarningForm() in warnings.js instead, which
+    is called both on initial page load and after every AJAX swap of
+    #warningFormContainer.
+--}}

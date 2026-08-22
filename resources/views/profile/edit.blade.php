@@ -1,4 +1,5 @@
 <x-app-layout>
+    @include('components.phone-input-assets')
 
     <div class="card mb-3">
         <div class="card-body d-flex justify-content-between align-items-center mb-0">

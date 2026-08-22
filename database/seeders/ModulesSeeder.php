@@ -173,7 +173,7 @@ class ModulesSeeder extends Seeder
         ];
 
         foreach ($modules as $module) {
-            Module::create($module);
+            Module::firstOrCreate(['name' => $module['name']], $module);
         }
     }
 }

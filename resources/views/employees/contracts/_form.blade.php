@@ -25,6 +25,7 @@
             <select name="action_type" id="action_type" class="form-select" required>
                 <option value="" disabled selected>Select Action Type</option>
                 <option value="termination">Termination</option>
+                <option value="suspension">Suspension</option>
                 <option value="reminder">Reminder</option>
             </select>
             @error('action_type')

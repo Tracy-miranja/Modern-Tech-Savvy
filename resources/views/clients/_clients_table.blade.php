@@ -26,18 +26,20 @@
                 @endif
             </td>
             <td>
-                @if (!$biz->verified)
-                <button class="btn btn-sm btn-success" onclick="verifyBusiness(this, '{{ $biz->slug }}')">
-                    Verify
-                </button>
-                @else
-                <button class="btn btn-sm btn-danger" onclick="deactivateBusiness(this, '{{ $biz->slug }}')">
-                    Deactivate
-                </button>
+                @if (auth()->user()->hasRole('super-admin'))
+                    @if (!$biz->verified)
+                    <button class="btn btn-sm btn-success" onclick="verifyBusiness(this, '{{ $biz->slug }}')">
+                        Verify
+                    </button>
+                    @else
+                    <button class="btn btn-sm btn-danger" onclick="deactivateBusiness(this, '{{ $biz->slug }}')">
+                        Deactivate
+                    </button>
+                    @endif
+                    <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modulesModal-{{ $biz->slug }}">
+                        Assign Modules
+                    </button>
                 @endif
-                <button class="btn btn-sm btn-primary" data-toggle="modal" data-target="#modulesModal-{{ $biz->slug }}">
-                    Assign Modules
-                </button>
                 <button class="btn btn-sm btn-info" onclick="impersonateBusiness('{{ $biz->slug }}')">
                     Impersonate
                 </button>
@@ -49,16 +51,14 @@
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">Remarks</h5>
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">×</span>
-                        </button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
                         <textarea class="form-control" id="remarks-{{ $biz->slug }}" rows="4"
                             placeholder="Enter remarks"></textarea>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                         <button type="button" class="btn btn-primary"
                             onclick="submitRemarks('{{ $biz->slug }}')">Submit</button>
                     </div>
@@ -71,9 +71,7 @@
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">Assign Modules for {{ $biz->company_name }}</h5>
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">×</span>
-                        </button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
                         <form id="modulesForm-{{ $biz->slug }}">
@@ -90,7 +88,7 @@
                         </form>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                         <button type="button" class="btn btn-primary"
                             onclick="assignModules(this, '{{ $biz->slug }}')">Save</button>
                     </div>

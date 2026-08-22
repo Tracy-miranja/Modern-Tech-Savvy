@@ -11,9 +11,9 @@
             'rejected' => ['icon' => 'fa fa-times-circle',  'color' => '#dc3545', 'label' => 'Rejected'],
         ];
 
-        $isOwner        = optional(auth()->user()->employee)->id === (int) $leave->employee_id;
+        $isOwner        = optional(auth()->user()->activeEmployee())->id === (int) $leave->employee_id;
         $activeRole     = session('active_role');
-        $isApproverRole = in_array($activeRole, ['head-of-department','business-hr','business-admin','business-head'], true);
+        $isApproverRole = in_array($activeRole, ['head-of-department','business-hr','business-admin'], true);
 
         $canApprove = $isApproverRole && method_exists($leave, 'canUserApprove')
             ? $leave->canUserApprove(auth()->user())
@@ -28,7 +28,6 @@
             'head-of-department' => url('/dashboard'),
             'business-hr'        => url('/dashboard'),
             'business-admin'     => url('/dashboard'),
-            'business-head'      => url('/dashboard'),
             'chief-of-staff'     => url('/dashboard'),
             'business-employee'  => url('/leave/requests'),
         ];
@@ -336,46 +335,25 @@
                     <div class="card shadow-sm">
                         <div class="card-body">
                             <h6 class="mb-3">Revoke / Shorten Leave</h6>
-                            @php
-                                $leaveStarted = $leave->start_date->startOfDay()->lte(now()->startOfDay());
-                            @endphp
-
                             <form id="revokeForm"
-                                action="{{ route('business.leave.revoke', ['business' => $businessSlug]) }}"
-                                method="post">
+                                  action="{{ route('business.leave.revoke', ['business' => $businessSlug]) }}"
+                                  method="post">
                                 @csrf
                                 <input type="hidden" name="reference_number" value="{{ $leave->reference_number }}">
-
                                 <div class="mb-2">
-                                    <label class="form-label">Action</label>
-                                    <select name="action" id="revokeAction" class="form-select" required>
-                                        @if(!$leaveStarted)
-                                            <option value="full">Full Revoke (Cancel Leave)</option>
-                                        @endif
-                                        <option value="shorten">Shorten Leave</option>
-                                    </select>
-                                </div>
-
-                                <div class="mb-2" id="returnDateWrapper">
                                     <label class="form-label">Return To Work Date</label>
-                                    <input type="date" name="return_to_work_date"
-                                        class="form-control"
-                                        min="{{ now()->toDateString() }}">
-                                    <small class="text-muted">
-                                        Employee resumes on this date. Last leave day becomes the previous day.
-                                    </small>
+                                    <input type="date" name="return_to_work_date" class="form-control"
+                                           min="{{ now()->toDateString() }}" required>
+                                    <small class="text-muted">Employee will resume on this date. Last leave day becomes the previous day.</small>
                                 </div>
-
                                 <div class="mb-2">
                                     <label class="form-label">Reason (optional)</label>
-                                    <input type="text" name="reason" class="form-control" maxlength="500">
+                                    <input type="text" name="reason" class="form-control" maxlength="500" placeholder="Short note">
                                 </div>
-
                                 <button type="submit" class="btn btn-warning w-100">
-                                    <i class="fa-solid fa-rotate-left me-1"></i> Proceed
+                                    <i class="fa-solid fa-rotate-left me-1"></i> Revoke (Shorten)
                                 </button>
                             </form>
-
 
                             @if(is_array($leave->revocation_history ?? null) && count($leave->revocation_history))
                                 <hr>
@@ -657,20 +635,6 @@
             printBtn?.addEventListener('click', function () {
                 window.print();
             });
-
-            const actionSelect = document.getElementById('revokeAction');
-            const returnWrapper = document.getElementById('returnDateWrapper');
-            const returnInput = returnWrapper?.querySelector('input');
-
-            function toggleReturnDate() {
-                const isShorten = actionSelect.value === 'shorten';
-                returnWrapper.style.display = isShorten ? 'block' : 'none';
-                returnInput.required = isShorten;
-            }
-
-            actionSelect?.addEventListener('change', toggleReturnDate);
-            toggleReturnDate(); // init
-
 
             const revokeForm = document.getElementById('revokeForm');
             if (revokeForm) {

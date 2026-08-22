@@ -21,6 +21,8 @@ class Allowance extends Model
         'name',
         'slug',
         'is_taxable',
+        'amount',
+        'rate',
     ];
 
     protected function casts(): array
@@ -47,6 +49,6 @@ class Allowance extends Model
     }
     public function getSlugOptions(): SlugOptions
     {
-        return SlugOptions::create()->generateSlugsFrom('name')->saveSlugsTo('slug');
+        return SlugOptions::create()->generateSlugsFrom('name')->saveSlugsTo('slug')->doNotGenerateSlugsOnUpdate();
     }
 }

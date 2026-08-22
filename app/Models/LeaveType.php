@@ -12,6 +12,16 @@ class LeaveType extends Model
 {
     use HasFactory, HasSlug, LogsActivity;
 
+    /**
+     * The only approver types a level can be configured as. 'organogram'
+     * (the requester's manager chain) is the default when a level has no
+     * explicit entry, preserving prior behavior for leave types that
+     * predate this field. Company-wide admin roles (HR/admin/business
+     * head/chief-of-staff) remain a standing override regardless of what's
+     * configured here - see LeaveRequest::canUserApprove().
+     */
+    public const APPROVER_TYPES = ['organogram', 'hr', 'department_head'];
+
     protected $fillable = [
         'business_id',
         'name',
@@ -27,10 +37,13 @@ class LeaveType extends Model
         'is_active',
         'allows_backdating',
         'approval_levels',
+        'approval_chain',
         'excluded_days',
         'is_stepwise',
         'excluded_dates',
         'stepwise_rules',
+        'exclude_public_holidays',
+        'exclude_non_working_days',
     ];
 
     protected $casts = [
@@ -44,15 +57,18 @@ class LeaveType extends Model
         'is_active' => 'boolean',
         'allows_backdating' => 'boolean',
         'approval_levels' => 'integer',
+        'approval_chain' => 'array',
         'excluded_days' => 'array',
         'excluded_dates' => 'array',
         'is_stepwise' => 'boolean',
         'stepwise_rules' => 'array',
+        'exclude_public_holidays' => 'boolean',
+        'exclude_non_working_days' => 'boolean',
     ];
 
     public function getSlugOptions(): SlugOptions
     {
-        return SlugOptions::create()->generateSlugsFrom('name')->saveSlugsTo('slug');
+        return SlugOptions::create()->generateSlugsFrom('name')->saveSlugsTo('slug')->doNotGenerateSlugsOnUpdate();
     }
 
     /**
@@ -76,4 +92,16 @@ class LeaveType extends Model
         return $this->hasMany(\App\Models\LeaveRequest::class, 'leave_type_id');
     }
 
+    /**
+     * Who approves a given level (1-indexed). Falls back to 'organogram'
+     * when the chain isn't configured for that level, matching behavior
+     * from before this field existed.
+     */
+    public function approverTypeForLevel(int $level): string
+    {
+        $chain = (array) ($this->approval_chain ?? []);
+        $type = $chain[$level - 1] ?? 'organogram';
+
+        return in_array($type, self::APPROVER_TYPES, true) ? $type : 'organogram';
+    }
 }

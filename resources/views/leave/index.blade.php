@@ -1,6 +1,49 @@
 <x-app-layout>
     <div class="row g-20">
         <div class="col-md-12">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-6 col-md-3">
+                            <label class="form-label small text-muted mb-1">Department</label>
+                            <select id="leaveFilterDepartment" class="form-select form-select-sm">
+                                <option value="">All Departments</option>
+                                @foreach ($departments as $department)
+                                    <option value="{{ $department->id }}">{{ $department->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label small text-muted mb-1">Location</label>
+                            <select id="leaveFilterLocation" class="form-select form-select-sm">
+                                <option value="">All Locations</option>
+                                @foreach ($locations as $location)
+                                    <option value="{{ $location->id }}">{{ $location->name }}{{ $location->country ? ' (' . $location->country . ')' : '' }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label small text-muted mb-1">Leave Type</label>
+                            <select id="leaveFilterType" class="form-select form-select-sm">
+                                <option value="">All Leave Types</option>
+                                @foreach ($leaveTypes as $leaveType)
+                                    <option value="{{ $leaveType->id }}">{{ $leaveType->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label small text-muted mb-1">Leave Period</label>
+                            <select id="leaveFilterPeriod" class="form-select form-select-sm">
+                                <option value="">All Periods</option>
+                                @foreach ($leavePeriods as $leavePeriod)
+                                    <option value="{{ $leavePeriod->id }}">{{ $leavePeriod->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <ul class="nav nav-tabs mb-3" id="myTab" role="tablist">
                 <li class="nav-item" role="presentation">
                     <button class="nav-link active" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button" role="tab" aria-controls="pending" aria-selected="true">Pending</button>
@@ -10,6 +53,9 @@
                 </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="rejected-tab" data-bs-toggle="tab" data-bs-target="#rejected" type="button" role="tab" aria-controls="rejected" aria-selected="false">Rejected</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="cancelled-tab" data-bs-toggle="tab" data-bs-target="#cancelled" type="button" role="tab" aria-controls="cancelled" aria-selected="false">Cancelled</button>
                 </li>
             </ul>
             <div class="tab-content" id="myTabContent">
@@ -34,6 +80,13 @@
                         </div>
                     </div>
                 </div>
+                <div class="tab-pane fade" id="cancelled" role="tabpanel" aria-labelledby="cancelled-tab">
+                    <div id="cancelledContainer">
+                        <div class="card">
+                            <div class="card-body"> {{ loader() }} </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -49,9 +102,13 @@
                     const status = $(this).attr('aria-controls');
                     getLeave(1, status)
                 });
+
+                $('#leaveFilterDepartment, #leaveFilterLocation, #leaveFilterType, #leaveFilterPeriod').on('change', function () {
+                    const activeStatus = $('#myTab button.active').attr('aria-controls') || 'pending';
+                    getLeave(1, activeStatus);
+                });
             });
         </script>
-
     @endpush
 
 </x-app-layout>

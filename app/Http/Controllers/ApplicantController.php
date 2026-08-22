@@ -3,22 +3,19 @@
 namespace App\Http\Controllers;
 
 use App\Enum\Status;
-use App\Models\User;
-use App\Models\Applicant;
-use App\Models\JobPost;
-use App\Models\Business;
-use Illuminate\Http\Request;
-use App\Http\RequestResponse;
-use App\Traits\HandleTransactions;
-use Spatie\Permission\Models\Role;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Hash;
-use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\ApplicantsExport;
-use Illuminate\Support\Facades\Mail;
-use App\Mail\ApplicantStatusUpdated;
+use App\Http\RequestResponse;
+use App\Models\Applicant;
+use App\Models\Business;
+use App\Models\JobPost;
+use App\Models\User;
+use App\Traits\HandleTransactions;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ApplicantController extends Controller
 {
@@ -28,100 +25,83 @@ class ApplicantController extends Controller
     {
         $business = Business::findBySlug(session('active_business_slug'));
         $jobPosts = JobPost::where('business_id', $business->id)->get();
+
         return view('applicants.index', ['page' => 'Job Applicants', 'jobPosts' => $jobPosts]);
     }
 
+    /**
+     * Applicants listing for a business must include:
+     * - internally created applicants (created_by = business owner or employees)
+     * - external applicants (created_by null) who have applications for this business
+     */
     public function fetch(Request $request)
     {
         try {
-            $role = Role::findByName('applicant');
-            if (!$role) {
-                return RequestResponse::badRequest('Applicant role not found.');
-            }
-
             $business = Business::findBySlug(session('active_business_slug'));
-            $query = User::role($role->name)
-                ->with(['applicant', 'applicant.applications.jobPost'])
-                ->whereHas('applicant', function ($q) use ($business) {
-                    $q->where(function ($subQ) use ($business) {
-                        $subQ->whereIn('created_by', function ($employeeQ) use ($business) {
-                            $employeeQ->select('user_id')
-                                ->from('employees')
-                                ->where('business_id', $business->id);
-                        })
-                            ->orWhere('created_by', $business->user_id);
+
+            $query = Applicant::query()
+                ->with(['user', 'applications.jobPost'])
+                ->where(function ($q) use ($business) {
+                    $q->whereHas('applications', function ($aq) use ($business) {
+                        $aq->where('business_id', $business->id);
+                    })->orWhere(function ($sub) use ($business) {
+                        $sub->whereIn('created_by', function ($employeeQ) use ($business) {
+                            $employeeQ->select('user_id')->from('employees')->where('business_id', $business->id);
+                        })->orWhere('created_by', $business->user_id);
                     });
                 });
 
-            $this->applyFilters($query, $request);
+            $this->applyFilters($query, $request, $business);
 
-            $applicants = $query->paginate(10);
-            $applicant_table = view('applicants._table', compact('applicants'))->render();
-            return RequestResponse::ok('Ok', $applicant_table);
+            $applicants = $query->latest()->paginate(10);
+            $table = view('applicants._table', compact('applicants'))->render();
+
+            return RequestResponse::ok('Ok', $table);
         } catch (\Exception $e) {
-            Log::error('Error fetching applicants: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
-            return RequestResponse::badRequest('Failed to fetch applicants: ' . $e->getMessage());
+            Log::error('Error fetching applicants: '.$e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            return RequestResponse::badRequest('Failed to fetch applicants: '.$e->getMessage());
         }
     }
 
     public function filter(Request $request)
     {
-        try {
-            $role = Role::findByName('applicant');
-            if (!$role) {
-                return RequestResponse::badRequest('Applicant role not found.');
-            }
-
-            $business = Business::findBySlug(session('active_business_slug'));
-            $query = User::role($role->name)
-                ->with(['applicant', 'applicant.applications.jobPost'])
-                ->whereHas('applicant', function ($q) use ($business) {
-                    $q->where(function ($subQ) use ($business) {
-                        $subQ->whereIn('created_by', function ($employeeQ) use ($business) {
-                            $employeeQ->select('user_id')
-                                ->from('employees')
-                                ->where('business_id', $business->id);
-                        })
-                            ->orWhere('created_by', $business->user_id);
-                    });
-                });
-
-            $this->applyFilters($query, $request);
-
-            $applicants = $query->paginate(10);
-            $applicant_table = view('applicants._table', compact('applicants'))->render();
-            return RequestResponse::ok('Ok', $applicant_table);
-        } catch (\Exception $e) {
-            Log::error('Error filtering applicants: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
-            return RequestResponse::badRequest('Failed to filter applicants: ' . $e->getMessage());
-        }
+        return $this->fetch($request);
     }
 
-    private function applyFilters($query, $request)
+    private function applyFilters($query, Request $request, Business $business)
     {
-        if ($request->has('filter')) {
-            $filter = $request->input('filter');
+        if ($request->filled('filter')) {
+            $filter = trim($request->input('filter'));
+
             $query->where(function ($q) use ($filter) {
-                $q->where('name', 'like', "%$filter%")
-                    ->orWhere('email', 'like', "%$filter%")
-                    ->orWhereHas('applicant', function ($q) use ($filter) {
-                        $q->where('city', 'like', "%$filter%")
-                            ->orWhere('country', 'like', "%$filter%")
-                            ->orWhere('experience_level', 'like', "%$filter%");
+                $q->where('fullname', 'like', "%{$filter}%")
+                    ->orWhere('idnumber', 'like', "%{$filter}%")
+                    ->orWhere('phone', 'like', "%{$filter}%")
+                    ->orWhere('country', 'like', "%{$filter}%")
+                    ->orWhere('city', 'like', "%{$filter}%")
+                    ->orWhere('home_county', 'like', "%{$filter}%")
+                    ->orWhereHas('user', function ($uq) use ($filter) {
+                        $uq->where('name', 'like', "%{$filter}%")
+                            ->orWhere('email', 'like', "%{$filter}%")
+                            ->orWhere('phone', 'like', "%{$filter}%");
                     });
             });
         }
 
-        if ($request->has('job_post_id')) {
-            $query->whereHas('applicant.applications', function ($q) use ($request) {
-                $q->where('job_post_id', $request->job_post_id);
+        if ($request->filled('job_post_id')) {
+            $jobId = (int) $request->job_post_id;
+            $query->whereHas('applications', function ($aq) use ($jobId, $business) {
+                $aq->where('business_id', $business->id)
+                    ->where('job_post_id', $jobId);
             });
         }
 
-        if ($request->has('location')) {
-            $query->whereHas('applicant', function ($q) use ($request) {
-                $q->where('city', 'like', "%{$request->location}%")
-                    ->orWhere('country', 'like', "%{$request->location}%");
+        if ($request->filled('location')) {
+            $location = trim($request->location);
+            $query->where(function ($q) use ($location) {
+                $q->where('city', 'like', "%{$location}%")
+                    ->orWhere('home_county', 'like', "%{$location}%")
+                    ->orWhere('country', 'like', "%{$location}%");
             });
         }
     }
@@ -131,10 +111,14 @@ class ApplicantController extends Controller
         $business = Business::findBySlug(session('active_business_slug'));
         $users = User::whereDoesntHave('applicant')->get();
         $jobPosts = JobPost::where('business_id', $business->id)->get();
+
         $applicant = null;
         return view('applicants.create', compact('users', 'jobPosts', 'applicant'));
     }
 
+    /**
+     * INTERNAL create still creates a User (unchanged behaviour)
+     */
     public function store(Request $request)
     {
         $request->validate([
@@ -169,10 +153,10 @@ class ApplicantController extends Controller
             $validator = Validator::make(['phone' => $phoneNumber], [
                 'phone' => 'unique:users,phone',
             ]);
-
             throw_if($validator->fails(), ValidationException::class, $validator);
 
             $name = trim("{$request->first_name} {$request->middle_name} {$request->last_name}");
+
             $user = User::create([
                 'name' => $name,
                 'email' => $request->email,
@@ -180,6 +164,7 @@ class ApplicantController extends Controller
                 'password' => Hash::make($request->password),
                 'country' => $request->country,
             ]);
+
             $user->assignRole('applicant');
             $user->setStatus(Status::ACTIVE);
 
@@ -189,11 +174,13 @@ class ApplicantController extends Controller
 
             $applicant = Applicant::create([
                 'user_id' => $user->id,
+                'fullname' => $name,              // keep your canonical applicant name field
+                'phone' => $phoneNumber,          // mirror
+                'country' => $request->country,   // canonical nationality store
                 'address' => $request->address,
                 'city' => $request->city,
                 'state' => $request->state,
                 'zip_code' => $request->zip_code,
-                'country' => $request->country,
                 'linkedin_profile' => $request->linkedin_profile,
                 'portfolio_url' => $request->portfolio_url,
                 'current_job_title' => $request->current_job_title,
@@ -213,46 +200,63 @@ class ApplicantController extends Controller
 
     public function edit(Request $request)
     {
-        $validatedData = $request->validate([
+        $validated = $request->validate([
             'applicant_id' => 'required|exists:applicants,id',
         ]);
 
         $business = Business::findBySlug(session('active_business_slug'));
+
         $applicant = Applicant::with('user')
-            ->where('id', $validatedData['applicant_id'])
+            ->where('id', (int)$validated['applicant_id'])
             ->where(function ($q) use ($business) {
-                $q->whereIn('created_by', function ($subQ) use ($business) {
-                    $subQ->select('user_id')
-                        ->from('employees')
-                        ->where('business_id', $business->id);
-                })
-                    ->orWhere('created_by', $business->user_id);
+                $q->whereHas('applications', function ($aq) use ($business) {
+                    $aq->where('business_id', $business->id);
+                })->orWhere(function ($sub) use ($business) {
+                    $sub->whereIn('created_by', function ($employeeQ) use ($business) {
+                        $employeeQ->select('user_id')->from('employees')->where('business_id', $business->id);
+                    })->orWhere('created_by', $business->user_id);
+                });
             })
             ->firstOrFail();
 
-        $users = User::whereDoesntHave('applicant')->orWhere('id', $applicant->user_id)->get();
+        $users = User::whereDoesntHave('applicant')
+            ->when($applicant->user_id, fn($q) => $q->orWhere('id', $applicant->user_id))
+            ->get();
+
         $jobPosts = JobPost::where('business_id', $business->id)->get();
-        $applicant_form = view('applicants._form', compact('applicant', 'users', 'jobPosts'))->render();
-        return RequestResponse::ok('Ok', $applicant_form);
+        $form = view('applicants._form', compact('applicant', 'users', 'jobPosts'))->render();
+
+        return RequestResponse::ok('Ok', $form);
     }
 
+    /**
+     * Update supports both:
+     * - applicants with user_id (update user fields too)
+     * - applicants without user_id (update applicant fields only)
+     */
     public function update(Request $request)
     {
-        $validatedData = $request->validate([
+        $validated = $request->validate([
             'applicant_id' => 'required|exists:applicants,id',
+
             'first_name' => 'nullable|string|max:255',
             'middle_name' => 'nullable|string|max:255',
             'last_name' => 'nullable|string|max:255',
-            'email' => 'nullable|email|max:255|unique:users,email,' . ($request->input('applicant_id') ? Applicant::findOrFail($request->input('applicant_id'))->user->id : null),
-            'phone' => 'nullable|string|max:20',
+
+            'email' => 'nullable|email|max:255',
+            'phone' => 'nullable|string|max:30',
+
             'address' => 'nullable|string|max:255',
             'city' => 'nullable|string|max:100',
+            'home_county' => 'nullable|string|max:100',
             'state' => 'nullable|string|max:100',
             'zip_code' => 'nullable|string|max:20',
             'country' => 'nullable|string|max:100',
+
             'linkedin_profile' => 'nullable|url',
             'portfolio_url' => 'nullable|url',
             'summary' => 'nullable|string',
+
             'current_job_title' => 'nullable|string|max:255',
             'current_company' => 'nullable|string|max:255',
             'experience_level' => 'nullable|string|in:Entry-level,Mid-level,Senior',
@@ -262,57 +266,92 @@ class ApplicantController extends Controller
             'source' => 'nullable|string|max:255',
         ]);
 
-        return $this->handleTransaction(function () use ($validatedData) {
+        return $this->handleTransaction(function () use ($validated) {
             $business = Business::findBySlug(session('active_business_slug'));
-            $applicant = Applicant::where('id', $validatedData['applicant_id'])
+
+            $applicant = Applicant::with('user')
+                ->where('id', (int)$validated['applicant_id'])
                 ->where(function ($q) use ($business) {
-                    $q->whereIn('created_by', function ($subQ) use ($business) {
-                        $subQ->select('user_id')
-                            ->from('employees')
-                            ->where('business_id', $business->id);
-                    })
-                        ->orWhere('created_by', $business->user_id);
+                    $q->whereHas('applications', function ($aq) use ($business) {
+                        $aq->where('business_id', $business->id);
+                    })->orWhere(function ($sub) use ($business) {
+                        $sub->whereIn('created_by', function ($employeeQ) use ($business) {
+                            $employeeQ->select('user_id')->from('employees')->where('business_id', $business->id);
+                        })->orWhere('created_by', $business->user_id);
+                    });
                 })
                 ->firstOrFail();
 
-            $user = $applicant->user;
+            // If applicant has user, update user too
+            if ($applicant->user) {
+                $user = $applicant->user;
 
-            if (isset($validatedData['first_name']) || isset($validatedData['middle_name']) || isset($validatedData['last_name'])) {
                 $nameParts = array_filter([
-                    $validatedData['first_name'] ?? '',
-                    $validatedData['middle_name'] ?? '',
-                    $validatedData['last_name'] ?? ''
+                    $validated['first_name'] ?? null,
+                    $validated['middle_name'] ?? null,
+                    $validated['last_name'] ?? null,
                 ]);
-                $user->name = !empty($nameParts) ? trim(implode(' ', $nameParts)) : $user->name;
+
+                if (!empty($nameParts)) {
+                    $user->name = trim(implode(' ', $nameParts));
+                    // keep applicant.fullname consistent
+                    $applicant->fullname = $user->name;
+                }
+
+                if (!empty($validated['email'])) {
+                    // ensure unique if changing
+                    if ($validated['email'] !== $user->email) {
+                        $requestValidator = Validator::make(
+                            ['email' => $validated['email']],
+                            ['email' => 'unique:users,email,' . $user->id]
+                        );
+                        throw_if($requestValidator->fails(), ValidationException::class, $requestValidator);
+                    }
+                    $user->email = $validated['email'];
+                }
+
+                if (!empty($validated['phone'])) {
+                    $user->phone = $validated['phone'];
+                    $applicant->phone = $validated['phone'];
+                }
+
+                $user->save();
+            } else {
+                // no user, but allow updating applicant fullname if names were sent
+                $nameParts = array_filter([
+                    $validated['first_name'] ?? null,
+                    $validated['middle_name'] ?? null,
+                    $validated['last_name'] ?? null,
+                ]);
+                if (!empty($nameParts)) {
+                    $applicant->fullname = trim(implode(' ', $nameParts));
+                }
+                if (!empty($validated['phone'])) {
+                    $applicant->phone = $validated['phone'];
+                }
             }
 
-            if (isset($validatedData['email'])) {
-                $user->email = $validatedData['email'];
-            }
-
-            if (isset($validatedData['phone'])) {
-                $user->phone = $validatedData['phone'];
-            }
-
-            $user->save();
-
-            $applicant->update(array_filter([
-                'address' => $validatedData['address'],
-                'city' => $validatedData['city'],
-                'state' => $validatedData['state'],
-                'zip_code' => $validatedData['zip_code'],
-                'country' => $validatedData['country'],
-                'linkedin_profile' => $validatedData['linkedin_profile'],
-                'portfolio_url' => $validatedData['portfolio_url'],
-                'current_job_title' => $validatedData['current_job_title'],
-                'current_company' => $validatedData['current_company'],
-                'experience_level' => $validatedData['experience_level'],
-                'education_level' => $validatedData['education_level'],
-                'desired_salary' => $validatedData['desired_salary'],
-                'job_preferences' => $validatedData['job_preferences'],
-                'source' => $validatedData['source'],
+            // Update applicant fields
+            $applicant->fill(array_filter([
+                'address' => $validated['address'] ?? null,
+                'city' => $validated['city'] ?? null,
+                'home_county' => $validated['home_county'] ?? null,
+                'state' => $validated['state'] ?? null,
+                'zip_code' => $validated['zip_code'] ?? null,
+                'country' => $validated['country'] ?? null,
+                'linkedin_profile' => $validated['linkedin_profile'] ?? null,
+                'portfolio_url' => $validated['portfolio_url'] ?? null,
+                'summary' => $validated['summary'] ?? null,
+                'current_job_title' => $validated['current_job_title'] ?? null,
+                'current_company' => $validated['current_company'] ?? null,
+                'experience_level' => $validated['experience_level'] ?? null,
+                'education_level' => $validated['education_level'] ?? null,
+                'desired_salary' => $validated['desired_salary'] ?? null,
+                'job_preferences' => $validated['job_preferences'] ?? null,
+                'source' => $validated['source'] ?? null,
             ]));
 
+            $applicant->save();
             $applicant->setStatus(Status::ACTIVE);
 
             return RequestResponse::ok('Applicant updated successfully.');
@@ -321,22 +360,24 @@ class ApplicantController extends Controller
 
     public function destroy(Request $request)
     {
-        $validatedData = $request->validate([
+        $validated = $request->validate([
             'applicant_ids' => 'required|array',
             'applicant_ids.*' => 'exists:applicants,id',
         ]);
 
-        return $this->handleTransaction(function () use ($validatedData) {
+        return $this->handleTransaction(function () use ($validated) {
             $business = Business::findBySlug(session('active_business_slug'));
-            $applicants = Applicant::with('applications', 'skills', 'user')
-                ->whereIn('id', $validatedData['applicant_ids'])
+
+            $applicants = Applicant::with(['applications', 'skills', 'user'])
+                ->whereIn('id', $validated['applicant_ids'])
                 ->where(function ($q) use ($business) {
-                    $q->whereIn('created_by', function ($subQ) use ($business) {
-                        $subQ->select('user_id')
-                            ->from('employees')
-                            ->where('business_id', $business->id);
-                    })
-                        ->orWhere('created_by', $business->user_id);
+                    $q->whereHas('applications', function ($aq) use ($business) {
+                        $aq->where('business_id', $business->id);
+                    })->orWhere(function ($sub) use ($business) {
+                        $sub->whereIn('created_by', function ($employeeQ) use ($business) {
+                            $employeeQ->select('user_id')->from('employees')->where('business_id', $business->id);
+                        })->orWhere('created_by', $business->user_id);
+                    });
                 })
                 ->get();
 
@@ -345,12 +386,14 @@ class ApplicantController extends Controller
             }
 
             foreach ($applicants as $applicant) {
+                // delete applications first (cascades external tables if your FK is cascade)
                 $applicant->applications()->delete();
                 $applicant->skills()->detach();
+                $user = $applicant->user;
                 $applicant->delete();
-                if ($applicant->user) {
-                    $applicant->user->delete();
-                }
+
+                // only delete user if exists (internal)
+                if ($user) $user->delete();
             }
 
             return RequestResponse::ok('Selected applicants deleted successfully.');
@@ -360,20 +403,21 @@ class ApplicantController extends Controller
     public function view($business, Applicant $applicant)
     {
         $businessModel = Business::findBySlug($business);
-        $applicantQuery = Applicant::with(['applications.jobPost'])
+
+        $applicant = Applicant::with(['user', 'applications.jobPost'])
             ->where('id', $applicant->id)
             ->where(function ($q) use ($businessModel) {
-                $q->whereIn('created_by', function ($subQ) use ($businessModel) {
-                    $subQ->select('user_id')
-                        ->from('employees')
-                        ->where('business_id', $businessModel->id);
-                })
-                    ->orWhere('created_by', $businessModel->user_id);
+                $q->whereHas('applications', function ($aq) use ($businessModel) {
+                    $aq->where('business_id', $businessModel->id);
+                })->orWhere(function ($sub) use ($businessModel) {
+                    $sub->whereIn('created_by', function ($employeeQ) use ($businessModel) {
+                        $employeeQ->select('user_id')->from('employees')->where('business_id', $businessModel->id);
+                    })->orWhere('created_by', $businessModel->user_id);
+                });
             })
             ->firstOrFail();
 
-        $applications = $applicantQuery->applications()
-            ->with('jobPost')
+        $applications = $applicant->applications()->with('jobPost')
             ->where('business_id', $businessModel->id)
             ->get();
 
@@ -382,20 +426,22 @@ class ApplicantController extends Controller
 
     public function show(Request $request)
     {
-        $validatedData = $request->validate([
+        $validated = $request->validate([
             'applicant_id' => 'required|exists:applicants,id',
         ]);
 
         $business = Business::findBySlug(session('active_business_slug'));
+
         $applicant = Applicant::with(['user', 'applications.jobPost'])
-            ->where('id', $validatedData['applicant_id'])
+            ->where('id', (int)$validated['applicant_id'])
             ->where(function ($q) use ($business) {
-                $q->whereIn('created_by', function ($subQ) use ($business) {
-                    $subQ->select('user_id')
-                        ->from('employees')
-                        ->where('business_id', $business->id);
-                })
-                    ->orWhere('created_by', $business->user_id);
+                $q->whereHas('applications', function ($aq) use ($business) {
+                    $aq->where('business_id', $business->id);
+                })->orWhere(function ($sub) use ($business) {
+                    $sub->whereIn('created_by', function ($employeeQ) use ($business) {
+                        $employeeQ->select('user_id')->from('employees')->where('business_id', $business->id);
+                    })->orWhere('created_by', $business->user_id);
+                });
             })
             ->firstOrFail();
 
@@ -404,59 +450,60 @@ class ApplicantController extends Controller
 
     public function downloadDocument(Request $request)
     {
-        $validatedData = $request->validate([
+        $validated = $request->validate([
             'applicant_id' => 'required|exists:applicants,id',
             'media_id' => 'required|exists:media,id',
         ]);
 
         $business = Business::findBySlug(session('active_business_slug'));
-        $applicant = Applicant::where('id', $validatedData['applicant_id'])
+
+        $applicant = Applicant::with('applications')
+            ->where('id', (int)$validated['applicant_id'])
             ->where(function ($q) use ($business) {
-                $q->whereIn('created_by', function ($subQ) use ($business) {
-                    $subQ->select('user_id')
-                        ->from('employees')
-                        ->where('business_id', $business->id);
-                })
-                    ->orWhere('created_by', $business->user_id);
+                $q->whereHas('applications', function ($aq) use ($business) {
+                    $aq->where('business_id', $business->id);
+                })->orWhere(function ($sub) use ($business) {
+                    $sub->whereIn('created_by', function ($employeeQ) use ($business) {
+                        $employeeQ->select('user_id')->from('employees')->where('business_id', $business->id);
+                    })->orWhere('created_by', $business->user_id);
+                });
             })
             ->firstOrFail();
 
+        // media is attached on Application (not Applicant)
         $media = $applicant->applications
             ->flatMap->getMedia('applications')
-            ->firstWhere('id', $validatedData['media_id']);
+            ->firstWhere('id', (int)$validated['media_id']);
 
-        if ($media) {
-            $fileStream = response()->streamDownload(function () use ($media) {
-                echo file_get_contents($media->getPath());
-            }, $media->file_name, ['Content-Type' => $media->mime_type]);
-            $fileStream->headers->set('X-Filename', $media->file_name);
-            return $fileStream;
+        if (!$media) {
+            return RequestResponse::badRequest('Document not found.');
         }
-        return RequestResponse::badRequest('Document not found.');
+
+        $fileStream = response()->streamDownload(function () use ($media) {
+            echo file_get_contents($media->getPath());
+        }, $media->file_name, ['Content-Type' => $media->mime_type]);
+
+        $fileStream->headers->set('X-Filename', $media->file_name);
+        return $fileStream;
     }
 
     public function export(Request $request)
     {
-        $role = Role::findByName('applicant');
-        if (!$role) {
-            return RequestResponse::badRequest('Applicant role not found.');
-        }
-
         $business = Business::findBySlug(session('active_business_slug'));
-        $query = User::role($role->name)
-            ->with('applicant')
-            ->whereHas('applicant', function ($q) use ($business) {
-                $q->where(function ($subQ) use ($business) {
-                    $subQ->whereIn('created_by', function ($employeeQ) use ($business) {
-                        $employeeQ->select('user_id')
-                            ->from('employees')
-                            ->where('business_id', $business->id);
-                    })
-                        ->orWhere('created_by', $business->user_id);
+
+        $query = Applicant::query()
+            ->with(['user', 'applications.jobPost'])
+            ->where(function ($q) use ($business) {
+                $q->whereHas('applications', function ($aq) use ($business) {
+                    $aq->where('business_id', $business->id);
+                })->orWhere(function ($sub) use ($business) {
+                    $sub->whereIn('created_by', function ($employeeQ) use ($business) {
+                        $employeeQ->select('user_id')->from('employees')->where('business_id', $business->id);
+                    })->orWhere('created_by', $business->user_id);
                 });
             });
 
-        $this->applyFilters($query, $request);
+        $this->applyFilters($query, $request, $business);
 
         return Excel::download(new ApplicantsExport($query->get()), 'applicants_' . now()->format('Ymd_His') . '.xlsx');
     }

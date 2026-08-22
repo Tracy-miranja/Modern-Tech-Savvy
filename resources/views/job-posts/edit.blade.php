@@ -12,6 +12,7 @@
     <script>
     window.businessSlug = "{{ $jobPost->business->slug }}";
     </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tinymce/7.6.1/tinymce.min.js"></script>
     <script src="{{ asset('js/main/job-posts.js') }}" type="module"></script>
     @endpush
 </x-app-layout>

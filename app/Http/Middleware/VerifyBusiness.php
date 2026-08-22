@@ -19,23 +19,23 @@ class VerifyBusiness
             $slug = session('active_business_slug');
         }
 
-        Log::info('VerifyBusiness middleware: Checking business', ['slug' => $slug]);
-
-        $business = Business::where('slug', $slug)->first();
-
-        if (!$business) {
+        // Business::findBySlug() throws (not returns null) when missing -
+        // reuse it (also picks up its request-scoped memoization) instead
+        // of a second, separate uncached lookup for the same slug.
+        try {
+            $business = Business::findBySlug($slug);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             Log::error('Business not found for slug', ['slug' => $slug]);
             return redirect()->route('dashboard')->with('error', 'Business not found.');
         }
 
-        if (!$business->verified && $business->company_name !== 'amsol') {
+        if (!$business->verified && $business->slug !== config('business.main_slug')) {
             Log::warning('Business not verified', ['slug' => $business->slug]);
             return redirect()->route('business.activate', $business->slug)
-                ->with('message', 'Your business is not verified. Please contact Amsol support.');
+                ->with('message', 'Your business is not verified. Please contact support.');
         }
 
         session(['active_business_slug' => $business->slug]);
-        Log::info('Business verified', ['slug' => $business->slug]);
 
         return $next($request);
     }

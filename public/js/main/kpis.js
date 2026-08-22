@@ -185,10 +185,19 @@ function setupReviewFormSubmission() {
         button.addEventListener('click', handleDeleteClick);
     });
 
-    function handleDeleteClick(event) {
+    async function handleDeleteClick(event) {
         const reviewId = event.target.dataset.reviewId;
         const kpiId = event.target.dataset.kpiId;
-        if (confirm('Are you sure you want to delete this review?')) {
+        const { isConfirmed } = await Swal.fire({
+            title: 'Are you sure?',
+            text: 'Are you sure you want to delete this review?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Yes',
+        });
+        if (isConfirmed) {
             window.submitReviewDelete(reviewId, kpiId);
         }
     }

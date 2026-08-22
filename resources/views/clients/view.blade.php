@@ -192,6 +192,107 @@
                         </form>
                     </div>
                 </div>
+
+                <!-- Payments -->
+                <div class="card border-0 rounded-3 mt-4">
+                    <div class="card-body p-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="card-title fw-bold mb-0 text-primary">Payments</h6>
+                            <button type="button" class="btn btn-sm btn-success rounded-pill" data-bs-toggle="modal" data-bs-target="#recordPaymentModal">
+                                <i class="bi bi-cash-coin me-1"></i> Record Payment
+                            </button>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Module</th>
+                                        <th>Amount</th>
+                                        <th>Method</th>
+                                        <th>Reference</th>
+                                        <th>Period</th>
+                                        <th>Recorded By</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="paymentsTableBody">
+                                    <tr><td colspan="6" class="text-center text-muted">Loading…</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Record Payment Modal -->
+    <div class="modal fade" id="recordPaymentModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow border-0 rounded-3">
+                <div class="modal-header border-bottom">
+                    <h5 class="modal-title fw-bold">Record Payment</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <form id="recordPaymentForm">
+                        <div class="mb-3">
+                            <label class="form-label small">Module (leave blank to cover all their active modules)</label>
+                            <select name="module_id" class="form-select">
+                                <option value="">All active modules</option>
+                                @foreach ($modules as $module)
+                                    <option value="{{ $module->id }}">{{ $module->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label class="form-label small">Amount</label>
+                                <input type="number" step="0.01" min="0" name="amount" class="form-control" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small">Currency</label>
+                                <select name="currency" class="form-select">
+                                    <option value="KES" selected>KES</option>
+                                    <option value="USD">USD</option>
+                                    <option value="TZS">TZS</option>
+                                    <option value="EUR">EUR</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small">Payment Method</label>
+                                <select name="payment_method" class="form-select" required>
+                                    <option value="bank">Bank Transfer</option>
+                                    <option value="mpesa">M-Pesa</option>
+                                    <option value="cheque">Cheque</option>
+                                    <option value="cash">Cash</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small">Reference</label>
+                                <input type="text" name="reference" class="form-control" placeholder="Transaction ref">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small">Period Start</label>
+                                <input type="date" name="period_start" class="form-control" value="{{ now()->toDateString() }}" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small">Period End</label>
+                                <input type="date" name="period_end" class="form-control" value="{{ now()->addYear()->toDateString() }}" required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small">Notes</label>
+                                <textarea name="notes" class="form-control" rows="2"></textarea>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer border-top">
+                    <button type="button" class="btn btn-light rounded-pill" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success rounded-pill" id="submitPaymentBtn">
+                        <i class="bi bi-save me-2"></i> Record Payment
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -221,5 +322,71 @@
 
     @push('scripts')
     <script src="{{ asset('js/main/clients.js') }}" type="module"></script>
+    <script>
+    (function () {
+        const csrf = document.querySelector('meta[name="csrf-token"]').content;
+        const businessSlug = @json(session('active_business_slug'));
+        const clientSlug = @json($clientBusiness->slug);
+        const fetchUrl = @json(route('business.clients.payments.fetch', [session('active_business_slug'), $clientBusiness->slug]));
+        const storeUrl = @json(route('business.clients.payments.store', [session('active_business_slug'), $clientBusiness->slug]));
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+            }[ch]));
+        }
+
+        async function loadPayments() {
+            const tbody = document.getElementById('paymentsTableBody');
+            try {
+                const resp = await fetch(fetchUrl, { headers: { 'Accept': 'application/json' } });
+                const payload = await resp.json();
+                const payments = payload.data ?? [];
+
+                if (!payments.length) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No payments recorded yet.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = payments.map(p => `
+                    <tr>
+                        <td>${escapeHtml(p.module?.name ?? 'All modules')}</td>
+                        <td>${escapeHtml(p.currency)} ${Number(p.amount).toLocaleString()}</td>
+                        <td class="text-capitalize">${escapeHtml(p.payment_method)}</td>
+                        <td>${escapeHtml(p.reference ?? '—')}</td>
+                        <td>${p.period_start} &ndash; ${p.period_end}</td>
+                        <td>${escapeHtml(p.recorded_by?.name ?? 'N/A')}</td>
+                    </tr>`).join('');
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Could not load payments.</td></tr>';
+            }
+        }
+
+        document.getElementById('submitPaymentBtn').addEventListener('click', async function () {
+            const form = document.getElementById('recordPaymentForm');
+            if (!form.checkValidity()) { form.reportValidity(); return; }
+            const data = Object.fromEntries(new FormData(form).entries());
+
+            try {
+                const resp = await fetch(storeUrl, {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
+                    body: JSON.stringify(data),
+                });
+                const payload = await resp.json();
+                if (!resp.ok) throw new Error(payload.message || 'Could not record payment.');
+
+                Swal.fire({ icon: 'success', title: 'Success', text: payload.message || 'Payment recorded.' });
+                bootstrap.Modal.getInstance(document.getElementById('recordPaymentModal'))?.hide();
+                form.reset();
+                loadPayments();
+            } catch (e) {
+                Swal.fire({ icon: 'error', title: 'Error', text: e.message || 'Could not record payment.' });
+            }
+        });
+
+        loadPayments();
+    })();
+    </script>
     @endpush
 </x-app-layout>

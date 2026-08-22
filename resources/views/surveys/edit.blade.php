@@ -62,7 +62,7 @@
                                     <label for="start_date" class="form-label fw-medium text-dark">Start Date
                                         (Optional)</label>
                                     <input type="date" name="start_date" id="start_date" class="form-control"
-                                        value="{{ $survey->start_date }}">
+                                        value="{{ optional($survey->start_date)->format('Y-m-d') }}">
                                     @error('start_date')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                     @enderror
@@ -71,7 +71,7 @@
                                     <label for="end_date" class="form-label fw-medium text-dark">End Date
                                         (Optional)</label>
                                     <input type="date" name="end_date" id="end_date" class="form-control"
-                                        value="{{ $survey->end_date }}">
+                                        value="{{ optional($survey->end_date)->format('Y-m-d') }}">
                                     @error('end_date')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                     @enderror

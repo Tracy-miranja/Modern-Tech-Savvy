@@ -34,6 +34,7 @@
     <link rel="stylesheet" href="{{ asset('assets/css/plugins/nano.min.css') }}">
     <link rel="stylesheet" href="{{ asset('assets/css/main.css') }}">
     <link rel="stylesheet" href="{{ asset('assets/css/custom.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/css/applications-module.css') }}">
 
 
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -49,8 +50,47 @@
     <link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.min.css">
     <link rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.12/css/intlTelInput.min.css">
-    <link rel="shortcut icon" href="media/favicon.ico" type="image/x-icon">
+    <link rel="shortcut icon" href="{{ asset('media/favicon.png') }}" type="image/png">
 
+    <!-- PWA: installable on desktop and mobile -->
+    <link rel="manifest" href="{{ asset('manifest.json') }}">
+    <meta name="theme-color" content="#f89616">
+    <link rel="apple-touch-icon" href="{{ asset('media/pwa/icon-192.png') }}">
+
+    {{-- Per-page stylesheets/styles (e.g. a library only that one page
+         needs) - without this @stack, anything a page pushes to
+         @push('styles') is silently dropped. --}}
+    @stack('styles')
+
+    <style>
+        .impersonation-banner-bar {
+            display: flex !important;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-around;
+            width: 100%;
+            height: auto !important;
+            min-height: 65px;
+            overflow: visible !important;
+            position: relative;
+            z-index: 2000;
+            line-height: 1.5;
+            padding: 10px 24px;
+            background-color: #16518D;
+            color: #fbfcfd !important;
+            border-bottom: 1px solid rgb(252, 248, 248);
+        }
+
+        .impersonation-banner-bar span {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        #impersonation-banner select#switchClientSelect {
+            height: 32px;
+        }
+    </style>
 
 </head>
 
@@ -261,16 +301,50 @@
         <div class="loader-text">Loading</div>
     </div>
 </div>
+    @if(session('original_business_slug'))
+    <div id="impersonation-banner" class="impersonation-banner-bar">
+        <span>
+            <i class="fas fa-user-secret"></i>
+            Viewing as <strong>{{ \App\Models\Business::findBySlug(session('active_business_slug'))->company_name }}</strong>
+            &mdash; platform admin session
+        </span>
+        <span>
+            <select id="switchClientSelect" class="form-select form-select-sm d-inline-block w-fit me-2">
+                <option value="">Switch to another business...</option>
+            </select>
+            <button class="btn btn-sm btn-dark" onclick="switchBackToAdmin()">
+                Return to platform business
+            </button>
+        </span>
+    </div>
+    @endif
+
+    @if(session('impersonating_original_user_id'))
+    <div id="employee-impersonation-banner" class="impersonation-banner-bar">
+        <span>
+            <i class="fas fa-user-secret"></i>
+            Logged in as <strong>{{ auth()->user()->name }}</strong> &mdash; admin session
+        </span>
+        <span>
+            <button class="btn btn-sm btn-dark" onclick="stopImpersonatingEmployee()">
+                Return to My Account
+            </button>
+        </span>
+    </div>
+    @endif
+
     <div class="page__full-wrapper">
 
         @php
         $activeRole = session('active_role');
         @endphp
 
-        @if (in_array($activeRole, ['business-admin', 'business-hr', 'business-finance']))
+        @if (in_array($activeRole, ['business-admin', 'business-hr', 'business-finance', 'restricted-hr', 'general-hr', 'head-of-department', 'chief-of-staff']))
         @include('layouts.partials.navbar')
         @elseif ($activeRole === 'business-employee')
         @include('layouts.partials.navbar-employee')
+        @elseif ($activeRole === 'super-admin')
+        @include('layouts.partials.navbar-super-admin')
         @endif
 
 
@@ -279,6 +353,24 @@
             @include('layouts.partials.app-header')
 
             <div class="app__slide-wrapper">
+                {{-- Nothing anywhere in this layout displayed flash
+                messages before - every back()->with('error'/'success', ...)
+                across the app silently showed nothing, which is why
+                validation bounces (e.g. "no employee record for this
+                business") looked exactly like a dead link. --}}
+                @if (session('error'))
+                <div class="alert alert-danger alert-dismissible fade show m-3" role="alert">
+                    {{ session('error') }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                @endif
+                @if (session('success'))
+                <div class="alert alert-success alert-dismissible fade show m-3" role="alert">
+                    {{ session('success') }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                @endif
+
                 {{ $slot }}
             </div>
 
@@ -356,7 +448,16 @@
 
     <script src="{{ asset('js/init.js') }}"></script>
     {{-- <script src="{{ asset('js/pusher.js') }}"></script> --}}
+    <script>
+        // Global so any page's scripts (impersonation banner, switch-business
+        // dropdown, etc.) can build /businesses/{slug}/... URLs without each
+        // page having to define this itself - previously only a handful of
+        // pages set this, so it came back "undefined" everywhere else.
+        window.currentBusinessSlug = @json($currentBusiness->slug ?? null);
+    </script>
     <script src="{{ asset('js/main/logout.js') }}" type="module"></script>
+    <script src="{{ asset('js/main/impersonation.js') }}" type="module"></script>
+    <script src="{{ asset('js/pwa-register.js') }}"></script>
 
     <script type="text/javascript">
         document.addEventListener('DOMContentLoaded', function() {

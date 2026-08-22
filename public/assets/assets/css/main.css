@@ -5591,7 +5591,7 @@ img {
   background-color: var(--clr-bg-card);
 }
 .app-sidebar .main-sidebar-header {
-  height: 70px;
+  height: 52px;
   width: 256px;
   position: fixed;
   display: flex;
@@ -5599,7 +5599,7 @@ img {
   z-index: 9;
   align-items: center;
   justify-content: start;
-  padding: 10px 20px;
+  padding: 6px 16px;
   transition: all 0.05s ease;
   border-inline-end: 1px solid var(--clr-border-1);
   border-bottom: 1px solid var(--clr-border-1);
@@ -5614,21 +5614,21 @@ img {
 }
 .app-sidebar .sidebar__menu-category {
   color: var(--clr-text-body);
-  font-size: 14px;
+  font-size: 11px;
   font-weight: 500;
-  letter-spacing: 2px;
+  letter-spacing: 1.2px;
   text-transform: uppercase;
-  padding: 10px 20px;
+  padding: 6px 16px;
   white-space: nowrap;
   position: relative;
 }
 .app-sidebar .sidebar__menu-item {
-  padding: 12px 20px;
+  padding: 8px 16px;
   position: relative;
   display: flex;
   align-items: center;
   text-decoration: none;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--clr-text-body);
   font-weight: 500;
   border: 1px solid transparent;
@@ -5657,7 +5657,8 @@ img {
   padding: 0;
 }
 .app-sidebar .sidebar-menu.child1 .sidebar__menu-item, .app-sidebar .sidebar-menu.child2 .sidebar__menu-item {
-  padding: 6px 6px;
+  padding: 4px 6px;
+  font-size: 12.5px;
 }
 .app-sidebar .sidebar-menu.child1 .sidebar__menu-item:before, .app-sidebar .sidebar-menu.child2 .sidebar__menu-item:before, .app-sidebar .sidebar-menu.child3 .sidebar__menu-item:before {
   position: absolute;
@@ -5684,7 +5685,7 @@ img {
   white-space: nowrap;
   color: var(--clr-text-body);
   position: relative;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1;
   display: flex;
   align-items: center;
@@ -5692,9 +5693,9 @@ img {
   font-weight: 700;
 }
 .app-sidebar .side-menu__icon {
-  margin-inline-end: 10px;
+  margin-inline-end: 8px;
   line-height: 0;
-  font-size: 14px;
+  font-size: 13px;
   text-align: center;
   color: var(--clr-text-body);
   border-radius: 4px;

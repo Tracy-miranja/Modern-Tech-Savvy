@@ -1,3 +1,8 @@
+@php
+    $currentBusiness = $currentBusiness ?? ($business ?? \App\Models\Business::findBySlug(session('active_business_slug')));
+    $enforceGeofence = (int)($currentBusiness->enforce_geofence ?? 0);
+@endphp
+
 <form id="locationsForm">
 
     @if (isset($location))
@@ -29,10 +34,16 @@
                value="{{ isset($location) && !empty($location) ? $location->physical_address : '' }}" required>
     </div>
 
-    {{-- Coordinates block (only if geofence is enabled) --}}
+    <div class="form-group mb-3">
+        <label for="country">Country</label>
+        <select name="country" id="country" class="form-select"
+                data-selected="{{ isset($location) && !empty($location) ? $location->country : '' }}"
+                data-countries-url="{{ route('business.holidays.countries', $currentBusiness->slug, false) }}">
+            <option value="">Loading countries...</option>
+        </select>
+    </div>
+
     @php
-        $currentBusiness = $currentBusiness ?? ($business ?? \App\Models\Business::findBySlug(session('active_business_slug')));
-        $enforceGeofence = (int)($currentBusiness->enforce_geofence ?? 0);
         $latVal = old('latitude', $location->latitude ?? '');
         $lngVal = old('longitude', $location->longitude ?? '');
         $radVal = old('radius_m', $location->radius_m ?? 150);

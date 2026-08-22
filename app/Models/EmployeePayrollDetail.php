@@ -20,12 +20,22 @@ class EmployeePayrollDetail extends Model
         'pwd_certificate_no',
         'pwd_ncpwd_membership_no',
         'pwd_exemption_limit',
+        'is_consultant',
+        'wht_payment_type',
+        'wht_residency',
+        'wht_pin',
+        'consultant_shif_covered',
+        'consultant_shif_basis',
+        'consultant_shif_fixed_amount',
+        'consultant_nssf_covered',
+        'consultant_nssf_basis',
+        'consultant_nssf_fixed_amount',
     ];
 
     protected $casts = [
-    'has_disability_exemption' => 'boolean',
-    'pwd_exemption_limit'      => 'decimal:2',
-];
+        'has_disability_exemption' => 'boolean',
+        'pwd_exemption_limit'      => 'decimal:2',
+    ];
 
     public function employee()
     {

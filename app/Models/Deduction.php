@@ -23,10 +23,12 @@ class Deduction extends Model
         'computation_method',    // fixed, rate, formula (replaces type)
         'amount',                // Fixed amount
         'rate',                  // Percentage rate
+         'employer_rate',         // Employer contribution rate (%) — NULL = same as employee rate
         'formula',               // Custom formula
         'actual_amount',         // Boolean for employee-specific amounts
         'fraction_to_consider',  // employee_only or employee_and_employer
         'limit',                 // Maximum deduction cap
+          'employer_limit',        // Employer monthly cap — NULL = same as employee limit
         'round_off',             // round_off_up or round_off_down
         'decimal_places',        // Precision for rounding
         'is_statutory',          // Statutory flag
@@ -37,7 +39,9 @@ class Deduction extends Model
     protected $casts = [
         'amount' => 'decimal:2',
         'rate' => 'decimal:2',
+        'employer_rate' => 'decimal:4',
         'limit' => 'decimal:2',
+        'employer_limit' => 'decimal:2',
         'decimal_places' => 'integer',
         'actual_amount' => 'boolean',
         'is_statutory' => 'boolean',
@@ -48,7 +52,8 @@ class Deduction extends Model
     {
         return SlugOptions::create()
             ->generateSlugsFrom('name')
-            ->saveSlugsTo('slug');
+            ->saveSlugsTo('slug')
+            ->doNotGenerateSlugsOnUpdate();
     }
 
     public function business()
@@ -76,6 +81,40 @@ class Deduction extends Model
         return $this->belongsToMany(Employee::class, 'employee_deductions')
             ->withPivot('amount', 'is_active')
             ->withTimestamps();
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────────────
+
+    /**
+     * Resolved employer rate: uses employer_rate if explicitly set,
+     * otherwise falls back to the employee rate (legacy behaviour).
+     */
+    public function resolvedEmployerRate(): float
+    {
+        if ($this->employer_rate !== null && floatval($this->employer_rate) > 0) {
+            return floatval($this->employer_rate);
+        }
+        return floatval($this->rate ?? 0);
+    }
+
+    /**
+     * Resolved employer monthly limit: uses employer_limit if explicitly set,
+     * otherwise falls back to the employee limit.
+     */
+    public function resolvedEmployerLimit(): float
+    {
+        if ($this->employer_limit !== null) {
+            return floatval($this->employer_limit);
+        }
+        return $this->limit !== null ? floatval($this->limit) : PHP_FLOAT_MAX;
+    }
+
+    /**
+     * Whether this deduction involves an employer contribution.
+     */
+    public function hasEmployerContribution(): bool
+    {
+        return in_array($this->fraction_to_consider, ['employee_and_employer', 'employer_only']);
     }
 
     /**
@@ -125,6 +164,29 @@ class Deduction extends Model
         }
 
         return $deduction;
+    }
+
+    /**
+     * Calculate the RAW employer contribution amount (before any limit/cap).
+     * Used by PayrollController to determine the taxable excess for KRA.
+     *
+     * @param float $baseAmount  Prorated basic salary (calculation base)
+     * @return float             Uncapped employer raw amount
+     */
+    public function calculateRawEmployerAmount(float $baseAmount): float
+    {
+        if (!$this->hasEmployerContribution()) {
+            return 0.0;
+        }
+
+        $employerRate = $this->resolvedEmployerRate();
+
+        if ($employerRate > 0) {
+            return round($baseAmount * ($employerRate / 100), 2);
+        }
+
+        // Fixed-amount scheme: employer matches the employee fixed amount
+        return floatval($this->amount ?? 0);
     }
 
     /**

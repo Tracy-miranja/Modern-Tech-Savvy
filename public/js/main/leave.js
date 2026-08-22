@@ -27,6 +27,16 @@ window.getLeave = async function (arg1 = 'pending', arg2 = 1) {
 
     try {
         const data = { page, status: normalizedStatus };
+
+        const departmentId = document.getElementById('leaveFilterDepartment')?.value;
+        const locationId = document.getElementById('leaveFilterLocation')?.value;
+        const leaveTypeId = document.getElementById('leaveFilterType')?.value;
+        const leavePeriodId = document.getElementById('leaveFilterPeriod')?.value;
+        if (departmentId) data.department_id = departmentId;
+        if (locationId) data.location_id = locationId;
+        if (leaveTypeId) data.leave_type_id = leaveTypeId;
+        if (leavePeriodId) data.leave_period_id = leavePeriodId;
+
         const leaveTable = await leaveService.fetch(data);
 
         const containerId = `#${normalizedStatus}Container`;
@@ -96,6 +106,51 @@ window.saveLeave = async function (btn) {
         console.error(err);
         const msg = err?.message || 'Failed to save the leave request.';
         Swal.fire('Error', msg, 'error');
+    } finally {
+        btn_loader(btn, false);
+    }
+};
+
+/**
+ * Cancel a pending/not-yet-started-approved leave request. Available to the
+ * owner (self-service) as well as HR-tier roles - see
+ * LeaveRequest::canUserCancel() for the exact rules. Distinct from
+ * deleteLeave() (owner-only hard delete of pending requests) - cancel()
+ * preserves the record in the new Cancelled tab.
+ */
+window.cancelLeave = async function (btn) {
+    btn = $(btn);
+
+    const leave = btn.data("leave");
+
+    const { value: reason, isConfirmed } = await Swal.fire({
+        title: "Cancel this leave request?",
+        text: "This cannot be undone. You can optionally provide a reason.",
+        input: "textarea",
+        inputPlaceholder: "Reason (optional)...",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#d33",
+        cancelButtonColor: "#6c757d",
+        confirmButtonText: "Yes, cancel it",
+        cancelButtonText: "No, keep it",
+    });
+
+    if (!isConfirmed) return;
+
+    btn_loader(btn, true);
+    try {
+        await leaveService.cancel({ reference_number: leave, reason: reason || null });
+
+        getLeave('pending');
+        getLeave('approved');
+        getLeave('declined');
+        getLeave('cancelled');
+
+        Swal.fire('Cancelled', 'Leave request cancelled successfully.', 'success');
+    } catch (err) {
+        console.error(err);
+        Swal.fire('Error', err?.message || 'Failed to cancel leave request.', 'error');
     } finally {
         btn_loader(btn, false);
     }

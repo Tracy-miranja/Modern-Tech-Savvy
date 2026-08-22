@@ -1,133 +1,119 @@
-<table class="table table-striped" id="jobApplicationsTable">
-    <thead>
-        <tr>
-            <th><input type="checkbox" id="selectAll"></th>
-            <th>#</th>
-            <th>Applicant</th>
-            <th>Phone</th>
-            <th>Job Title</th>
-            <th>Stage</th>
-            <th>Applied On</th>
-            <th>Actions</th>
-        </tr>
-    </thead>
+<table class="table table-striped w-100" id="jobApplicationsTable">
+  <thead>
+    <tr>
+      <th style="width:40px;"><input type="checkbox" id="selectAll"></th>
+      <th style="width:60px;">#</th>
+      <th>Applicant</th>
+      <th style="width:140px;">Phone</th>
+      <th>Job Title</th>
+      <th style="width:140px;">Status</th>
+      <th style="width:140px;">Applied</th>
+      <th style="width:220px;">Actions</th>
+    </tr>
+  </thead>
 
-    <tbody>
-        @foreach($applications as $index => $application)
-            <tr>
-                <td>
-                    <input type="checkbox" name="application_ids[]" value="{{ $application->id }}">
-                </td>
+  <tbody>
+    @forelse($applications as $index => $application)
+      @php
+        $stage = strtolower($application->stage ?? 'applied');
+        $stage = in_array($stage, ['pending','applied','shortlisted','in_progress','rejected','finished']) ? $stage : 'applied';
 
-                <td>{{ $applications->firstItem() + $index }}</td>
+        $badgeClass = match($stage){
+          'pending' => 'pending',
+          'shortlisted' => 'shortlisted',
+          'rejected' => 'rejected',
+          'in_progress' => 'in_progress',
+          'finished' => 'in_progress', // you can create a finished class if you want
+          default => 'applied'
+        };
 
-                <td>
-                    @if($application->applicant->user)
-                        <div class="d-flex align-items-center" style="gap: 3px">
-                            <span class="table-avatar">
-                                <a class="employee__avatar mr-5" href="#">
-                                    <img class="img-48 border-circle"
-                                         src="{{ $application->applicant->user->getImageUrl() }}"
-                                         alt="{{ $application->applicant->user->name }}">
-                                </a>
-                            </span>
-                            <span>
-                                <strong>{{ $application->applicant->user->name }}</strong><br>
-                                <small class="text-muted">{{ $application->applicant->user->email }}</small>
-                            </span>
-                        </div>
-                    @else
-                        <span class="badge bg-secondary">
-                            Applicant #{{ $application->applicant->id }}
-                        </span>
-                    @endif
-                </td>
+        $applicant = $application->applicant;
+        $user = $applicant?->user;
 
-                <td>
-                    {{ optional($application->applicant->user)->phone ?? '—' }}
-                </td>
+        $displayName  = $user?->name ?: ($applicant?->fullname ?: ('Applicant #'.$applicant?->id));
+        $displayEmail = $user?->email ?: null; // externals may not have email column in applicants
+        $displayPhone = $user?->phone ?: ($applicant?->phone ?: '—');
 
-                <td>{{ $application->jobPost->title }}</td>
+        $avatarUrl = $user ? $user->getImageUrl() : asset('media/avatar.png');
+      @endphp
 
-                <td>
-                    <span class="badge bg-{{
-                        $application->stage === 'applied' ? 'primary' :
-                        ($application->stage === 'shortlisted' ? 'success' :
-                        ($application->stage === 'rejected' ? 'danger' : 'info'))
-                    }}">
-                        {{ ucfirst($application->stage) }}
-                    </span>
-                </td>
+      <tr>
+        <td>
+          <input type="checkbox" name="application_ids[]" value="{{ $application->id }}">
+        </td>
 
-                <td>{{ $application->created_at->format('d M, Y') }}</td>
+        <td>{{ $applications->firstItem() + $index }}</td>
 
-                <td class="d-flex gap-1 flex-wrap">
-                    <a href="{{ route('business.applications.view', [$currentBusiness->slug, $application->id]) }}"
-                       class="btn btn-sm btn-info">
-                        <i class="bi bi-eye"></i> View
-                    </a>
+        <td>
+          <div class="d-flex align-items-center" style="gap:10px;">
+            <img
+              class="img-48 border-circle"
+              style="width:40px;height:40px;border-radius:999px;object-fit:cover;"
+              src="{{ $avatarUrl }}"
+              alt="{{ $displayName }}"
+            >
+            <div>
+              <div style="font-weight:900;">{{ $displayName }}</div>
 
-                    <button class="btn btn-sm btn-danger"
-                            onclick="deleteJobApplication({{ $application->id }})">
-                        <i class="bi bi-trash"></i> Delete
-                    </button>
+              @if($displayEmail)
+                <div class="text-muted" style="font-size:12px;">{{ $displayEmail }}</div>
+              @else
+                <div class="text-muted" style="font-size:12px;">
+                  <span class="badge bg-secondary">External Applicant</span>
+                  @if(!empty($applicant?->idnumber))
+                    <span class="ms-1">ID: {{ $applicant->idnumber }}</span>
+                  @endif
+                </div>
+              @endif
+            </div>
+          </div>
+        </td>
 
-                    @if($application->applicant->user)
-                        <button class="btn btn-sm btn-primary"
-                                onclick="openScheduleInterviewModal(
-                                    {{ $application->id }},
-                                    '{{ $application->applicant->user->name }}',
-                                    '{{ $application->jobPost->title }}'
-                                )">
-                            <i class="bi bi-calendar-plus"></i> Interview
-                        </button>
-                    @endif
+        <td>{{ $displayPhone }}</td>
 
-                    <button class="btn btn-sm btn-success"
-                            onclick="shortlistApplications(this, [{{ $application->id }}])">
-                        <i class="bi bi-check-circle"></i> Shortlist
-                    </button>
-                </td>
-            </tr>
-        @endforeach
-    </tbody>
+        <td>{{ $application->jobPost?->title ?? '—' }}</td>
+
+        <td>
+          <span class="apps-badge {{ $badgeClass }}">
+            {{ ucwords(str_replace('_',' ', $stage)) }}
+          </span>
+        </td>
+
+        <td>{{ optional($application->created_at)->format('M d, Y') }}</td>
+
+        <td class="text-nowrap">
+          <a href="{{ route('business.applications.view', [$currentBusiness->slug, $application->id]) }}"
+             class="apps-action-link me-3">
+            <i class="bi bi-eye"></i> View
+          </a>
+
+          @if($stage !== 'shortlisted')
+            <a href="javascript:void(0)" class="apps-action-link me-3"
+               onclick="shortlistApplications(this, [{{ $application->id }}])">
+              <i class="bi bi-check2-circle"></i> Shortlist
+            </a>
+          @endif
+
+          <a href="javascript:void(0)" class="apps-action-link text-danger"
+             onclick="deleteJobApplication({{ $application->id }})">
+            <i class="bi bi-trash"></i> Delete
+          </a>
+        </td>
+      </tr>
+    @empty
+      <tr>
+        <td colspan="8" class="text-center text-muted">No applications found.</td>
+      </tr>
+    @endforelse
+  </tbody>
 </table>
 
-@if($applications->isEmpty())
-    <div class="text-center text-muted py-4">
-        No applications found.
-    </div>
-@endif
-
-<div class="d-flex justify-content-between mt-3">
-    {{ $applications->links() }}
-
-    <div class="btn-group">
-        <button class="btn btn-danger" onclick="deleteJobApplications(this)">
-            <i class="bi bi-trash"></i> Delete Selected
-        </button>
-
-        <button class="btn btn-success" onclick="shortlistApplications(this)">
-            <i class="bi bi-check-circle"></i> Shortlist Selected
-        </button>
-
-        <div class="btn-group">
-            <button class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown">
-                Update Stage
-            </button>
-            <ul class="dropdown-menu">
-                <li><a class="dropdown-item" onclick="updateApplicationStage(this, 'applied')">Applied</a></li>
-                <li><a class="dropdown-item" onclick="updateApplicationStage(this, 'shortlisted')">Shortlisted</a></li>
-                <li><a class="dropdown-item" onclick="updateApplicationStage(this, 'in_progress')">In Progress</a></li>
-                <li><a class="dropdown-item" onclick="updateApplicationStage(this, 'rejected')">Rejected</a></li>
-                <li><a class="dropdown-item" onclick="updateApplicationStage(this, 'finished')">Finished</a></li>
-            </ul>
-        </div>
-    </div>
+<div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+  <div>{{ $applications->links() }}</div>
 </div>
 
 <script>
-    $('#selectAll').on('click', function () {
-        $('input[name="application_ids[]"]').prop('checked', this.checked);
-    });
+  document.getElementById('selectAll')?.addEventListener('change', function(){
+    document.querySelectorAll('input[name="application_ids[]"]').forEach(cb => cb.checked = this.checked);
+  });
 </script>

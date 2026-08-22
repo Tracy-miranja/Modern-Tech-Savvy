@@ -6,12 +6,17 @@ use Carbon\Carbon;
 use App\Models\Business;
 use App\Models\Holiday;
 use App\Models\Overtime;
+use App\Models\Employee;
 use App\Models\Attendance;
 use App\Models\WorkSchedule;
 use Illuminate\Http\Request;
 use App\Http\RequestResponse;
 use App\Traits\HandleTransactions;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
+use App\Support\TimeFmt;
+
+
 
 class AttendanceController extends Controller
 {
@@ -94,7 +99,7 @@ class AttendanceController extends Controller
             $selfPunch   = ($active_role === 'business-employee');
 
             if ($selfPunch) {
-                $employee = $user->employee;
+                $employee = $user->activeEmployee();
                 if (!$employee) {
                     return RequestResponse::badRequest('No employee record found for this user.');
                 }
@@ -115,7 +120,18 @@ class AttendanceController extends Controller
                 $employee_id = (int)$validatedData['employee_id'];
             }
 
-            // Enforce unique per day
+            $openSession = Attendance::where([
+                    'employee_id' => $employee_id,
+                    'business_id' => $business->id,
+                    'date'        => $today->toDateString(),
+                ])->whereNull('clock_out')
+                ->latest('id')
+                ->first();
+            if ($openSession) {
+                return RequestResponse::badRequest('You have an open attendance session. Please clock out before starting a new one.');
+            }   
+
+            /* Enforce unique per day
             $existing = Attendance::where([
                 'employee_id' => $employee_id,
                 'business_id' => $business->id,
@@ -127,7 +143,7 @@ class AttendanceController extends Controller
                     return RequestResponse::badRequest('You have already completed today\'s attendance.');
                 }
                 return RequestResponse::badRequest('You are already clocked in.');
-            }
+            }*/
 
             // Capture punch meta (coords + MAC)
             $device_mac = $request->input('device_mac');
@@ -160,7 +176,7 @@ class AttendanceController extends Controller
                     'device_mac.required' => 'A registered device is required to clock in.',
                 ]);
 
-                $employee = $user->employee;
+                $employee = $user->activeEmployee();
                 $registered = $employee->registered_device_mac;
                 if (!$registered) {
                     return RequestResponse::badRequest('No registered device found. Contact HR to register your device.');
@@ -242,7 +258,7 @@ class AttendanceController extends Controller
             $employee_id = null;
 
             if ($selfPunch) {
-                $employee = $user->employee;
+                $employee = $user->activeEmployee();
                 if (!$employee) {
                     return RequestResponse::badRequest('No employee record found for this user.');
                 }
@@ -251,6 +267,10 @@ class AttendanceController extends Controller
                     return RequestResponse::badRequest('Unauthorized: Employees can only clock out themselves.');
                 }
             } else {
+                    if (!in_array($active_role, ['business-admin','business-hr','business-finance'])) {
+                        return RequestResponse::badRequest('Unauthorized: Only admins or employees can clock out.');
+                    }
+
                 $validated = $request->validate([
                     'employee' => 'required|exists:employees,id',
                     'remarks'  => 'nullable|string|max:255',
@@ -262,13 +282,13 @@ class AttendanceController extends Controller
                 'employee_id' => $employee_id,
                 'business_id' => $business->id,
                 'date'        => $today->toDateString(),
-            ])->first();
+            ])->whereNotNull('clock_in')
+              ->whereNull('clock_out')
+              ->latest('id')
+              ->first();
 
-            if (!$attendance || !$attendance->clock_in) {
-                return RequestResponse::badRequest('You need to clock in first.');
-            }
-            if ($attendance->clock_out) {
-                return RequestResponse::badRequest('You have already clocked out today.');
+            if (!$attendance) {
+                return RequestResponse::badRequest('No active clock-in record found for today. Please clock in first.');
             }
 
             // Capture meta (coords + MAC)
@@ -292,7 +312,7 @@ class AttendanceController extends Controller
 
             if ($selfPunch && $business->enforce_mac) {
                 $request->validate(['device_mac' => 'required|string|max:64']);
-                $registered = optional($user->employee)->registered_device_mac;
+                $registered = optional($user->activeEmployee())->registered_device_mac;
                 if (!$registered) {
                     return RequestResponse::badRequest('No registered device found. Contact HR to register your device.');
                 }
@@ -404,7 +424,172 @@ class AttendanceController extends Controller
         });
     }
 
+    public function payrollHoursPage($slug)
+    {
+        $business = Business::findBySlug($slug);
+        if (!$business) abort(404);
+
+        session(['active_business_slug' => $slug]);
+
+        $employees = Employee::where('business_id', $business->id)
+            ->with('user')
+            ->orderBy('id')
+            ->get();
+
+        return view('attendances.payroll-hours', [
+            'employees' => $employees,
+            'currentBusiness' => $business,
+        ]);
+    }
+
+    public function payrollSummary(Request $request)
+    {
+        $business = Business::findBySlug(session('active_business_slug'));
+
+        $validated = $request->validate([
+            'start_date'  => 'required|date',
+            'end_date'    => 'required|date|after_or_equal:start_date',
+            'employee_id' => 'nullable|exists:employees,id',
+        ]);
+
+        $start = Carbon::parse($validated['start_date'], 'Africa/Nairobi')->startOfDay();
+        $end   = Carbon::parse($validated['end_date'], 'Africa/Nairobi')->endOfDay();
+
+        $query = Attendance::query()
+            ->where('business_id', $business->id)
+            ->whereBetween('date', [$start->toDateString(), $end->toDateString()])
+            ->with(['employee.user']);
+
+        if (!empty($validated['employee_id'])) {
+            $query->where('employee_id', (int)$validated['employee_id']);
+        }
+
+        // Aggregate per employee
+        $rows = $query
+            ->select([
+                'employee_id',
+                DB::raw('SUM(regular_hours) as total_regular_hours'),
+                DB::raw('SUM(overtime_regular) as total_ot_regular'),
+                DB::raw('SUM(overtime_holiday) as total_ot_holiday'),
+            ])
+            ->groupBy('employee_id')
+            ->get();
+
+        // load employee + user for display (ensure we have names)
+        $employeeIds = $rows->pluck('employee_id')->unique()->values();
+        $employees = Employee::whereIn('id', $employeeIds)
+            ->with('user')
+            ->get()
+            ->keyBy('id');
+
+        $html = view('attendances._payroll_hours_table', [
+            'rows'      => $rows,
+            'employees' => $employees,
+            'start'     => $start->toDateString(),
+            'end'       => $end->toDateString(),
+            'business'  => $business,
+        ])->render();
+
+        return RequestResponse::ok('Ok.', $html);
+    } 
+
+    public function payrollEmployeeDetails(Request $request)
+    {
+        $business = Business::findBySlug(session('active_business_slug'));
+
+        $validated = $request->validate([
+            'employee_id' => 'required|exists:employees,id',
+            'start_date'  => 'required|date',
+            'end_date'    => 'required|date|after_or_equal:start_date',
+        ]);
+
+        $employeeId = (int)$validated['employee_id'];
+        $start = Carbon::parse($validated['start_date'], 'Africa/Nairobi')->startOfDay();
+        $end   = Carbon::parse($validated['end_date'], 'Africa/Nairobi')->endOfDay();
+
+        $employee = Employee::with('user')->findOrFail($employeeId);
+
+        $attendances = Attendance::where('business_id', $business->id)
+            ->where('employee_id', $employeeId)
+            ->whereBetween('date', [$start->toDateString(), $end->toDateString()])
+            ->get()
+            ->keyBy(fn($a) => $a->date->toDateString());
+
+        $days = [];
+        $cursor = $start->copy()->startOfDay();
+        while ($cursor->lte($end)) {
+            $ds = $cursor->toDateString();
+            $days[] = [
+                'date' => $cursor->copy(),
+                'attendance' => $attendances->get($ds),
+            ];
+            $cursor->addDay();
+        }
+
+        $html = view('attendances._payroll_employee_details', [
+            'employee' => $employee,
+            'days'     => $days,
+            'start'    => $start->toDateString(),
+            'end'      => $end->toDateString(),
+        ])->render();
+
+        return RequestResponse::ok('Ok.', $html);
+    }
+
     /**
+     * Export payroll summary to Excel (HTML .xls) using current filters
+     * - Works without changing DB or adding packages
+     */
+    public function payrollSummaryExport(Request $request, $slug)
+    {
+        $business = Business::findBySlug($slug);
+
+        $validated = $request->validate([
+            'start_date'  => 'required|date',
+            'end_date'    => 'required|date|after_or_equal:start_date',
+            'employee_id' => 'nullable|exists:employees,id',
+        ]);
+
+        $start = Carbon::parse($validated['start_date'], 'Africa/Nairobi')->startOfDay();
+        $end   = Carbon::parse($validated['end_date'], 'Africa/Nairobi')->endOfDay();
+
+        $query = Attendance::query()
+            ->where('business_id', $business->id)
+            ->whereBetween('date', [$start->toDateString(), $end->toDateString()]);
+
+        if (!empty($validated['employee_id'])) {
+            $query->where('employee_id', (int)$validated['employee_id']);
+        }
+
+        $rows = $query
+            ->select([
+                'employee_id',
+                DB::raw('SUM(regular_hours) as total_regular_hours'),
+                DB::raw('SUM(overtime_regular) as total_ot_regular'),
+                DB::raw('SUM(overtime_holiday) as total_ot_holiday'),
+            ])
+            ->groupBy('employee_id')
+            ->get();
+
+        $employeeIds = $rows->pluck('employee_id')->unique()->values();
+        $employees = Employee::whereIn('id', $employeeIds)->with('user')->get()->keyBy('id');
+
+        $tableHtml = view('attendances._payroll_hours_export_xls', [
+            'rows'      => $rows,
+            'employees' => $employees,
+            'start'     => $start->toDateString(),
+            'end'       => $end->toDateString(),
+        ])->render();
+
+        $filename = "payroll_hours_{$start->toDateString()}_to_{$end->toDateString()}.xls";
+
+        return response($tableHtml, 200, [
+            'Content-Type'        => 'application/vnd.ms-excel; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+            'Cache-Control'       => 'no-store, no-cache',
+        ]);
+    }
+        /**
      * Get attendance summary for an employee
      */
     public function getEmployeeSummary(Request $request)
@@ -483,6 +668,19 @@ class AttendanceController extends Controller
     }
 
     // Keep existing settings methods
+    /**
+     * Attendance settings page (geofencing, MAC enforcement) - lives in the
+     * Attendance module itself rather than Organization Setup, since that's
+     * where the rest of attendance configuration already happens.
+     */
+    public function settingsPage(Business $business)
+    {
+        $departments = \App\Models\Department::where('business_id', $business->id)->orderBy('name')->get(['id', 'name']);
+        $jobCategories = \App\Models\JobCategory::where('business_id', $business->id)->orderBy('name')->get(['id', 'name']);
+
+        return view('attendances.settings', compact('business', 'departments', 'jobCategories'));
+    }
+
     public function updateSettings(Request $request, $slug)
     {
         return $this->handleTransaction(function () use ($request, $slug) {

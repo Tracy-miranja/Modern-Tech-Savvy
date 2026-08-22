@@ -63,7 +63,7 @@
     <div class="email-container">
         <!-- Header -->
         <div class="email-header">
-            <img src="{{ config('app.url') }}/media/krstlogo.png.png" alt="{{ config('app.name') }} Logo">
+            <img src="{{ config('app.url') }}/media/krstlogo.png" alt="{{ config('app.name') }} Logo">
             <div>Application Received</div>
         </div>
 

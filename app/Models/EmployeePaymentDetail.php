@@ -22,10 +22,25 @@ class EmployeePaymentDetail extends Model
         'bank_name',
         'bank_code',
         'bank_branch',
-        'bank_branch_code'
+        'bank_branch_code',
+        'is_consultant',
+    'wht_payment_type',
+    'wht_residency',
+    'wht_pin',
+    'consultant_shif_covered',
+    'consultant_shif_basis',
+    'consultant_shif_fixed_amount',
+    'consultant_nssf_covered',
+    'consultant_nssf_basis',
+    'consultant_nssf_fixed_amount',
     ];
 
      protected $casts = [
+        'is_consultant'                => 'boolean',
+    'consultant_shif_covered'      => 'boolean',
+    'consultant_nssf_covered'      => 'boolean',
+    'consultant_shif_fixed_amount' => 'decimal:2',
+    'consultant_nssf_fixed_amount' => 'decimal:2',
         'basic_salary' => 'decimal:2',
         'hourly_rate' => 'decimal:2',
     ];

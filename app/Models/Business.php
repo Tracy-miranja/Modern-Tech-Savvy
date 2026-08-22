@@ -11,9 +11,6 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Database\Eloquent\Model;
 use Spatie\MediaLibrary\InteractsWithMedia;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use App\Models\OrganogramPosition;
-
 
 class Business extends Model implements HasMedia
 {
@@ -38,10 +35,25 @@ class Business extends Model implements HasMedia
         'currency',
         'verified',
         'api_token',
+        'non_working_days',
+        'setup_guide_dismissed_at',
+        'learning_certificate_validity_months',
+        'learning_certificate_number_prefix',
+        'learning_session_reminder_days',
+        'learning_certificate_expiry_reminder_days',
+        'project_task_due_reminder_days',
+        'leave_planner_capacity_warning_percent',
     ];
 
     protected $casts = [
         'verified' => 'boolean',
+        'non_working_days' => 'array',
+        'setup_guide_dismissed_at' => 'datetime',
+        'learning_certificate_validity_months' => 'integer',
+        'learning_session_reminder_days' => 'integer',
+        'learning_certificate_expiry_reminder_days' => 'integer',
+        'project_task_due_reminder_days' => 'integer',
+        'leave_planner_capacity_warning_percent' => 'integer',
     ];
 
     public function user()
@@ -50,7 +62,15 @@ class Business extends Model implements HasMedia
     }
     public function getSlugOptions(): SlugOptions
     {
-        return SlugOptions::create()->generateSlugsFrom('company_name')->saveSlugsTo('slug');
+        // Without this, Spatie's HasSlug regenerates the slug from
+        // company_name on every single save() - including updates to
+        // completely unrelated fields - silently changing the URL/session
+        // identifier for a business that already has active links, browser
+        // sessions, and route bindings pointing at its current slug.
+        return SlugOptions::create()
+            ->generateSlugsFrom('company_name')
+            ->saveSlugsTo('slug')
+            ->doNotGenerateSlugsOnUpdate();
     }
     public function registerMediaCollections(): void
     {
@@ -59,20 +79,15 @@ class Business extends Model implements HasMedia
         $this->addMediaCollection('tax_pin_certificates');
         $this->addMediaCollection('business_license_certificates');
     }
-  public function getImageUrl()
-{
-    // Option A – if you save the logo in collection 'logo' (most common)
-    $media = $this->getFirstMedia('logo');
-
-    // Option B – if you save it in collection 'businesses' (rare)
-    // $media = $this->getFirstMedia('businesses');
-
-    if ($media && File::exists($media->getPath())) {
-        return $media->getUrl();
+    public function getImageUrl()
+    {
+        $media = $this->getFirstMedia('businesses');
+        if ($media && File::exists($media->getPath())) {
+            return $media->getUrl();
+        }
+        return asset('media/krstlogo.png');
     }
 
-    return asset('media/krstlogo.png');
-}
     public function modules()
     {
         return $this->belongsToMany(Module::class, 'business_modules')->withPivot('is_active', 'subscription_ends_at')->withTimestamps();
@@ -86,9 +101,74 @@ class Business extends Model implements HasMedia
         return $this->modules()->where('is_core', true);
     }
 
+    /**
+     * True if this business has $slug active AND not expired, with a
+     * grandfather clause: a business that has never gone through module
+     * selection at all (no rows in business_modules - true for every
+     * existing business today, since ModulesSeeder only recently started
+     * being run and nothing auto-attaches modules retroactively) keeps
+     * full access. Gating only actually restricts a business that HAS a
+     * real selected set of modules that doesn't include this one, or whose
+     * subscription_ends_at has passed - so turning this on can never
+     * silently lock out a business that simply never touched the
+     * subscription flow. subscription_ends_at is set/extended by recording
+     * a ClientPayment (see ClientPaymentController::store()) - null means
+     * no expiry has ever been set (e.g. the free/core module), never gated.
+     */
+    /**
+     * Request-scoped memoization cache for findBySlug() - called dozens
+     * of times per page (middleware, the wildcard view composer in
+     * AppServiceProvider, the navbar partial, the controller, the page
+     * view all independently re-look up the same business). A static
+     * array is safely request-scoped here since this app has no
+     * persistent-worker runtime (no Octane) - a fresh PHP process per
+     * request means it always starts empty.
+     *
+     * hasModule() is deliberately NOT memoized the same way - module
+     * pivots genuinely do get mutated and then re-checked within a
+     * single request (ClientController::assignModules(),
+     * ClientPaymentController::store() extending subscription_ends_at,
+     * and several tests all attach/update a pivot then immediately call
+     * hasModule() again expecting the fresh state) - caching it returned
+     * stale answers and broke real behavior, not just tests.
+     */
+    protected static array $slugLookupCache = [];
+
+    public function hasModule(string $slug): bool
+    {
+        if (!$this->modules()->exists()) {
+            return true;
+        }
+
+        return $this->activeModules()
+            ->where('slug', $slug)
+            ->where(function ($query) {
+                $query->whereNull('business_modules.subscription_ends_at')
+                    ->orWhereDate('business_modules.subscription_ends_at', '>=', now()->toDateString());
+            })
+            ->exists();
+    }
+
     public static function findBySlug($slug)
     {
-        return static::where('slug', $slug)->firstOrFail();
+        if (array_key_exists($slug, static::$slugLookupCache)) {
+            return static::$slugLookupCache[$slug];
+        }
+
+        return static::$slugLookupCache[$slug] = static::where('slug', $slug)->firstOrFail();
+    }
+
+    /**
+     * PHPUnit runs the whole suite in one PHP process (unlike a real
+     * request, which always starts these caches empty) - without this,
+     * a business object cached by one test's since-rolled-back
+     * transaction would leak into the next test as stale data. Called
+     * from Tests\TestCase::setUp(), before each test's own DB
+     * transaction begins.
+     */
+    public static function clearRequestCaches(): void
+    {
+        static::$slugLookupCache = [];
     }
 
 
@@ -262,9 +342,4 @@ class Business extends Model implements HasMedia
     {
         return $this->hasMany(Campaign::class);
     }
-   public function positions(): HasMany
-{
-    return $this->hasMany(OrganogramPosition::class, 'business_id');
-}
-
 }

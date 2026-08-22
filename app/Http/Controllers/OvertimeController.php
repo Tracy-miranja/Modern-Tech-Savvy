@@ -118,7 +118,7 @@ class OvertimeController extends Controller
                 'rejection_reason' => null,
             ]);
 
-            // If you're also using spatie model-status, keep it in sync
+            
             if (method_exists($overtime, 'setStatus')) {
                 $overtime->setStatus('pending');
             }

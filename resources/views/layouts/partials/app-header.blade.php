@@ -16,7 +16,15 @@
                     <h2 class="header__title ms-1">{{ $currentBusiness->company_name }}. </h2>
                 </div>
 
-                @if (auth()->user()->hasRole('business-admin'))
+                @if (auth()->user()->hasRole('super-admin') && in_array(session('active_role'), ['super-admin']) && $currentBusiness?->slug === config('business.main_slug'))
+
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ route('business.clients.index', $currentBusiness->slug) }}">
+                        <i class="fa-solid fa-building-user"></i> Manage Clients
+                    </a>
+                </li>
+
+                @elseif ($managedBusinesses->isNotEmpty())
 
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown"
@@ -24,20 +32,15 @@
                         Switch Business
                     </a>
                     <ul class="dropdown-menu">
-                        @if ($managedBusinesses->isNotEmpty())
                         @foreach ($managedBusinesses as $managed_business)
                         <li>
-                            <a class="dropdown-item" onclick="event.preventDefault(); bsImpersonate(this)"
-                                data-business="{{ $managed_business->slug }}" href="#">
-                                {{ $managed_business->company_name }} </a>
+                            <a class="dropdown-item"
+                               href="#"
+                               onclick="event.preventDefault(); switchBusiness('{{ $managed_business->slug }}')">
+                                {{ $managed_business->company_name }}
+                            </a>
                         </li>
                         @endforeach
-                        @else
-                        <li>
-                            <a class="dropdown-item" onclick="event.preventDefault()" href="#"> No managed businesses
-                                found </a>
-                        </li>
-                        @endif
                     </ul>
                 </li>
 
@@ -55,7 +58,7 @@
                     <div class="user__portfolio">
                         <div class="user__portfolio-thumb">
                             @php
-                            $employee = auth()->user()->employee;
+                            $employee = auth()->user()->activeEmployee();
                             $imageUrl = $employee?->getFirstMediaUrl('avatars');
                             @endphp
 

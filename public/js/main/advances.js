@@ -144,7 +144,7 @@ window.deleteAdvance = async function (btn) {
     btn_loader(btn, true);
 
     const advance = btn.data("advance");
-    const data = { advance: advance };
+    const data = { advance_id: advance };
 
     Swal.fire({
         title: "Are you sure?",

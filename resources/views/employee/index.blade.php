@@ -42,7 +42,7 @@
                 <label for="leaveTypeSelect" class="fw-semibold">Select Leave Type</label>
                 <select id="leaveTypeSelect" class="form-select">
                     <option value="">-- Select Leave Type --</option>
-                    @foreach($leave_balances as $index => $balance)
+                   @foreach(($leave_balances ?? []) as $index => $balance)
                         <option value="{{ $index }}">{{ $balance['leave_type'] }}</option>
                     @endforeach
                 </select>
@@ -50,7 +50,7 @@
 
             <div id="leaveBalanceDetails" class="mt-3 d-none">
                 <h6 class="fw-bold" id="leaveTypeName"></h6>
-                <p>Entitled Days: <span id="entitledDays"></span></p>
+                <p>Total Days: <span id="entitledDays"></span></p>
                 <p>Days Taken: <span id="daysTaken"></span></p>
                 <p>Days Remaining: <span id="daysRemaining"></span></p>
             </div>
@@ -113,7 +113,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (index !== '') {
             const balance = leaveBalances[index];
             typeName.textContent = balance.leave_type;
-            entitled.textContent = balance.entitled_days;
+            entitled.textContent = balance.total_days;
             taken.textContent = balance.days_taken;
             remaining.textContent = balance.days_remaining;
             details.classList.remove('d-none');

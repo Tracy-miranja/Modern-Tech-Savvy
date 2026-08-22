@@ -19,6 +19,9 @@
         </div>
         <div class="card-footer bg-transparent border-top-0 pt-0">
             <div class="d-flex justify-content-end gap-2">
+                <a class="btn btn-sm btn-outline-primary" href="{{ route('business.employees.warning.show', [$currentBusiness->slug, $warning->id]) }}">
+                    <i class="fa fa-eye"></i> View
+                </a>
                 <button class="btn btn-sm btn-outline-warning" data-warning="{{ $warning->id }}"
                     onclick="editWarning(this)">
                     <i class="fa fa-edit"></i> Edit

@@ -218,62 +218,68 @@ class Attendance extends Model
         $employee = $this->employee;
         $business = $this->business;
 
-        if (!$employee || !$business) return;
+        if (!$employee || !$business) {
+            return;
+        }
 
         if (!$employee->is_overtime_eligible) {
             return;
         }
 
-        // Delete only auto-generated pending overtime for this attendance
         Overtime::where('attendance_id', $this->id)
-            ->where('status', 'pending')
             ->where('description', 'like', 'Auto:%')
             ->delete();
 
-        // REGULAR OT
         if ($this->overtime_regular > 0) {
             $rate = (float) ($employee->overtime_rate_regular ?? $business->overtime_rate ?? 1.5);
             $hours = round((float) $this->overtime_regular, 2);
 
-            Overtime::create([
-                'attendance_id'   => $this->id,
-                'employee_id'     => $this->employee_id,
-                'business_id'     => $this->business_id,
-                'location_id'     => $employee->location_id,
-                'date'            => $this->date,
-                'overtime_hours'  => $hours,
-                'overtime_type'   => 'regular',
-                'rate'            => $rate,
-                'total_pay'       => round($hours * $rate, 2), // ✅ BUSINESS RULE
-                'description'     => 'Auto: Regular overtime (from attendance)',
-                'status'          => 'pending',
-                'approved_by'     => null,
-                'approved_at'     => null,
-                'rejection_reason'=> null,
+            $regular = Overtime::create([
+                'attendance_id'    => $this->id,
+                'employee_id'      => $this->employee_id,
+                'business_id'      => $this->business_id,
+                'location_id'      => $employee->location_id,
+                'date'             => $this->date,
+                'overtime_hours'   => $hours,
+                'overtime_type'    => 'regular',
+                'rate'             => $rate,
+                'total_pay'        => round($hours * $rate, 2),
+                'description'      => 'Auto: Regular overtime (from attendance)',
+                'status'           => 'pending',
+                'approved_by'      => null,
+                'approved_at'      => null,
+                'rejection_reason' => null,
             ]);
+
+            if (method_exists($regular, 'setStatus')) {
+                $regular->setStatus('pending');
+            }
         }
 
-        // HOLIDAY OT
         if ($this->overtime_holiday > 0) {
             $rate = (float) ($employee->overtime_rate_holiday ?? $business->overtime_rate_holiday ?? 2.0);
             $hours = round((float) $this->overtime_holiday, 2);
 
-            Overtime::create([
-                'attendance_id'   => $this->id,
-                'employee_id'     => $this->employee_id,
-                'business_id'     => $this->business_id,
-                'location_id'     => $employee->location_id,
-                'date'            => $this->date,
-                'overtime_hours'  => $hours,
-                'overtime_type'   => 'holiday',
-                'rate'            => $rate,
-                'total_pay'       => round($hours * $rate, 2), // ✅ BUSINESS RULE
-                'description'     => 'Auto: Holiday/Non-working overtime (from attendance)',
-                'status'          => 'pending',
-                'approved_by'     => null,
-                'approved_at'     => null,
-                'rejection_reason'=> null,
+            $holiday = Overtime::create([
+                'attendance_id'    => $this->id,
+                'employee_id'      => $this->employee_id,
+                'business_id'      => $this->business_id,
+                'location_id'      => $employee->location_id,
+                'date'             => $this->date,
+                'overtime_hours'   => $hours,
+                'overtime_type'    => 'holiday',
+                'rate'             => $rate,
+                'total_pay'        => round($hours * $rate, 2),
+                'description'      => 'Auto: Holiday/Non-working overtime (from attendance)',
+                'status'           => 'pending',
+                'approved_by'      => null,
+                'approved_at'      => null,
+                'rejection_reason' => null,
             ]);
+
+            if (method_exists($holiday, 'setStatus')) {
+                $holiday->setStatus('pending');
+            }
         }
     }
 

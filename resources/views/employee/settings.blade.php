@@ -1,4 +1,5 @@
 <x-app-layout>
+    @include('components.phone-input-assets')
     <form id="employeeUpdateForm" method="post" enctype="multipart/form-data" action="/employee/update-profile">
         <!-- Assuming Laravel, adjust action URL as needed -->
 

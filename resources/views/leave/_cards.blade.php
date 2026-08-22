@@ -4,8 +4,8 @@
             <div class="card h-100">
                 <div class="card-body">
                     <h5 class="card-title">Leave Request</h5>
-                    <p class="card-text"><strong>Start Date:</strong> {{ $leaveRequest->start_date }}</p>
-                    <p class="card-text"><strong>End Date:</strong> {{ $leaveRequest->end_date }}</p>
+                    <p class="card-text"><strong>Start Date:</strong> {{ optional($leaveRequest->start_date)->format('d M Y') }}</p>
+                    <p class="card-text"><strong>End Date:</strong> {{ optional($leaveRequest->end_date)->format('d M Y') }}</p>
                     <p class="card-text"><strong>Reason:</strong> {{ $leaveRequest->reason }}</p>
                     <p class="card-text"><strong>Status:</strong>
                         @if ($leaveRequest->status == 'pending')

@@ -7,14 +7,42 @@ const jobApplicationService = new JobApplicationService(requestClient);
 
 window.getJobApplications = async function (page = 1) {
     try {
-        let data = {page:page};
-        const JobApplications = await jobApplicationService.fetch(data);
+        const JobApplications = await jobApplicationService.fetch({ page });
+
         $("#jobApplicationsContainer").html(JobApplications);
-        new DataTable('#jobApplicationsTable');
+
+        if ($.fn.DataTable.isDataTable('#jobApplicationsTable')) {
+            $('#jobApplicationsTable').DataTable().destroy();
+        }
+
+        new DataTable('#jobApplicationsTable', {
+            pageLength: 10,
+            language: {
+                emptyTable: "No applications found."
+            }
+        });
+
     } catch (error) {
-        console.error("Error loading user data:", error);
+        console.error("Error loading applications:", error);
     }
 };
+
+// Select all checkbox (safe for AJAX reloads)
+$(document).on('click', '#selectAll', function () {
+    $('input[name="application_ids[]"]').prop('checked', this.checked);
+});
+
+
+// window.getJobApplications = async function (page = 1) {
+//     try {
+//         let data = {page:page};
+//         const JobApplications = await jobApplicationService.fetch(data);
+//         $("#jobApplicationsContainer").html(JobApplications);
+//         new DataTable('#jobApplicationsTable');
+//     } catch (error) {
+//         console.error("Error loading user data:", error);
+//     }
+// };
 window.saveApplication = async function (btn) {
     btn = $(btn);
     btn_loader(btn, true);

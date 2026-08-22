@@ -1,14 +1,12 @@
 <?php
 
-
 namespace App\Providers;
 
 use App\Models\Business;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\View;
-use Illuminate\Support\ServiceProvider;
 use App\Models\LeaveEntitlement;
 use App\Observers\LeaveEntitlementObserver;
+use Illuminate\Support\Facades\View;
+use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -17,7 +15,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(\App\Services\HourlyPayCalculator::class);
     }
 
     /**
@@ -32,7 +30,16 @@ class AppServiceProvider extends ServiceProvider
                 $businessSlug = session('active_business_slug');
                 $business = $businessSlug ? Business::findBySlug($businessSlug) : $user->business;
 
-                $managedBusinesses = $business ? $business->managedBusinesses : collect();
+                // "Switch Business" (app-header.blade.php): every OTHER
+                // business this account is legitimately attached to, as
+                // owner or via an Employee record - NOT
+                // $business->managedBusinesses() (the `clients` pivot),
+                // which is unrelated/empty and was for a different,
+                // defunct mechanism. Distinct from super-admin's Clients
+                // impersonation, which uses its own separate data source.
+                $managedBusinesses = $user->switchableBusinesses()
+                    ->reject(fn ($b) => $business && $b->id === $business->id)
+                    ->values();
 
                 $view->with([
                     'currentBusiness' => $business,
@@ -45,8 +52,6 @@ class AppServiceProvider extends ServiceProvider
                 ]);
             }
         });
-
-        LeaveEntitlement::observe(LeaveEntitlementObserver::class);
     }
 
 }

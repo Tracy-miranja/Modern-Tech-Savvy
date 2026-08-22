@@ -43,6 +43,18 @@ class HolidayService {
         const response = await this.requestClient.post(`${this.base()}/check`, data);
         return response.data;
     }
+
+    async availableCountries(locationId) {
+        const query = locationId ? `?location_id=${encodeURIComponent(locationId)}` : '';
+        const response = await this.requestClient.get(`${this.base()}/countries${query}`);
+        return response.data;
+    }
+
+    async importFromApi(data) {
+        const response = await this.requestClient.post(`${this.base()}/import`, data);
+        toastr.success(response.message, "Success");
+        return response;
+    }
 }
 
 export default HolidayService;

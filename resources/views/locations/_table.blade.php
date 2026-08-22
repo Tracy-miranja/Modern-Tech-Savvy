@@ -3,6 +3,7 @@
         <tr>
             <th>#</th>
             <th>Name</th>
+            <th>Country</th>
             <th>Coordinates</th>
             <th>Company Size</th>
             {{-- <th>Registration No</th>
@@ -18,6 +19,7 @@
             <tr>
                 <td>{{ $index + 1 }}</td>
                 <td>{{ $location->name }}</td>
+                <td>{{ $location->country ?: '—' }}</td>
                 <td>
                     @if(!empty($location->latitude) && !empty($location->longitude))
                         {{ $location->latitude }}, {{ $location->longitude }}

@@ -12,7 +12,7 @@
                 <th scope="col" class="text-dark fw-semibold">Limit</th>
                 <th scope="col" class="text-dark fw-semibold">Round Off</th>
                 <th scope="col" class="text-dark fw-semibold">Applies To</th>
-                @if($business->slug === 'krest')
+                @if($business->slug === config('business.main_slug'))
                 <th scope="col" class="text-dark fw-semibold text-end">Actions</th>
                 @endif
             </tr>
@@ -33,7 +33,7 @@
                 <td>{{ ucfirst($formula->applies_to) }}</td>
                 <td class="text-end">
                     <div class="btn-group" role="group">
-                        @if($business->slug === 'krest')
+                        @if($business->slug === config('business.main_slug'))
                         <button class="btn btn-sm btn-outline-warning me-2" data-formula="{{ $formula->id }}"
                             onclick="editFormula(this)">
                             <i class="fa fa-edit"></i> Edit

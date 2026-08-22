@@ -21,8 +21,11 @@ class AllowanceSeeder extends Seeder
         // Truncate only the allowances table to start fresh
         DB::table('allowances')->truncate();
 
-        // Use existing business_id = 1 (assuming it’s 'krest' from your dump)
-        $businessId = 1;
+        // Resolve the platform business dynamically - hardcoding an id here
+        // silently seeds orphaned rows if that id doesn't exist in this
+        // database (FK checks are disabled above for the truncate).
+        $businessId = \App\Models\Business::where('slug', config('business.main_slug'))->value('id')
+            ?? \App\Models\Business::query()->value('id');
 
         // Define popular allowances
         $allowances = [

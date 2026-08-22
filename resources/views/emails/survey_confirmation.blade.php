@@ -67,7 +67,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <img src="{{ config('app.url') }}/media/krstlogo.png.png" alt="{{ config('app.name') }}">
+            <img src="{{ config('app.url') }}/media/krstlogo.png" alt="{{ config('app.name') }}">
         </div>
         <div class="content">
             <h2>Thank You, {{ $name }}!</h2>

@@ -19,7 +19,7 @@
                         </div>
                         <div class="col-md-2">
                             <label for="year" class="form-label">Year</label>
-                            <select name="year" class="form-select" required>
+                            <select name="year" class="form-select" id="payroll-year" required>
                                 @foreach($years as $year)
                                 <option value="{{ $year }}" {{ $year == now()->year ? 'selected' : '' }}>
                                     {{ $year }}
@@ -28,32 +28,32 @@
                             </select>
                         </div>
                         <div class="col-md-2">
-                            <label for="location" class="form-label">Location</label>
-                            <select name="location" id="location" class="form-select shadow-sm border-0">
-                                <option value="">Select</option>
-                                @foreach ($locations as $location)
-                                <option value="{{ $location->id }}">{{ $location->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="col-md-2">
-                            <label for="department" class="form-label">Department</label>
-                            <select name="department" id="department" class="form-select shadow-sm border-0">
-                                <option value="">Select</option>
-                                @foreach ($departments as $department)
-                                <option value="{{ $department->id }}">{{ $department->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="col-md-2">
-                            <label for="job_category" class="form-label">Job Category</label>
-                            <select name="job_category" id="job_category" class="form-select shadow-sm border-0">
-                                <option value="">Select</option>
-                                @foreach ($jobCategories as $jobCategory)
-                                <option value="{{ $jobCategory->id }}">{{ $jobCategory->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
+    <label for="location" class="form-label">Location</label>
+    <select name="location" id="location" class="form-select shadow-sm border-0">
+        <option value="">All</option>
+        @foreach ($locations as $location)
+        <option value="{{ $location->id }}">{{ $location->name }}</option>
+        @endforeach
+    </select>
+</div>
+<div class="col-md-2">
+    <label for="department" class="form-label">Department</label>
+    <select name="department" id="department" class="form-select shadow-sm border-0">
+        <option value="">All</option>
+        @foreach ($departments as $department)
+        <option value="{{ $department->id }}">{{ $department->name }}</option>
+        @endforeach
+    </select>
+</div>
+<div class="col-md-2">
+    <label for="job_category" class="form-label">Job Category</label>
+    <select name="job_category" id="job_category" class="form-select shadow-sm border-0">
+        <option value="">All</option>
+        @foreach ($jobCategories as $jobCategory)
+        <option value="{{ $jobCategory->id }}">{{ $jobCategory->name }}</option>
+        @endforeach
+    </select>
+</div>
                         <div class="col-md-2 mt-3">
                             <button type="button" class="btn btn-dark px-4" onclick="filterPayrolls()">Filter</button>
                             <button type="button" class="btn btn-outline-dark px-4"

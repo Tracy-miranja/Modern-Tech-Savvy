@@ -1,0 +1,321 @@
+/*
+ * Shared pure-CSS org chart tree, used by both the Organization Structure
+ * page (a role/blueprint tree) and the Organogram page (the real
+ * employee-by-employee reporting tree) so the two look and behave the
+ * same way. No JS layout library - connector lines are plain CSS borders
+ * on nested <ul>/<li> pseudo-elements (a well-known technique).
+ *
+ * Root nodes (.org-chart > li) get no branch line above them (there's
+ * nothing above a root); every deeper level (.org-chart li li) gets the
+ * horizontal-branch + vertical-stem connectors down to its parent box.
+ */
+/*
+ * The tree lives inside a defined, fixed-height section rather than
+ * growing the page - org-chart-fit-box is sized in JS (fitChartToContainer()
+ * in organogram/index.blade.php) to the tree's post-scale footprint, and
+ * org-chart-scale carries the actual CSS transform: scale() that shrinks
+ * the (always full-size, unscaled) tree down to fit whenever a branch is
+ * expanded/collapsed or the initial load has more roots than fit at 1:1.
+ * overflow:auto on the outer scroll box is only a fallback for the rare
+ * case content still can't fit at the minimum scale floor.
+ */
+.org-chart-scroll {
+    height: 65vh;
+    min-height: 420px;
+    overflow: auto;
+    padding: 1rem;
+    border: 1px solid var(--org-border, #e1e5ea);
+    border-radius: 0.75rem;
+    background-color: #fbfcfe;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+}
+.org-chart-fit-box { overflow: hidden; flex: 0 0 auto; }
+.org-chart-scale { transform-origin: top left; width: max-content; }
+.org-chart, .org-chart ul { list-style: none; margin: 0; padding: 0; }
+.org-chart { display: flex; justify-content: center; gap: 1.5rem; min-width: max-content; }
+.org-chart li {
+    position: relative;
+    padding: 0 0.75rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.org-chart li > ul {
+    display: flex;
+    padding-top: 2rem;
+    position: relative;
+}
+.org-chart li > ul::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 0;
+    height: 2rem;
+    border-left: 2px solid #c7cdd6;
+}
+.org-chart li li::before,
+.org-chart li li::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    width: 50%;
+    height: 2rem;
+    border-top: 2px solid #c7cdd6;
+}
+.org-chart li li::before { right: 50%; }
+.org-chart li li::after { left: 50%; border-left: 2px solid #c7cdd6; }
+.org-chart li li:only-child::before,
+.org-chart li li:only-child::after { display: none; }
+.org-chart li li:only-child { padding-top: 0; }
+.org-chart li li:first-child::before,
+.org-chart li li:last-child::after { border: 0 none; }
+.org-chart li li:last-child::before { border-right: 2px solid #c7cdd6; border-radius: 0 6px 0 0; }
+.org-chart li li:first-child::after { border-radius: 6px 0 0 0; }
+
+.org-node-box {
+    display: inline-block;
+    min-width: 210px;
+    max-width: 250px;
+    text-align: left;
+    border: 1px solid #e9ecef;
+    border-top: 3px solid var(--org-primary, #315efb);
+    border-radius: 0.6rem;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03), 0 4px 12px rgba(16, 24, 40, 0.05);
+    padding: 0.7rem 0.8rem;
+    transition: box-shadow .12s ease, transform .1s ease;
+}
+.org-node-box:hover { box-shadow: 0 2px 4px rgba(16, 24, 40, 0.05), 0 8px 20px rgba(16, 24, 40, 0.09); transform: translateY(-1px); }
+.org-node-header { display: flex; align-items: center; justify-content: space-between; gap: 0.35rem; margin-bottom: 0.5rem; }
+.org-node-title { font-weight: 600; font-size: 0.86rem; color: #1a2130; }
+.org-node-title .bi-person-circle { color: var(--org-primary, #315efb); }
+
+.org-add-btn {
+    border: none; background: transparent; color: #6c757d; line-height: 1;
+    padding: 0.15rem 0.35rem; border-radius: 0.35rem; font-size: 0.78rem;
+    display: inline-flex; align-items: center; gap: 0.25rem;
+}
+.org-add-btn:hover { background: #e7f1ff; color: #0d6efd; }
+
+.org-position-list { display: flex; flex-direction: column; gap: 0.4rem; }
+
+.org-position-chip {
+    display: flex; align-items: center; gap: 0.5rem;
+    background: #f8f9fb; border: 1px solid #eef0f2; border-radius: 2rem;
+    padding: 0.25rem 0.5rem 0.25rem 0.25rem;
+}
+.org-position-avatar {
+    flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%;
+    background: #0d6efd; color: #fff; font-size: 0.72rem; font-weight: 600;
+    display: flex; align-items: center; justify-content: center; text-transform: uppercase;
+}
+.org-position-meta { flex: 1 1 auto; min-width: 0; line-height: 1.15; }
+.org-position-coverage { display: block; font-size: 0.66rem; color: #6c757d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.org-position-name { display: block; font-size: 0.8rem; font-weight: 500; color: #212529; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.org-position-remove {
+    flex: 0 0 auto; opacity: 0; cursor: pointer; color: #dc3545; font-size: 0.95rem;
+    transition: opacity .1s ease;
+}
+.org-position-chip:hover .org-position-remove { opacity: 1; }
+
+.org-vacant-slot {
+    display: flex; align-items: center; gap: 0.4rem; cursor: pointer;
+    border: 1.5px dashed #c7cdd6; border-radius: 2rem; padding: 0.35rem 0.75rem;
+    color: #6c757d; font-size: 0.78rem; background: transparent; width: fit-content;
+    transition: border-color .15s ease, color .15s ease;
+}
+.org-vacant-slot:hover { border-color: #0d6efd; color: #0d6efd; }
+
+.org-legend-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+.org-legend-filled { background: #0d6efd; }
+.org-legend-vacant { border: 1.5px dashed #adb5bd; }
+.org-legend-manual { background: #ffc107; }
+
+/*
+ * Structure canvas - Figma-style drag/connect blueprint editor over the
+ * small template graph (departments/roles/job categories). jsPlumb draws
+ * the connector lines/arrows; this just needs a positioned container and
+ * absolutely-positioned node boxes for it to attach to.
+ */
+.structure-canvas {
+    position: relative;
+    width: 100%;
+    min-height: 560px;
+    overflow: auto;
+    border: 1px solid var(--org-border, #e1e5ea);
+    border-radius: 0.75rem;
+    background-color: #fbfcfe;
+    background-image:
+        radial-gradient(#dde2ea 1.1px, transparent 1.1px);
+    background-size: 22px 22px;
+}
+.canvas-node {
+    position: absolute;
+    width: 176px;
+    padding: 10px 12px 11px;
+    border-radius: 10px;
+    background: #fff;
+    border: 1px solid #eceff3;
+    box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 6px 16px rgba(16,24,40,.08);
+    cursor: grab;
+    font-size: 0.8rem;
+    z-index: 2;
+    transition: box-shadow .15s ease, transform .1s ease;
+}
+.canvas-node:hover { box-shadow: 0 2px 4px rgba(16,24,40,.06), 0 10px 24px rgba(16,24,40,.12); }
+.canvas-node:active { cursor: grabbing; }
+.canvas-node .canvas-node-type {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 0.62rem; text-transform: uppercase; letter-spacing: .05em;
+    font-weight: 700; margin-bottom: 3px;
+}
+.canvas-node .canvas-node-type::before {
+    content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+    background: currentColor;
+}
+.canvas-node .canvas-node-label { font-weight: 600; font-size: 0.86rem; word-wrap: break-word; color: #1a2130; }
+.canvas-node-department { border-top: 3px solid var(--org-primary, #315efb); }
+.canvas-node-department .canvas-node-type { color: var(--org-primary, #315efb); }
+.canvas-node-role { border-top: 3px solid var(--org-purple, #6941c6); }
+.canvas-node-role .canvas-node-type { color: var(--org-purple, #6941c6); }
+.canvas-node-job_category { border-top: 3px solid var(--org-green, #16845b); }
+.canvas-node-job_category .canvas-node-type { color: var(--org-green, #16845b); }
+.jtk-connector path { stroke: #b6bfcc; }
+.jtk-connector.canvas-edge-role path { stroke: var(--org-purple, #6941c6); }
+.jtk-overlay svg path { fill: #b6bfcc; }
+.jtk-connector.canvas-edge-role .jtk-overlay svg path { fill: var(--org-purple, #6941c6); }
+
+/* Employee organogram: lazy-loaded branches (see OrganogramController::fetch()). */
+.org-node-toggle { cursor: pointer; margin-right: 4px; font-size: 0.7em; }
+.org-node-highlight { outline: 3px solid #ffc107; outline-offset: 2px; transition: outline-color 2s ease; }
+
+/*
+ * Visual language adapted from the "Enterprise Organization Designer"
+ * mockup (see enterprise_organization_designer_dynamic.html at the repo
+ * root) - tag colors, stat cards, the executive-ownership diagram
+ * (Organization Structure > Overview tab), the tree/table switch, and the
+ * employee detail side panel. Buttons/modals/dropdowns stay native
+ * Bootstrap; only these tree/card/panel visuals borrow the mockup's look.
+ */
+:root {
+    --org-primary: #315efb; --org-primary-soft: #eef2ff;
+    --org-green: #16845b; --org-green-soft: #eaf8f1;
+    --org-orange: #a96500; --org-orange-soft: #fff4df;
+    --org-purple: #6941c6; --org-purple-soft: #f4f0ff;
+    --org-muted: #667085; --org-border: #e1e5ea;
+}
+
+.org-tag-blue { background: var(--org-primary-soft); color: var(--org-primary); font-weight: 600; }
+.org-tag-green { background: var(--org-green-soft); color: var(--org-green); font-weight: 600; }
+.org-tag-orange { background: var(--org-orange-soft); color: var(--org-orange); font-weight: 600; }
+.org-tag-purple { background: var(--org-purple-soft); color: var(--org-purple); font-weight: 600; }
+
+/* Overview tab: stat cards */
+.org-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
+.org-stat-card {
+    display: flex; align-items: center; gap: 12px;
+    background: #fff; border: 1px solid var(--org-border); border-radius: 12px;
+    box-shadow: 0 1px 2px rgba(16,24,40,.03), 0 8px 20px rgba(16,24,40,.05);
+    padding: 16px 17px; transition: transform .12s ease, box-shadow .12s ease;
+}
+.org-stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(16,24,40,.05), 0 12px 26px rgba(16,24,40,.08); }
+.org-stat-icon {
+    flex: 0 0 auto; width: 42px; height: 42px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
+}
+.org-stat-card:nth-child(1) .org-stat-icon { background: var(--org-primary-soft); color: var(--org-primary); }
+.org-stat-card:nth-child(2) .org-stat-icon { background: var(--org-green-soft); color: var(--org-green); }
+.org-stat-card:nth-child(3) .org-stat-icon { background: var(--org-orange-soft); color: var(--org-orange); }
+.org-stat-card:nth-child(4) .org-stat-icon { background: var(--org-purple-soft); color: var(--org-purple); }
+.org-stat-card strong { display: block; font-size: 22px; line-height: 1.15; color: #1a2130; }
+.org-stat-card span { color: var(--org-muted); font-size: 11.5px; }
+@media (max-width: 1000px) { .org-stats { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 650px) { .org-stats { grid-template-columns: 1fr; } }
+
+/* Overview tab: root role(s) + executive-ownership diagram */
+.org-overview-canvas {
+    background: #fff; border: 1px solid var(--org-border); border-radius: 12px;
+    padding: 28px; overflow: auto; min-height: 300px;
+}
+.org-overview-center { display: flex; flex-direction: column; align-items: center; }
+.org-overview-roots { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+.org-overview-node {
+    display: flex; align-items: center; gap: 10px;
+    background: linear-gradient(180deg, #f8faff, #f1f5ff);
+    border: 1px solid #c7d4ff; border-radius: 11px;
+    padding: 12px 18px; min-width: 220px; text-align: left;
+    box-shadow: 0 2px 8px rgba(49,94,251,.08);
+}
+.org-overview-node::before {
+    content: '\f4c5'; font-family: 'bootstrap-icons'; font-size: 1.15rem;
+    color: var(--org-primary); flex: 0 0 auto;
+}
+.org-overview-node strong { display: block; font-size: 13.5px; color: #1a2130; }
+.org-overview-node small { display: block; color: var(--org-muted); margin-top: 2px; }
+.org-overview-vline { height: 28px; width: 1px; background: linear-gradient(#c7d4ff, #adb5c0); margin: 6px 0; }
+.org-exec-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; width: 100%; max-width: 1150px; }
+.org-exec-card {
+    border: 1px solid var(--org-border); border-radius: 11px; overflow: hidden;
+    box-shadow: 0 1px 2px rgba(16,24,40,.03); transition: box-shadow .12s ease;
+}
+.org-exec-card:hover { box-shadow: 0 6px 18px rgba(16,24,40,.08); }
+.org-exec-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px; background: var(--org-primary-soft); border-bottom: 1px solid var(--org-border); font-weight: 700;
+    color: #1a2130;
+}
+.org-exec-head::before {
+    content: '\f4da'; font-family: 'bootstrap-icons'; font-size: 1rem; color: var(--org-primary); flex: 0 0 auto;
+}
+.org-exec-head small { display: block; color: var(--org-muted); font-weight: 400; }
+.org-dept-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #edf0f3; }
+.org-dept-row:last-child { border-bottom: 0; }
+.org-dept-row:hover { background: #fafbfd; }
+.org-dept-row b { font-size: 12.5px; color: #1a2130; }
+.org-dept-row small { display: block; color: var(--org-muted); white-space: nowrap; }
+
+/* Organogram: Tree View / Table View switch */
+.org-view-switch { display: flex; border: 1px solid var(--org-border); border-radius: 8px; overflow: hidden; background: #fff; }
+.org-view-switch button {
+    border: 0; background: #fff; color: var(--org-muted); padding: 6px 14px; cursor: pointer;
+    font-size: 0.83rem; font-weight: 600; transition: background .12s ease, color .12s ease;
+}
+.org-view-switch button:hover:not(.active) { background: #f5f7fb; }
+.org-view-switch button.active { background: var(--org-primary); color: #fff; }
+
+/* Organogram: table view rows are clickable (opens the detail panel) */
+.org-table-row { cursor: pointer; transition: background .1s ease; }
+.org-table-row:hover { background: var(--org-primary-soft) !important; }
+
+/* Organogram: minimized row height for the table view */
+#organogramTable.table-sm > :not(caption) > * > * { padding: 0.35rem 0.6rem; }
+#organogramTable td, #organogramTable th { vertical-align: middle; font-size: 0.82rem; line-height: 1.25; }
+#organogramTable td b { font-size: 0.83rem; }
+#organogramTable td .small { font-size: 0.72rem; }
+#organogramTable .badge { padding: 0.25em 0.55em; font-size: 0.7rem; font-weight: 600; }
+
+/* Employee detail side panel */
+.orgDetailPanel {
+    position: fixed; right: 0; top: 0; height: 100vh; width: 390px; max-width: 90vw;
+    background: #fff; border-left: 1px solid var(--org-border);
+    box-shadow: -10px 0 30px rgba(0,0,0,.08); z-index: 1060; padding: 22px;
+    transform: translateX(100%); transition: transform .22s ease; overflow: auto;
+}
+.orgDetailPanel.open { transform: translateX(0); }
+.orgDetailPanelOverlay {
+    position: fixed; inset: 0; background: rgba(16,24,40,.25); z-index: 1055;
+    opacity: 0; pointer-events: none; transition: opacity .22s ease;
+}
+.orgDetailPanelOverlay.open { opacity: 1; pointer-events: auto; }
+.orgDetailPanelHeader { display: flex; justify-content: space-between; align-items: center; }
+.orgDetailPanelHeader h2 { font-size: 17px; margin: 0; }
+.orgDetailPanelClose { border: 0; background: #f8fafc; border-radius: 6px; padding: 7px 10px; cursor: pointer; }
+.orgDetail { border-top: 1px solid var(--org-border); padding: 14px 0; }
+.orgDetail label { font-size: 10px; color: var(--org-muted); text-transform: uppercase; }
+.orgDetail strong { display: block; margin-top: 3px; }
+.orgDetail p { font-size: 0.85rem; }
+.orgDetailRelation { display: flex; gap: 7px; align-items: center; margin: 7px 0; }
+.orgDetailRelation span:first-child { color: var(--org-muted); width: 130px; font-size: 11px; flex: 0 0 auto; }

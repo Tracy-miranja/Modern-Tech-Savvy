@@ -23,22 +23,212 @@ class RoleController extends Controller
 
     public function fetch(Request $request)
     {
-        $query = Role::with('permissions')
-            ->where('name', '!=', 'applicant')
-            ->orderBy('created_at', 'desc');
-
-        if ($request->has('filter')) {
-            $filter = $request->input('filter');
-            $query->where('name', 'like', "%$filter%");
-        }
-
-        $roles = $query->get();
         $businessSlug = session('active_business_slug');
         if (!$businessSlug) {
             return RequestResponse::badRequest('No active business selected.');
         }
+        $business = Business::findBySlug($businessSlug);
+
+        $query = Role::with('permissions')
+            ->businessAssignable()
+            ->visibleTo($business->id)
+            ->orderBy('created_at', 'desc');
+
+        if ($request->has('filter')) {
+            $filter = $request->input('filter');
+            $query->where(function ($q) use ($filter) {
+                $q->where('name', 'like', "%$filter%")
+                    ->orWhere('display_name', 'like', "%$filter%");
+            });
+        }
+
+        $roles = $query->get();
         $rolesTable = view('roles._table', compact('roles', 'businessSlug'))->render();
         return RequestResponse::ok('Ok', $rolesTable);
+    }
+
+    /**
+     * The module+action grid a custom role's permissions are built from -
+     * flags which modules the active business actually has subscribed
+     * (Business::hasModule()) so the builder UI can show the rest as
+     * locked, without touching that gating itself.
+     */
+    public function modulesForMatrix()
+    {
+        $businessSlug = session('active_business_slug');
+        if (!$businessSlug) {
+            return RequestResponse::badRequest('No active business selected.');
+        }
+        $business = Business::findBySlug($businessSlug);
+
+        $modules = collect(\Database\Seeders\ModuleActionPermissionSeeder::MODULES)->map(fn ($slug) => [
+            'slug' => $slug,
+            'label' => \Illuminate\Support\Str::title(str_replace('-', ' ', $slug)),
+            'active' => $business->hasModule(\Database\Seeders\ModuleActionPermissionSeeder::MODULE_SUBSCRIPTION_GATE[$slug] ?? $slug),
+        ])->values();
+
+        return RequestResponse::ok('Modules fetched.', [
+            'modules' => $modules,
+            'actions' => \Database\Seeders\ModuleActionPermissionSeeder::ACTIONS,
+        ]);
+    }
+
+    /**
+     * Creates a new business-defined custom role with whichever
+     * module.action permissions were checked in the matrix - see
+     * App\Models\Role's docblocks for why display_name/name are separate
+     * and why is_custom/business_id gate everything below.
+     */
+    public function store(Request $request)
+    {
+        $businessSlug = session('active_business_slug');
+        if (!$businessSlug) {
+            return RequestResponse::badRequest('No active business selected.');
+        }
+        $business = Business::findBySlug($businessSlug);
+
+        $validated = $request->validate([
+            'display_name' => 'required|string|max:255',
+            'permissions' => 'nullable|array',
+            'permissions.*' => 'string',
+        ]);
+
+        $exists = Role::where('business_id', $business->id)
+            ->where('is_custom', true)
+            ->where('display_name', $validated['display_name'])
+            ->exists();
+        if ($exists) {
+            return RequestResponse::badRequest('A custom role with that name already exists.');
+        }
+
+        return $this->handleTransaction(function () use ($validated, $business) {
+            $role = Role::create([
+                'name' => Role::generateUniqueName($business->id, $validated['display_name']),
+                'display_name' => $validated['display_name'],
+                'guard_name' => 'web',
+                'business_id' => $business->id,
+                'is_custom' => true,
+            ]);
+
+            $role->syncPermissions($this->validPermissionsFor($business, $validated['permissions'] ?? []));
+
+            return RequestResponse::created('Custom role created successfully.', $role->fresh('permissions'));
+        });
+    }
+
+    /**
+     * A custom role's current display_name + granted module.action
+     * permission names, for pre-filling the edit modal - mirrors the
+     * flat edit() convention used across this app (e.g. LeavePeriodsService),
+     * just returning JSON instead of a rendered form fragment since the
+     * permission matrix is built client-side.
+     */
+    public function edit(Request $request)
+    {
+        $role = $this->findEditableCustomRole($request);
+        if ($role instanceof \App\Http\RequestResponse) {
+            return $role;
+        }
+
+        return RequestResponse::ok('Role fetched.', [
+            'id' => $role->id,
+            'display_name' => $role->display_name,
+            'permissions' => $role->permissions->pluck('name')->values(),
+        ]);
+    }
+
+    public function update(Request $request)
+    {
+        $role = $this->findEditableCustomRole($request);
+        if ($role instanceof \App\Http\RequestResponse) {
+            return $role;
+        }
+        $business = Business::findBySlug(session('active_business_slug'));
+
+        $validated = $request->validate([
+            'display_name' => 'required|string|max:255',
+            'permissions' => 'nullable|array',
+            'permissions.*' => 'string',
+        ]);
+
+        $exists = Role::where('business_id', $business->id)
+            ->where('is_custom', true)
+            ->where('display_name', $validated['display_name'])
+            ->where('id', '!=', $role->id)
+            ->exists();
+        if ($exists) {
+            return RequestResponse::badRequest('A custom role with that name already exists.');
+        }
+
+        return $this->handleTransaction(function () use ($validated, $business, $role) {
+            $role->update(['display_name' => $validated['display_name']]);
+            $role->syncPermissions($this->validPermissionsFor($business, $validated['permissions'] ?? []));
+
+            return RequestResponse::ok('Custom role updated successfully.', $role->fresh('permissions'));
+        });
+    }
+
+    public function destroy(Request $request)
+    {
+        $role = $this->findEditableCustomRole($request);
+        if ($role instanceof \App\Http\RequestResponse) {
+            return $role;
+        }
+
+        // Spatie's role_has_permissions/model_has_roles pivots cascade-delete
+        // on the role FK (see the permission-tables migration), so this
+        // cleanly strips the role from anyone holding it too.
+        $role->delete();
+
+        return RequestResponse::ok('Custom role deleted successfully.');
+    }
+
+    /**
+     * Resolves+guards the role_id body param shared by edit()/update()/
+     * destroy(): must exist, must be a custom role, and must belong to the
+     * active business - returns a ready-to-return error response instead
+     * of throwing so callers can early-return in one line.
+     */
+    private function findEditableCustomRole(Request $request)
+    {
+        $businessSlug = session('active_business_slug');
+        if (!$businessSlug) {
+            return RequestResponse::badRequest('No active business selected.');
+        }
+        $business = Business::findBySlug($businessSlug);
+
+        $validated = $request->validate(['role_id' => 'required|integer|exists:roles,id']);
+        $role = Role::with('permissions')->find($validated['role_id']);
+
+        if (!$role || !$role->is_custom || (int) $role->business_id !== (int) $business->id) {
+            return RequestResponse::forbidden('Only a custom role you created can be edited or deleted.');
+        }
+
+        return $role;
+    }
+
+    /**
+     * Never trust the client's checkbox state for which modules are
+     * actually active - re-validates every submitted permission name is
+     * both a real seeded module.action permission AND for a module this
+     * business currently has subscribed.
+     */
+    private function validPermissionsFor(Business $business, array $permissionNames): array
+    {
+        $gateMap = \Database\Seeders\ModuleActionPermissionSeeder::MODULE_SUBSCRIPTION_GATE;
+        $activeModules = collect(\Database\Seeders\ModuleActionPermissionSeeder::MODULES)
+            ->filter(fn ($slug) => $business->hasModule($gateMap[$slug] ?? $slug))
+            ->values();
+
+        $allowedPermissions = $activeModules->flatMap(
+            fn ($module) => collect(\Database\Seeders\ModuleActionPermissionSeeder::ACTIONS)
+                ->map(fn ($action) => "module.{$module}.{$action}")
+        )->values()->all();
+
+        return collect($permissionNames)
+            ->filter(fn ($name) => in_array($name, $allowedPermissions, true))
+            ->values()
+            ->all();
     }
 
     public function show($business, $role)
@@ -50,7 +240,7 @@ class RoleController extends Controller
         // Load the role with permissions
         $role = Role::with('permissions')
             ->where('name', $roleName)
-            ->where('name', '!=', 'applicant')
+            ->businessAssignable()
             ->firstOrFail();
 
         $businessSlug = session('active_business_slug') ?? $business;
@@ -92,9 +282,12 @@ class RoleController extends Controller
             'remove' => 'nullable|boolean',
         ]);
 
-        return $this->handleTransaction(function () use ($validatedData, $request) {
-            $role = Role::where('name', '!=', 'applicant')
-                ->findOrFail($validatedData['role_id']);
+        $role = Role::find($validatedData['role_id']);
+        if (!$role || in_array($role->name, Role::PLATFORM_ROLES, true) || in_array($role->name, ['applicant', 'business-admin'], true)) {
+            return RequestResponse::forbidden('That role cannot be assigned from within a business.');
+        }
+
+        return $this->handleTransaction(function () use ($validatedData, $request, $role) {
             $user = User::findOrFail($validatedData['user_id']);
 
             $businessSlug = session('active_business_slug');

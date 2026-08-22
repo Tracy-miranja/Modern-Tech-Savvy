@@ -33,6 +33,24 @@ window.scheduleInterview = async function (btn) {
         btn_loader(btn, false);
     }
 };
+// Note: the delete button in interviews/_table.blade.php submits its own
+// (currently empty-action, pre-existing) form directly rather than going
+// through interviewService.delete() like window.deleteInterview() below -
+// this only replaces its native confirm() with the same Swal pattern,
+// preserving that existing behavior rather than rewiring it.
+window.confirmDeleteInterview = async function (btn) {
+    const { isConfirmed } = await Swal.fire({
+        title: "Are you sure?",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#d33",
+        cancelButtonColor: "#6c757d",
+        confirmButtonText: "Yes",
+    });
+    if (!isConfirmed) return;
+    btn.closest('form').submit();
+};
+
 window.editInterview = async function (btn) {
     btn = $(btn);
 

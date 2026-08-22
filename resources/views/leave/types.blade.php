@@ -8,9 +8,16 @@
                         @csrf
 
                         <div class="form-group mb-3">
-                            <label for="name">Name</label>
-                            <input type="text" name="name" id="name" placeholder="Leave Name"
-                                class="form-control" required>
+                            <label for="name_select">Name</label>
+                            <select id="name_select" name="name" class="form-select" required>
+                                <option value="">Select a leave type</option>
+                                @foreach (getLeaveTypeNames() as $leaveTypeName)
+                                    <option value="{{ $leaveTypeName }}">{{ $leaveTypeName }}</option>
+                                @endforeach
+                                <option value="__other__">Other (specify)...</option>
+                            </select>
+                            <input type="text" id="name_custom" placeholder="Enter a custom leave type name"
+                                class="form-control mt-2 d-none">
                         </div>
 
                         <div class="form-group mb-3">
@@ -127,10 +134,54 @@
                                     class="form-control" step="0.01" min="0" oninput="validity.valid||(value='');" required>
                             </div>
 
-                            <div class="col-md-6">
+                            <div class="col-md-4">
                                 <label for="max_carryover_days">Max carryover days</label>
                                 <input type="number" name="max_carryover_days" id="max_carryover_days"
                                     class="form-control" min="0" oninput="validity.valid||(value='');" required>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="carryover_type">Carryover type</label>
+                                <select name="carryover_type" id="carryover_type" class="form-select">
+                                    <option value="full">Full</option>
+                                    <option value="fixed">Fixed</option>
+                                    <option value="percent">Percent</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="carryover_value">Carryover value</label>
+                                <div class="input-group">
+                                    <input type="number" name="carryover_value" id="carryover_value"
+                                        class="form-control" step="0.01" min="0">
+                                    <span class="input-group-text" id="carryover_value_suffix">days</span>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="carryover_expiry_months">Carryover valid for (months)</label>
+                                <input type="number" name="carryover_expiry_months" id="carryover_expiry_months"
+                                    class="form-control" min="0" oninput="validity.valid||(value='');">
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="min_interval_days">Min days between requests</label>
+                                <input type="number" name="min_interval_days" id="min_interval_days"
+                                    class="form-control" min="0" oninput="validity.valid||(value='');">
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="is_encashable">Encashable</label>
+                                <select name="is_encashable" id="is_encashable" class="form-select">
+                                    <option value="0" selected>No</option>
+                                    <option value="1">Yes</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="max_encashable_days">Max encashable days</label>
+                                <input type="number" name="max_encashable_days" id="max_encashable_days"
+                                    class="form-control" min="0" oninput="validity.valid||(value='');">
                             </div>
 
                             <div class="col-md-6">
@@ -150,38 +201,20 @@
                                 <input type="date" class="form-control datepicker" id="end_date" name="end_date">
                             </div>
 
-                            <div class="col-md-12 mb-3">
-                                <label for="excluded_days">Excluded (Non-working) Days</label>
-                                <div class="d-flex flex-wrap">
-                                    @php
-                                        $daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-                                    @endphp
-                                    @foreach ($daysOfWeek as $day)
-                                        <div class="form-check me-3">
-                                            <input class="form-check-input" type="checkbox"
-                                                name="excluded_days[]"
-                                                id="day_{{ $day }}"
-                                                value="{{ $day }}">
-                                            <label class="form-check-label" for="day_{{ $day }}">
-                                                {{ ucfirst($day) }}
-                                            </label>
-                                        </div>
-                                    @endforeach
-                                </div>
+                            <div class="col-md-4">
+                                <label for="exclude_public_holidays">Exclude Public Holidays</label>
+                                <select name="exclude_public_holidays" id="exclude_public_holidays" class="form-select">
+                                    <option value="1" selected>Yes</option>
+                                    <option value="0">No</option>
+                                </select>
                             </div>
 
-                            <div class="col-md-12 mb-3">
-                                <label for="excluded_dates">Excluded Holiday Dates</label>
-                                <div class="d-flex align-items-start gap-2 mb-2">
-                                    <input type="date" id="excluded_date_input" class="form-control" style="max-width: 220px;">
-                                    <button type="button" class="btn btn-outline-primary" id="add_excluded_date_btn">Add date</button>
-                                </div>
-                                <div id="excluded_dates_pills" class="d-flex flex-wrap gap-2"></div>
-                                <!-- Hidden inputs get appended here so they submit with the form -->
-                                <div id="excluded_dates_inputs"></div>
-                                <small class="text-muted d-block mt-1">
-                                    Specific dates (YYYY-MM-DD) that won’t be counted for this leave type.
-                                </small>
+                            <div class="col-md-4">
+                                <label for="exclude_non_working_days">Exclude Non-Working Days</label>
+                                <select name="exclude_non_working_days" id="exclude_non_working_days" class="form-select">
+                                    <option value="1" selected>Yes</option>
+                                    <option value="0">No</option>
+                                </select>
                             </div>
 
                             <div class="col-md-4">
@@ -191,6 +224,11 @@
                                         <option value="{{ $i }}">{{ $i }}</option>
                                     @endfor
                                 </select>
+                            </div>
+
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label d-block">Who Approves Each Level</label>
+                                <div id="approval_chain_rows" class="d-flex flex-wrap gap-2" data-approval-chain="[]"></div>
                             </div>
 
                             <div class="col-md-4">
@@ -243,78 +281,11 @@
         <script src="{{ asset('js/main/leave-type.js') }}" type="module"></script>
 
         <script>
-            // helpers live in this closure
-            (function () {
-                const input  = document.getElementById('excluded_date_input');
-                const pills  = document.getElementById('excluded_dates_pills');
-                const inputs = document.getElementById('excluded_dates_inputs');
-                const btn    = document.getElementById('add_excluded_date_btn');
-
-                function addDate(val) {
-                    if (!val) return;
-                    const d = new Date(val);
-                    if (isNaN(+d)) { alert('Invalid date'); return; }
-                    const iso = d.toISOString().slice(0, 10);
-
-                    // prevent duplicates
-                    if ([...inputs.querySelectorAll('input[name="excluded_dates[]"]')].some(i => i.value === iso)) return;
-
-                    // hidden input for form submit (INSIDE the form)
-                    const hidden = document.createElement('input');
-                    hidden.type = 'hidden';
-                    hidden.name = 'excluded_dates[]';
-                    hidden.value = iso;
-                    inputs.appendChild(hidden);
-
-                    // visual pill with remove
-                    const pill = document.createElement('span');
-                    pill.className = 'badge bg-secondary d-inline-flex align-items-center';
-                    pill.textContent = iso + ' ';
-                    const x = document.createElement('button');
-                    x.type = 'button';
-                    x.className = 'btn-close btn-close-white btn-sm ms-1';
-                    x.setAttribute('aria-label', 'Remove');
-                    x.onclick = () => { hidden.remove(); pill.remove(); };
-                    pill.appendChild(x);
-                    pills.appendChild(pill);
-
-                    input.value = '';
+            document.addEventListener('DOMContentLoaded', function () {
+                if (typeof getLeaveType === 'function') {
+                    getLeaveType();
                 }
-
-                // Add button & Enter key
-                btn?.addEventListener('click', () => addDate(input.value));
-                input?.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); addDate(input.value); }
-                });
-
-                document.addEventListener('DOMContentLoaded', function () {
-                    // Load Leave Types list (existing behavior)
-                    if (typeof getLeaveType === 'function') {
-                        getLeaveType();
-                    }
-
-                    // Autocomplete for name (existing behavior)
-                    const nameInput = document.getElementById('name');
-                    const availableTypes = @json(getLeaveTypeNames());
-                    if (typeof $ !== 'undefined' && $.fn.autocomplete) {
-                        $('#name').autocomplete({
-                            source: availableTypes,
-                            minLength: 1,
-                        });
-                    } else {
-                        console.error('jQuery or jQuery UI is not loaded. Autocomplete will not work.');
-                    }
-
-                    // Pre-populate excluded dates from server into the form UI
-                    const initialExcludedDates = @json($leaveType->excluded_dates ?? []);
-                    if (Array.isArray(initialExcludedDates)) {
-                        initialExcludedDates.forEach(function (iso) {
-                            // Feed directly to addDate; it will normalize & avoid duplicates
-                            addDate(iso);
-                        });
-                    }
-                });
-            })();
+            });
         </script>
     @endpush
 </x-app-layout>

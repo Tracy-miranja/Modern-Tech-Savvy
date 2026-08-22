@@ -39,6 +39,7 @@ class LeaveEntitlementsService {
         try {
             const response = await this.requestClient.post('/leave-entitlements/store', data);
             toastr.success(response.message, "Success");
+            return response;
         } catch (error) {
             console.log(error)
             throw error;
@@ -49,6 +50,28 @@ class LeaveEntitlementsService {
         try {
             const response = await this.requestClient.post('/leave-entitlements/delete', data);
             toastr.info(response.message, "Success");
+        } catch (error) {
+            console.log(error)
+            throw error;
+        }
+    }
+
+    async adjust(data) {
+        try {
+            const response = await this.requestClient.post('/leave-entitlements/adjust', data);
+            toastr.success(response.message, "Success");
+            return response;
+        } catch (error) {
+            console.log(error)
+            throw error;
+        }
+    }
+
+    async processCarryover(data) {
+        try {
+            const response = await this.requestClient.post('/leave-entitlements/process-carryover', data);
+            toastr.success(response.message, "Success");
+            return response;
         } catch (error) {
             console.log(error)
             throw error;
