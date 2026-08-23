@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Models\Business;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -18,6 +19,19 @@ class EnsureBusinessModuleActive
     public function handle(Request $request, Closure $next, string $moduleSlug): Response
     {
         $business = Business::findBySlug(session('active_business_slug'));
+
+        // Module subscription gating exists to let super-admin control
+        // what CLIENT businesses have paid for - Krest itself is the
+        // platform operator's own working business, not a paying client,
+        // so its own admins always have every module regardless of
+        // whatever happens to be toggled in business_modules (mirrors the
+        // "super-admin operating the platform business" bypass already in
+        // RoleOrImpersonation/EnsureCorrectRole).
+        $user = Auth::user();
+        if ($business && $user && $business->slug === config('business.main_slug')
+            && $user->hasAnyRole(['super-admin', 'business-admin'])) {
+            return $next($request);
+        }
 
         if ($business && !$business->hasModule($moduleSlug)) {
             $moduleName = ucwords(str_replace('-', ' ', $moduleSlug));
