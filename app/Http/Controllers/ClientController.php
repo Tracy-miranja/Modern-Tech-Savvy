@@ -384,6 +384,23 @@ public function switchBackToAdmin(Request $request, $business_slug)
         return $this->handleTransaction(function () use ($clientBusiness, $request) {
             $selectedIds = array_map('intval', $request->input('modules', []));
 
+            // A submission with zero modules is indistinguishable here
+            // from "the form genuinely wasn't ready yet" (e.g. the
+            // clients table was refreshed by another action while this
+            // modal was still open, orphaning its form) - silently
+            // proceeding would disable every module this business
+            // already had, with a 200 "success" response giving no sign
+            // anything just got wiped. Require the request to explicitly
+            // say it means to clear everything.
+            if (empty($selectedIds) && !$request->boolean('confirm_clear_all')) {
+                $hadModules = $clientBusiness->modules()->wherePivot('is_active', true)->exists();
+                if ($hadModules) {
+                    return RequestResponse::badRequest(
+                        'No modules were selected. If you meant to remove every module from this business, reopen the dialog and confirm - nothing was changed.'
+                    );
+                }
+            }
+
             // A bare sync($ids) recreates every pivot row from column
             // defaults, silently wiping subscription_ends_at (no default,
             // nullable) back to null even for a module that stays checked

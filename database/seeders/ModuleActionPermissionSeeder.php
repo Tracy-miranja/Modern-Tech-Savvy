@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 
 /**
  * Seeds one Permission row per (module, action) pair, named
@@ -63,6 +64,32 @@ class ModuleActionPermissionSeeder extends Seeder
         'crm-integration' => 'crm-integration',
     ];
 
+    /**
+     * Which modules each fixed/built-in role is granted, purely so Roles
+     * Management has something real to show instead of "no permissions
+     * assigned" (these roles were never permission-driven - actual access
+     * is decided by role NAME checks in routes/web.php's
+     * role_or_permission_or_impersonation:... lists, this just mirrors
+     * that same list back as real Permission grants).
+     *
+     * head-of-department, restricted-hr, and chief-of-staff are listed
+     * here at the same route-group breadth as business-admin/business-hr,
+     * but EnsureCorrectRole::restrictedRoutes then blocks most of the
+     * individual pages within these modules for those three specifically
+     * (payroll/CRM/recruitment/org-setup/employees list, etc.) - that
+     * page-level layer isn't modeled as permissions here, so what's shown
+     * for these three is closer to "nominally has this module" than
+     * "can freely use every page in it".
+     */
+    private const ROLE_MODULES = [
+        'business-admin' => self::MODULES,
+        'business-hr' => self::MODULES,
+        'head-of-department' => self::MODULES,
+        'restricted-hr' => self::MODULES,
+        'chief-of-staff' => self::MODULES,
+        'business-finance' => ['payroll-management', 'leave-management', 'employee-management', 'attendance'],
+    ];
+
     public function run(): void
     {
         foreach (self::MODULES as $module) {
@@ -72,6 +99,19 @@ class ModuleActionPermissionSeeder extends Seeder
                     'guard_name' => 'web',
                 ]);
             }
+        }
+
+        foreach (self::ROLE_MODULES as $roleName => $modules) {
+            $role = Role::where('name', $roleName)->where('guard_name', 'web')->first();
+            if (!$role) {
+                continue;
+            }
+
+            $permissionNames = collect($modules)
+                ->flatMap(fn ($module) => collect(self::ACTIONS)->map(fn ($action) => "module.{$module}.{$action}"))
+                ->all();
+
+            $role->givePermissionTo($permissionNames);
         }
     }
 }

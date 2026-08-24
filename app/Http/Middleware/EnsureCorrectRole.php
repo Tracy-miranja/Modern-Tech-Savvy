@@ -26,8 +26,6 @@ class EnsureCorrectRole
         if (!$activeRole) {
             if ($user->hasRole('business-admin')) {
                 $activeRole = 'business-admin';
-            } elseif ($user->hasRole('general-hr')) {
-                $activeRole = 'general-hr';
             } elseif ($user->hasRole('restricted-hr')) {
                 $activeRole = 'restricted-hr';
             } elseif ($user->hasRole('head-of-department')) {
