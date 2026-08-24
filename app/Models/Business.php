@@ -92,9 +92,23 @@ class Business extends Model implements HasMedia
     {
         return $this->belongsToMany(Module::class, 'business_modules')->withPivot('is_active', 'subscription_ends_at')->withTimestamps();
     }
+    /**
+     * is_active alone isn't enough - a module whose subscription_ends_at
+     * (set by a recorded ClientPayment) has since lapsed must drop out of
+     * "active" too, even though nothing ever flips is_active back to
+     * false for it. hasModule() below re-applies this same condition
+     * redundantly (harmless - filtering twice on the same clause changes
+     * nothing) rather than assuming every caller of activeModules() has
+     * been updated to expect expiry-awareness.
+     */
     public function activeModules()
     {
-        return $this->modules()->wherePivot('is_active', true);
+        return $this->modules()
+            ->wherePivot('is_active', true)
+            ->where(function ($query) {
+                $query->whereNull('business_modules.subscription_ends_at')
+                    ->orWhereDate('business_modules.subscription_ends_at', '>=', now()->toDateString());
+            });
     }
     public function coreModules()
     {

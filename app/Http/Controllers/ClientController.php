@@ -65,7 +65,31 @@ class ClientController extends Controller
 
         $modules = \App\Models\Module::all();
 
-        return view('clients.view', compact('clientBusiness', 'modules'));
+        // Assigned = has a business_modules row at all, regardless of
+        // state; active = is_active AND (no expiry OR expiry hasn't
+        // passed) - Business::activeModules()'s own definition. A module
+        // can be assigned but not active (soft-disabled, or its
+        // subscription_ends_at from an earlier payment has lapsed) - the
+        // "I assigned it but it's not active" gap this page exists to
+        // make visible.
+        $activeModuleIds = $clientBusiness->activeModules()->pluck('modules.id')->all();
+
+        $employeeCount = \App\Models\Employee::where('business_id', $clientBusiness->id)->count();
+        $userCount = \App\Models\Employee::where('business_id', $clientBusiness->id)
+            ->whereNotNull('user_id')
+            ->distinct('user_id')
+            ->count('user_id');
+
+        $recentActivities = \Spatie\Activitylog\Models\Activity::where('subject_type', Business::class)
+            ->where('subject_id', $clientBusiness->id)
+            ->with('causer:id,name')
+            ->latest()
+            ->limit(5)
+            ->get();
+
+        return view('clients.view', compact(
+            'clientBusiness', 'modules', 'activeModuleIds', 'employeeCount', 'userCount', 'recentActivities'
+        ));
     }
 
     public function showRequestAccess(Request $request)
@@ -430,6 +454,55 @@ public function switchBackToAdmin(Request $request, $business_slug)
                 ->log('Modules updated');
 
             return RequestResponse::ok('Modules assigned successfully.');
+        });
+    }
+
+    /**
+     * Explicit per-module activate/deactivate, with an optional expiry
+     * date - the direct, single-module counterpart to the bulk Assign
+     * Modules checkbox form above. Always assigns the module (creates the
+     * pivot row if it didn't already exist) and sets is_active/
+     * subscription_ends_at to exactly what was submitted, rather than
+     * preserving whatever was there before - this is a deliberate,
+     * one-module edit, not a bulk resubmit.
+     */
+    public function updateModuleStatus(Request $request, $business_slug, $client_business_slug)
+    {
+        $business = Business::findBySlug($business_slug);
+        if (!$business || $business->slug !== config('business.main_slug')) {
+            return RequestResponse::forbidden('Only the platform business can manage modules.');
+        }
+
+        $clientBusiness = Business::findBySlug($client_business_slug);
+        if (!$clientBusiness) {
+            return RequestResponse::badRequest('Client business not found.');
+        }
+
+        $validated = $request->validate([
+            'module_id' => 'required|integer|exists:modules,id',
+            'is_active' => 'required|boolean',
+            'subscription_ends_at' => 'nullable|date',
+        ]);
+
+        return $this->handleTransaction(function () use ($validated, $clientBusiness, $request) {
+            $clientBusiness->modules()->syncWithoutDetaching([
+                $validated['module_id'] => [
+                    'is_active' => $validated['is_active'],
+                    'subscription_ends_at' => $validated['subscription_ends_at'] ?? null,
+                ],
+            ]);
+
+            $module = \App\Models\Module::find($validated['module_id']);
+
+            activity()
+                ->causedBy($request->user())
+                ->performedOn($clientBusiness)
+                ->withProperties($validated)
+                ->log($validated['is_active'] ? 'Module activated' : 'Module deactivated');
+
+            return RequestResponse::ok(
+                ($module->name ?? 'Module') . ' ' . ($validated['is_active'] ? 'activated.' : 'deactivated.')
+            );
         });
     }
 }

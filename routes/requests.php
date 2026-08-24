@@ -88,6 +88,7 @@ Route::middleware(['auth'])->group(function () {
             Route::post('{client_business_slug}/verify', [ClientController::class, 'verifyBusiness'])->name('verify');
             Route::post('{client_business_slug}/deactivate', [ClientController::class, 'deactivateBusiness'])->name('deactivate');
             Route::post('{client_business_slug}/modules/assign', [ClientController::class, 'assignModules'])->name('modules.assign');
+            Route::post('{client_business_slug}/modules/update-status', [ClientController::class, 'updateModuleStatus'])->name('modules.update-status');
 
             // Manual client payment ledger - same governance tier as
             // verify/deactivate/modules (financial/subscription control).

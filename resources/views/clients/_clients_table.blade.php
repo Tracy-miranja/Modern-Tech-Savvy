@@ -36,9 +36,6 @@
                         Deactivate
                     </button>
                     @endif
-                    <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modulesModal-{{ $biz->slug }}">
-                        Assign Modules
-                    </button>
                 @endif
                 <button class="btn btn-sm btn-info" onclick="impersonateBusiness('{{ $biz->slug }}')">
                     Impersonate
@@ -61,36 +58,6 @@
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                         <button type="button" class="btn btn-primary"
                             onclick="submitRemarks('{{ $biz->slug }}')">Submit</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <!-- Modules Modal -->
-        <div class="modal fade" id="modulesModal-{{ $biz->slug }}" tabindex="-1" role="dialog">
-            <div class="modal-dialog" role="document">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Assign Modules for {{ $biz->company_name }}</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <form id="modulesForm-{{ $biz->slug }}">
-                            @csrf
-                            <input type="hidden" name="business_slug" value="{{ $biz->slug }}">
-                            @foreach (\App\Models\Module::all() as $module)
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="modules[]"
-                                    value="{{ $module->id }}" @if ($biz->modules->contains($module->id)) checked
-                                @endif>
-                                <label class="form-check-label">{{ $module->name }}</label>
-                            </div>
-                            @endforeach
-                        </form>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                        <button type="button" class="btn btn-primary"
-                            onclick="assignModules(this, '{{ $biz->slug }}')">Save</button>
                     </div>
                 </div>
             </div>
