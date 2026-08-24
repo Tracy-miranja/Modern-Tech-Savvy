@@ -25,7 +25,7 @@ class ShiftSeeder extends Seeder
         ];
 
         foreach ($shifts as $shift) {
-            Shift::create($shift);
+            Shift::firstOrCreate(['slug' => $shift['slug']], $shift);
         }
     }
 }

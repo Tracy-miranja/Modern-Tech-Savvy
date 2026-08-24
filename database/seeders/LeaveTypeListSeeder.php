@@ -34,7 +34,7 @@ class LeaveTypeListSeeder extends Seeder
         ];
 
         foreach ($leaveTypes as $leaveTypeData) {
-            LeaveTypeList::create($leaveTypeData);
+            LeaveTypeList::firstOrCreate(['name' => $leaveTypeData['name']], $leaveTypeData);
         }
     }
 }
