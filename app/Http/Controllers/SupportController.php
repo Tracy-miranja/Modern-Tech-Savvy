@@ -22,7 +22,7 @@ class SupportController extends Controller
     public function fetch(Request $request, $businessSlug)
     {
         $business = Business::findBySlug($businessSlug);
-        $issues = SupportIssue::where('business_id', $business->first()->id)
+        $issues = SupportIssue::where('business_id', $business->id)
             ->with(['user', 'solvedBy'])
             ->get();
 
@@ -49,7 +49,7 @@ class SupportController extends Controller
             'screenshot' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
         ]);
 
-        $$business = Business::findBySlug($businessSlug);
+        $business = Business::findBySlug($businessSlug);
 
         $issue = new SupportIssue();
         $issue->user_id = Auth::id();
@@ -70,9 +70,13 @@ class SupportController extends Controller
 
     public function markSolved(Request $request, $businessSlug, $issueId)
     {
-        $this->authorize('markSolved', SupportIssue::class);
-
+        $business = Business::findBySlug($businessSlug);
         $issue = SupportIssue::findOrFail($issueId);
+
+        if (!Auth::user()->hasRole('business-admin') || (int) $issue->business_id !== (int) $business->id) {
+            return response()->json(['message' => 'You cannot mark this issue as solved.'], 403);
+        }
+
         $issue->status = 'solved';
         $issue->solved_by_id = Auth::id();
         $issue->solved_at = now();

@@ -1,8 +1,14 @@
+import RequestClient from "/js/client/RequestClient.js";
+
+const requestClient = new RequestClient();
+
 document.addEventListener('DOMContentLoaded', function () {
     const supportForm = document.getElementById('supportForm');
     const issuesTable = $('#issuesTable').DataTable({
         ajax: {
             url: `/business/${currentBusinessSlug}/support/fetch`,
+            type: 'POST',
+            data: function (d) { d._token = document.querySelector('meta[name="csrf-token"]').content; },
             dataSrc: 'data'
         },
         columns: [
@@ -30,7 +36,7 @@ document.addEventListener('DOMContentLoaded', function () {
         e.preventDefault();
         const formData = new FormData(supportForm);
 
-        RequestClient.post(`/business/${currentBusinessSlug}/support/store`, formData)
+        requestClient.post(`/business/${currentBusinessSlug}/support/store`, formData)
             .then(response => {
                 toastr.success(response.message);
                 supportForm.reset();
@@ -43,7 +49,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     $(document).on('click', '.mark-solved', function () {
         const issueId = $(this).data('id');
-        RequestClient.post(`/business/${currentBusinessSlug}/support/${issueId}/mark-solved`, {})
+        requestClient.post(`/business/${currentBusinessSlug}/support/${issueId}/mark-solved`, {})
             .then(response => {
                 toastr.success(response.message);
                 issuesTable.ajax.reload();

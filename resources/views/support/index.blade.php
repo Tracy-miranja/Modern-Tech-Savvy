@@ -14,10 +14,14 @@
                                         <h4>Contact Information</h4>
                                     </div>
                                     <div class="card-body">
-                                        <p><strong>Email:</strong> support@krest.com</p>
-                                        <p><strong>Phone:</strong> +1-800-krest-HELP</p>
-                                        <p><strong>Address:</strong> 123 krest Ave, Tech City, TC 12345</p>
-                                        <p><strong>Support Hours:</strong> Mon-Fri, 9AM-5PM</p>
+                                        <p><strong>Email:</strong> support@krestworks.com</p>
+                                        <p><strong>Phone:</strong> +254711903289</p>
+                                        <p><strong>Address:</strong> Nairobi, Kenya</p>
+                                        <p><strong>Support Hours:</strong> 24/7 support</p>
+                                        <a href="https://wa.me/254711903289?text={{ urlencode('Hi, I need help with KrestHR.') }}"
+                                            target="_blank" rel="noopener" class="btn btn-success btn-sm mt-2">
+                                            <i class="bi bi-whatsapp me-1"></i> Help via WhatsApp
+                                        </a>
                                     </div>
                                 </div>
                             </div>
@@ -80,10 +84,10 @@
         </div>
     </div>
 
-    @section('scripts')
+    @push('scripts')
     <script>
     window.currentBusinessSlug = '{{ $currentBusiness->slug }}';
     </script>
-    <script src="{{ asset('js/main/support.js') }}"></script>
-    @endsection
+    <script src="{{ asset('js/main/support.js') }}" type="module"></script>
+    @endpush
 </x-app-layout>
