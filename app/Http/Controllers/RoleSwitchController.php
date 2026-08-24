@@ -102,7 +102,6 @@ class RoleSwitchController extends Controller
             'business-hr' => 'business.employees.index',
             'business-finance' => 'business.index',
             'business-employee' => 'myaccount.index',
-            'general-hr' => 'business.index',
             'restricted-hr' => 'business.employees.index',
             'head-of-department' => 'business.leave.index',
             'chief-of-staff' => 'business.leave.index',

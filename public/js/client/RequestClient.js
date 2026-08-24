@@ -75,7 +75,10 @@ class RequestClient {
                     } else {
                         toastr.error('Something went wrong');
                     }
-                    throw new Error(message);
+                    const httpError = new Error(message);
+                    httpError.status = status;
+                    httpError.errors = errors;
+                    throw httpError;
                 } else {
                     const textResponse = await response.text();
                     console.error('Non-JSON error response:', textResponse);

@@ -11,16 +11,22 @@ class RolesSeeder extends Seeder
     public function run(): void
     {
         // Create roles
+        // business-it, business-marketing, and general-hr were removed -
+        // none of the three ever appeared in a single route's access
+        // control (routes/web.php's role_or_permission_or_impersonation:
+        // lists), the login redirect (AuthenticatedSessionController::
+        // getRedirectUrlForRole()) had no branch for any of them, and
+        // business-it's only permissions (delete-lead/delete-contact-
+        // submission below) were never actually checked anywhere. An
+        // employee assigned any of the three could log in and then reach
+        // nothing - not a role, a dead end.
         $roles = [
             'super-admin',
             'admin',
             'business-admin',
             'business-hr',
             'business-finance',
-            'business-it',
             'business-employee',
-            'business-marketing',
-            'general-hr',
             'restricted-hr',
             'head-of-department',
             'chief-of-staff'
@@ -39,12 +45,9 @@ class RolesSeeder extends Seeder
         $accessDashboardPermission = Permission::firstOrCreate(['name' => 'access.dashboard', 'guard_name' => 'web']);
         $accessEmployeesPermission = Permission::firstOrCreate(['name' => 'access.employees', 'guard_name' => 'web']);
 
-        // Assign permissions to 'admin' and 'it' roles
+        // Assign permissions to 'admin' role
         $adminRole = Role::findByName('admin', 'web');
-        $itRole = Role::findByName('business-it', 'web');
-
         $adminRole->givePermissionTo([$deleteLeadPermission, $deleteContactSubmissionPermission]);
-        $itRole->givePermissionTo([$deleteLeadPermission, $deleteContactSubmissionPermission]);
 
         // Assign permissions to chief-of-staff role
         $chiefOfStaffRole = Role::findByName('chief-of-staff', 'web');

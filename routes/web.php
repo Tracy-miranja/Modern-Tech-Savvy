@@ -160,9 +160,10 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
 
             Route::get('profile', [ProfileController::class, 'edit'])->name('profile.index');
 
-            // roles
-            Route::get('/roles', [RoleController::class, 'index'])->name('roles.index');
-            Route::get('/roles/{role}', [RoleController::class, 'show'])->name('roles.show');
+            // Roles Management (list/detail) - split out below to its own
+            // sibling group, gated by business-admin|business-hr only, not
+            // this group's broader fixed role: list - see "Roles
+            // Management" further down.
             // Custom-role modules/store/edit/update/destroy already exist as
             // flat AJAX routes (routes/requests.php `roles.` group) - this
             // app's established convention (business context resolved via
@@ -192,6 +193,20 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
                     'active_role' => session('active_role'),
                 ]);
             });
+        });
+
+    // Roles Management - split out from the group above so it can be
+    // gated by its own narrower role: list. Everyone else in that group
+    // (business-finance, head-of-department, restricted-hr, chief-of-
+    // staff) could otherwise see and manage every business role,
+    // including business-admin/business-hr themselves - role assignment
+    // is meant to stay with the two roles actually running the business.
+    Route::middleware(['ensure_role', 'role:business-admin|business-hr'])
+        ->name('business.')
+        ->prefix('business/{business:slug}')
+        ->group(function () {
+            Route::get('/roles', [RoleController::class, 'index'])->name('roles.index');
+            Route::get('/roles/{role}', [RoleController::class, 'show'])->name('roles.show');
         });
 
     // Leave area - split out from the group above so it can be gated by

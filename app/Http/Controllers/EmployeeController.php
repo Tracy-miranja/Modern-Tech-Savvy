@@ -959,7 +959,7 @@ class EmployeeController extends Controller
 
         $elevatedRoles = [
             'super-admin', 'business-admin', 'business-hr',
-            'general-hr', 'restricted-hr', 'head-of-department', 'chief-of-staff',
+            'restricted-hr', 'head-of-department', 'chief-of-staff',
         ];
         if ($targetUser->hasAnyRole($elevatedRoles)) {
             return RequestResponse::forbidden('Cannot log in as an employee who holds an administrative role.');

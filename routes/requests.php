@@ -492,16 +492,23 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/{id}/destroy', [PayGradesController::class, 'destroy'])->name('destroy');
     });
 
-    // roles
-    Route::name('roles.')->prefix('roles')->group(function () {
-        Route::get('modules', [RoleController::class, 'modulesForMatrix'])->name('modules');
-        Route::post('fetch', [RoleController::class, 'fetch'])->name('fetch');
-        Route::post('store', [RoleController::class, 'store'])->name('store');
-        Route::post('edit', [RoleController::class, 'edit'])->name('edit');
-        Route::post('update', [RoleController::class, 'update'])->name('update');
-        Route::post('destroy', [RoleController::class, 'destroy'])->name('destroy');
-        Route::post('assign', [RoleController::class, 'assign'])->name('assign');
-    });
+    // roles - previously had no role check at all beyond plain 'auth' (the
+    // outer group above), meaning any authenticated user of any role
+    // could call store/update/destroy/assign directly. Restricted to the
+    // two roles that actually run role management, matching the
+    // business.roles.index/show page routes in web.php.
+    Route::middleware(['ensure_role', 'role:business-admin|business-hr'])
+        ->name('roles.')
+        ->prefix('roles')
+        ->group(function () {
+            Route::get('modules', [RoleController::class, 'modulesForMatrix'])->name('modules');
+            Route::post('fetch', [RoleController::class, 'fetch'])->name('fetch');
+            Route::post('store', [RoleController::class, 'store'])->name('store');
+            Route::post('edit', [RoleController::class, 'edit'])->name('edit');
+            Route::post('update', [RoleController::class, 'update'])->name('update');
+            Route::post('destroy', [RoleController::class, 'destroy'])->name('destroy');
+            Route::post('assign', [RoleController::class, 'assign'])->name('assign');
+        });
 
     // surveys
     Route::prefix('surveys')->name('surveys.')->group(function () {

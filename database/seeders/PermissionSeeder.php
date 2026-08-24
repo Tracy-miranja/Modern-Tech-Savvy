@@ -5,67 +5,74 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 
+/**
+ * access.* permissions - a SEPARATE, narrower permission vocabulary from
+ * ModuleActionPermissionSeeder's module.{module}.{action} set, checked
+ * only by EnsureCorrectRole::getRequiredPermissionForRoute() as a third
+ * gate for business-hr/restricted-hr/head-of-department/chief-of-staff
+ * specifically (after that same middleware's restrictedRoutes block-list
+ * gate). This file previously referenced business-it/business-marketing/
+ * general-hr, three roles that turned out to have zero real route access
+ * anywhere in the app and have since been removed - and was never
+ * actually called from DatabaseSeeder, so business-hr and restricted-hr
+ * have been running with ZERO access.* permissions despite passing every
+ * earlier gate: EnsureCorrectRole's third check then 403s them off nearly
+ * every page in the map below, including business-hr's own login-redirect
+ * target. Excludes access.clients throughout - that's platform-governance
+ * (business.clients.index), separately gated by a literal `role:
+ * super-admin` check none of these roles hold, so granting it here would
+ * just be misleading about what these roles can actually reach.
+ */
 class PermissionSeeder extends Seeder
 {
     public function run(): void
     {
         $permissions = [
-            'access.dashboard', // business.index
-            'access.clients', // business.clients.*
-            'access.locations', // business.locations.index
-            'access.organization', // business.organization-setup, business.job-categories.index, business.departments.index, business.shifts.index, business.roster.index, business.pay-grades.index
-            'access.roles', // business.roles.*
-            'access.employees', // business.employees.*, business.employees.download*
-            'access.payroll', // business.payroll.*, business.payslips, business.payroll.payslip, business.payroll.download*, business.payroll.send_payslips
-            'access.payroll-settings', // business.payroll-formulas.*, business.deductions, business.reliefs.index, business.employee-reliefs.index, business.allowances.index
-            'access.leave', // business.leave.*
-            'access.attendance', // business.attendances.*, business.overtime.*, business.clock-in-out.index, business.reports.index
-            'access.performance', // business.performance.*
-            'access.crm', // business.crm.*
-            'access.recruitment', // business.recruitment.*, business.applicants.*, business.applications.*
-            'access.profile', // business.profile.index
-            'access.support', // business.support.*
-            'edit.any', // Edit privileges
-            'delete.any', // Delete privileges
+            'access.dashboard', 'access.clients', 'access.locations', 'access.organization',
+            'access.roles', 'access.employees', 'access.payroll', 'access.payroll-settings',
+            'access.leave', 'access.attendance', 'access.performance', 'access.crm',
+            'access.recruitment', 'access.profile', 'access.support',
         ];
 
-        // Create permissions
         foreach ($permissions as $permission) {
             Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'web']);
         }
 
-        $adminItPermissions = $permissions; // Full access for business-admin, business-it, general-hr
-        $financePermissions = array_diff($permissions, ['access.roles']); // All except roles
-        $marketingPermissions = [
-            'access.dashboard',
-            'access.crm',
-            'access.performance',
-            'access.profile',
-            'access.support',
+        $all = array_diff($permissions, ['access.clients']);
+
+        // business-hr's restrictedRoutes entry in EnsureCorrectRole is
+        // empty - no page-level block beyond this - so it gets the full
+        // set, same as business-admin.
+        $businessAdminPermissions = $all;
+        $businessHrPermissions = $all;
+
+        // Matches business-finance's actual route-group membership
+        // (payroll-management, leave-management, employee-management,
+        // attendance in ModuleActionPermissionSeeder) plus the
+        // universally-needed dashboard/profile/support.
+        $financePermissions = [
+            'access.dashboard', 'access.payroll', 'access.payroll-settings',
+            'access.leave', 'access.employees', 'access.attendance',
+            'access.profile', 'access.support',
         ];
-        $restrictedHrPermissions = array_diff($permissions, [
-            'access.dashboard',
-            'access.payroll',
-            'access.payroll-settings',
-        ]); // All except dashboard and payroll-related
 
-        // Assign permissions to roles
-        $businessAdmin = Role::findByName('business-admin', 'web');
-        $businessIt = Role::findByName('business-it', 'web');
-        $businessFinance = Role::findByName('business-finance', 'web');
-        $businessMarketing = Role::findByName('business-marketing', 'web');
-        $generalHr = Role::findByName('general-hr', 'web');
-        $restrictedHr = Role::findByName('restricted-hr', 'web');
-        $businessHr = Role::findByName('business-hr', 'web'); // For consistency with existing roles
+        // restricted-hr's own restrictedRoutes entry blocks every
+        // payroll-family route specifically - everything else stays open.
+        $restrictedHrPermissions = array_diff($all, ['access.payroll', 'access.payroll-settings']);
 
-        $businessAdmin->syncPermissions($adminItPermissions);
-        $businessIt->syncPermissions($adminItPermissions);
-        $businessFinance->syncPermissions($financePermissions);
-        $businessMarketing->syncPermissions($marketingPermissions);
-        $generalHr->syncPermissions($adminItPermissions); // Full access
-        $restrictedHr->syncPermissions($restrictedHrPermissions); // Restricted access
-        $businessHr->syncPermissions($restrictedHrPermissions); // Align business-hr with restricted-hr
+        $roles = [
+            'business-admin' => $businessAdminPermissions,
+            'business-hr' => $businessHrPermissions,
+            'business-finance' => $financePermissions,
+            'restricted-hr' => $restrictedHrPermissions,
+        ];
+
+        foreach ($roles as $roleName => $rolePermissions) {
+            $role = Role::where('name', $roleName)->where('guard_name', 'web')->first();
+            if ($role) {
+                $role->givePermissionTo($rolePermissions);
+            }
+        }
     }
 }

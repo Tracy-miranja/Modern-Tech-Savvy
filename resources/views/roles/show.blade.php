@@ -16,11 +16,40 @@
                             @if($role->permissions->isEmpty())
                             <p>No permissions assigned.</p>
                             @else
-                            <ul class="list-group">
-                                @foreach($role->permissions as $permission)
-                                <li class="list-group-item">{{ $permission->name }}</li>
-                                @endforeach
-                            </ul>
+                                @php
+                                    $grouped = $role->permissions->groupBy(function ($permission) {
+                                        return str_starts_with($permission->name, 'module.') ? 'modules' : 'access';
+                                    });
+                                    $moduleGroups = ($grouped->get('modules') ?? collect())->groupBy(function ($permission) {
+                                        return explode('.', $permission->name)[1] ?? $permission->name;
+                                    });
+                                    $accessPerms = $grouped->get('access') ?? collect();
+                                @endphp
+
+                                @if($accessPerms->isNotEmpty())
+                                <p class="small text-muted mb-1">Areas</p>
+                                <div class="d-flex flex-wrap gap-1 mb-3">
+                                    @foreach($accessPerms->sortBy('name') as $permission)
+                                    <span class="badge bg-secondary">{{ Str::title(str_replace(['access.', '-', '.'], ['', ' ', ' '], $permission->name)) }}</span>
+                                    @endforeach
+                                </div>
+                                @endif
+
+                                @if($moduleGroups->isNotEmpty())
+                                <p class="small text-muted mb-1">Modules</p>
+                                <ul class="list-group">
+                                    @foreach($moduleGroups->sortKeys() as $module => $permissions)
+                                    <li class="list-group-item">
+                                        <strong>{{ Str::title(str_replace('-', ' ', $module)) }}</strong>
+                                        <div class="d-flex flex-wrap gap-1 mt-1">
+                                            @foreach($permissions->sortBy('name') as $permission)
+                                            <span class="badge bg-info-subtle text-info-emphasis">{{ Str::title(explode('.', $permission->name)[2] ?? $permission->name) }}</span>
+                                            @endforeach
+                                        </div>
+                                    </li>
+                                    @endforeach
+                                </ul>
+                                @endif
                             @endif
                         </div>
                     </div>

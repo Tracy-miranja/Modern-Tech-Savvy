@@ -69,7 +69,6 @@ class RoleHomeRouteService
         'super-admin' => 'business.index',
         'business-admin' => 'business.index',
         'business-finance' => 'business.index',
-        'general-hr' => 'business.index',
         'business-hr' => 'business.employees.index',
         'restricted-hr' => 'business.employees.index',
         'head-of-department' => 'business.leave.index',

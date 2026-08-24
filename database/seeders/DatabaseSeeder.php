@@ -18,6 +18,13 @@ class DatabaseSeeder extends Seeder
         // fails the same way. Global reference data, firstOrCreate
         // throughout - always safe to (re-)run.
         $this->call(ModuleActionPermissionSeeder::class);
+        // access.* permissions - a third, separate authorization gate
+        // EnsureCorrectRole checks for business-hr/restricted-hr (on top
+        // of route-group role-name checks and its own restrictedRoutes
+        // block-list). Without this, business-hr/restricted-hr hold zero
+        // of them and get 403'd off nearly every page despite passing
+        // both earlier checks - see PermissionSeeder's docblock.
+        $this->call(PermissionSeeder::class);
         $this->call(ShiftSeeder::class);
         // JobCategorySeeder/DepartmentSeeder stay commented out deliberately:
         // Krest already has its own real, curated departments and job

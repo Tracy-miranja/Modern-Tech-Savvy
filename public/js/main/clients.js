@@ -190,11 +190,31 @@ window.grantAccess = async function (btn, requestId) {
     }
 };
 
-window.assignModules = async function (btn, businessSlug) {
+window.assignModules = async function (btn, businessSlug, confirmClearAll = false) {
     btn = $(btn);
     btn_loader(btn, true);
 
-    const formData = new FormData(document.getElementById("modulesForm-" + businessSlug));
+    const form = document.getElementById("modulesForm-" + businessSlug);
+
+    // The clients table can be re-rendered from under an open modal by an
+    // unrelated action (verify/deactivate both call getClients() on
+    // success) - if that just happened, this modal's own form node was
+    // replaced too and this lookup would otherwise silently submit
+    // whatever stale/empty state is left, reporting "success" either way.
+    if (!form) {
+        btn_loader(btn, false);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'This dialog is out of date (the list was refreshed) - please reopen it and try again.',
+        });
+        return;
+    }
+
+    const formData = new FormData(form);
+    if (confirmClearAll) {
+        formData.set('confirm_clear_all', '1');
+    }
 
     try {
         const response = await requestClient.post(`/businesses/${window.currentBusinessSlug}/clients/${businessSlug}/modules/assign`, formData);
@@ -205,11 +225,29 @@ window.assignModules = async function (btn, businessSlug) {
         });
         bootstrap.Modal.getInstance(document.getElementById(`modulesModal-${businessSlug}`))?.hide();
     } catch (error) {
-        Swal.fire({
-            icon: 'error',
-            title: 'Error',
-            text: error.message || 'Failed to assign modules.',
-        });
+        // The server asks for explicit confirmation before clearing every
+        // module a business already has (see ClientController::
+        // assignModules()) - offer that confirmation here instead of
+        // just showing the rejection and leaving the admin stuck.
+        if (error.status === 400 && !confirmClearAll) {
+            const { isConfirmed } = await Swal.fire({
+                icon: 'warning',
+                title: 'Remove all modules?',
+                text: error.message || 'No modules were selected - this will remove every module from this business.',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, remove all',
+            });
+            if (isConfirmed) {
+                btn_loader(btn, false);
+                return window.assignModules(btn, businessSlug, true);
+            }
+        } else {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: error.message || 'Failed to assign modules.',
+            });
+        }
     } finally {
         btn_loader(btn, false);
     }
