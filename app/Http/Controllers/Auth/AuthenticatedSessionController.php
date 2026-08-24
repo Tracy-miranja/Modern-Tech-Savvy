@@ -11,10 +11,8 @@ use App\Http\RequestResponse;
 use App\Traits\HandleTransactions;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
-use App\Services\NotificationService;
 use App\Http\Requests\Auth\LoginRequest;
 use Illuminate\Support\Facades\Notification;
-use App\Notifications\SystemAlertNotification;
 use App\Notifications\LoginNotification;
 use Illuminate\Validation\ValidationException;
 use Jenssegers\Agent\Agent;
@@ -31,9 +29,9 @@ class AuthenticatedSessionController extends Controller
         return view('auth.login', compact('page', 'description'));
     }
 
-    public function store(LoginRequest $request, NotificationService $notificationService)
+    public function store(LoginRequest $request)
     {
-        return $this->handleTransaction(function () use ($request, $notificationService) {
+        return $this->handleTransaction(function () use ($request) {
             $ip = $request->ip();
             $credentials = $request->only('email', 'password');
             $remember = $request->boolean('remember');
@@ -79,16 +77,6 @@ class AuthenticatedSessionController extends Controller
                 $loginLog = $this->logLoginDetails($user, $request);
 
                 $redirectUrl = $this->getRedirectUrlForRole($user);
-
-                $channels = $notificationService->filterChannelsByUserPreferences($user->id, ['mail', 'database', 'slack']);
-
-                $notificationService->sendNotification(
-                    $user,
-                    SystemAlertNotification::class,
-                    ['System maintenance scheduled.', ['details' => 'Server will be down for 2 hours.']],
-                    [],
-                    $channels
-                );
 
                 // Mark 2FA as verified for non-2FA users
                 $request->session()->put('2fa_verified', true);

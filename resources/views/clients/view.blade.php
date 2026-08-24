@@ -25,6 +25,42 @@
                 </div>
                 @endif
 
+                <!-- Quick Stats -->
+                <div class="row g-3 mb-4">
+                    <div class="col-6 col-md-3">
+                        <div class="card h-100 border-0 rounded-3 bg-light">
+                            <div class="card-body p-3 text-center">
+                                <div class="fs-4 fw-bold">{{ $clientBusiness->created_at->format('d M Y') }}</div>
+                                <div class="small text-muted">Date Registered</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card h-100 border-0 rounded-3 bg-light">
+                            <div class="card-body p-3 text-center">
+                                <div class="fs-4 fw-bold">{{ $employeeCount }}</div>
+                                <div class="small text-muted">Employees</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card h-100 border-0 rounded-3 bg-light">
+                            <div class="card-body p-3 text-center">
+                                <div class="fs-4 fw-bold">{{ $userCount }}</div>
+                                <div class="small text-muted">Users</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card h-100 border-0 rounded-3 bg-light">
+                            <div class="card-body p-3 text-center">
+                                <div class="fs-4 fw-bold">{{ count($activeModuleIds) }}<span class="fs-6 text-muted">/{{ $clientBusiness->modules->count() }}</span></div>
+                                <div class="small text-muted">Active / Assigned Modules</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="row g-4">
                     <!-- Business Info -->
                     <div class="col-lg-6">
@@ -164,32 +200,81 @@
                     </div>
                 </div>
 
-                <!-- Modules Assignment -->
+                <!-- Modules -->
                 <div class="card border-0 rounded-3 mt-4">
                     <div class="card-body p-4">
-                        <h6 class="card-title fw-bold mb-3 text-primary">Assign Modules</h6>
-                        <form id="modulesForm-{{ $clientBusiness->slug }}">
-                            @csrf
-                            <input type="hidden" name="business_slug" value="{{ $clientBusiness->slug }}">
-                            <div class="row g-3">
-                                @foreach ($modules as $module)
-                                <div class="col-md-3 col-6">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="modules[]"
-                                            value="{{ $module->id }}" id="module-{{ $module->id }}"
-                                            {{ $clientBusiness->modules->contains($module->id) ? 'checked' : '' }}>
-                                        <label class="form-check-label" for="module-{{ $module->id }}">
-                                            {{ $module->name }}
-                                        </label>
-                                    </div>
-                                </div>
-                                @endforeach
-                            </div>
-                            <button type="button" onclick="assignModules(this, '{{ $clientBusiness->slug }}')"
-                                class="btn btn-primary rounded-pill mt-4">
-                                <i class="bi bi-save me-2"></i> Save Modules
-                            </button>
-                        </form>
+                        <h6 class="card-title fw-bold mb-1 text-primary">Modules</h6>
+                        <p class="small text-muted mb-3">
+                            Edit a module to activate or deactivate it and optionally set when its subscription
+                            ends - leave the date blank for an ongoing subscription with no expiry.
+                        </p>
+                        <div class="table-responsive">
+                            <table class="table align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Module</th>
+                                        <th>Status</th>
+                                        <th>Expires</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($modules as $module)
+                                    @php
+                                        $pivot = $clientBusiness->modules->firstWhere('id', $module->id)?->pivot;
+                                        $isAssigned = (bool) $pivot;
+                                        $isActive = in_array($module->id, $activeModuleIds);
+                                        $isExpired = $isAssigned && $pivot->is_active && !$isActive;
+                                        $expiry = $pivot?->subscription_ends_at;
+                                    @endphp
+                                    <tr>
+                                        <td>{{ $module->name }}</td>
+                                        <td>
+                                            @if ($isActive)
+                                            <span class="badge bg-success">Active</span>
+                                            @elseif ($isExpired)
+                                            <span class="badge bg-warning text-dark">Expired</span>
+                                            @elseif ($isAssigned)
+                                            <span class="badge bg-secondary">Inactive</span>
+                                            @else
+                                            <span class="badge bg-light text-muted border">Not assigned</span>
+                                            @endif
+                                        </td>
+                                        <td>{{ $expiry ? \Carbon\Carbon::parse($expiry)->format('d M Y') : ($isAssigned ? 'No expiry' : '—') }}</td>
+                                        <td class="text-end">
+                                            <button type="button" class="btn btn-sm btn-outline-primary"
+                                                onclick="openModuleStatusModal({{ $module->id }}, {{ Js::from($module->name) }}, {{ $isActive ? 'true' : 'false' }}, {{ Js::from($expiry) }})">
+                                                {{ $isAssigned ? 'Edit' : 'Assign' }}
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Activity -->
+                <div class="card border-0 rounded-3 mt-4">
+                    <div class="card-body p-4">
+                        <h6 class="card-title fw-bold mb-3 text-primary">Recent Activity</h6>
+                        @if ($recentActivities->isEmpty())
+                        <p class="text-muted fst-italic mb-0">No activity recorded yet.</p>
+                        @else
+                        <ul class="list-group list-group-flush bg-transparent">
+                            @foreach ($recentActivities as $log)
+                            <li class="list-group-item bg-transparent px-0 py-2 border-bottom d-flex justify-content-between align-items-center">
+                                <span>
+                                    <i class="bi bi-clock-history text-muted me-2"></i>
+                                    {{ $log->description }}
+                                    <span class="text-muted">by {{ $log->causer->name ?? 'System' }}</span>
+                                </span>
+                                <span class="text-muted small">{{ $log->created_at->diffForHumans() }}</span>
+                            </li>
+                            @endforeach
+                        </ul>
+                        @endif
                     </div>
                 </div>
 
@@ -220,6 +305,36 @@
                             </table>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Module Status Modal -->
+    <div class="modal fade" id="moduleStatusModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow border-0 rounded-3">
+                <div class="modal-header border-bottom">
+                    <h5 class="modal-title fw-bold" id="moduleStatusModalTitle">Module</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <input type="hidden" id="moduleStatusModuleId">
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="moduleStatusActive">
+                        <label class="form-check-label" for="moduleStatusActive">Active</label>
+                    </div>
+                    <div class="mb-1">
+                        <label class="form-label small">Subscription ends</label>
+                        <input type="date" class="form-control" id="moduleStatusExpiry">
+                        <div class="form-text">Leave blank for an ongoing subscription with no expiry.</div>
+                    </div>
+                </div>
+                <div class="modal-footer border-top">
+                    <button type="button" class="btn btn-light rounded-pill" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary rounded-pill" id="moduleStatusSaveBtn">
+                        <i class="bi bi-save me-2"></i> Save
+                    </button>
                 </div>
             </div>
         </div>
@@ -329,6 +444,7 @@
         const clientSlug = @json($clientBusiness->slug);
         const fetchUrl = @json(route('business.clients.payments.fetch', [session('active_business_slug'), $clientBusiness->slug]));
         const storeUrl = @json(route('business.clients.payments.store', [session('active_business_slug'), $clientBusiness->slug]));
+        const moduleStatusUrl = @json(route('business.clients.modules.update-status', [session('active_business_slug'), $clientBusiness->slug]));
 
         function escapeHtml(value) {
             return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
@@ -386,6 +502,41 @@
         });
 
         loadPayments();
+
+        window.openModuleStatusModal = function (moduleId, moduleName, isActive, expiry) {
+            document.getElementById('moduleStatusModuleId').value = moduleId;
+            document.getElementById('moduleStatusModalTitle').textContent = moduleName;
+            document.getElementById('moduleStatusActive').checked = isActive;
+            document.getElementById('moduleStatusExpiry').value = expiry ? expiry.substring(0, 10) : '';
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('moduleStatusModal')).show();
+        };
+
+        document.getElementById('moduleStatusSaveBtn').addEventListener('click', async function () {
+            const btn = this;
+            btn.disabled = true;
+
+            const moduleId = document.getElementById('moduleStatusModuleId').value;
+            const isActive = document.getElementById('moduleStatusActive').checked;
+            const expiry = document.getElementById('moduleStatusExpiry').value || null;
+
+            try {
+                const resp = await fetch(moduleStatusUrl, {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
+                    body: JSON.stringify({ module_id: moduleId, is_active: isActive, subscription_ends_at: expiry }),
+                });
+                const payload = await resp.json();
+                if (!resp.ok) throw new Error(payload.message || 'Could not update module.');
+
+                bootstrap.Modal.getInstance(document.getElementById('moduleStatusModal'))?.hide();
+                await Swal.fire({ icon: 'success', title: 'Success', text: payload.message || 'Module updated.' });
+                location.reload();
+            } catch (e) {
+                Swal.fire({ icon: 'error', title: 'Error', text: e.message || 'Could not update module.' });
+            } finally {
+                btn.disabled = false;
+            }
+        });
     })();
     </script>
     @endpush
