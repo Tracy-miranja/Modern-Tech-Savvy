@@ -480,7 +480,7 @@
     if (m) return { lat: +m[1], lng: +m[3] };
     try {
       const u = new URL(raw);
-      m = u.href.match(/@(-?\d+(\.\d+)?),\s*(-?\d+(\.\d+)?)/);
+      m = u.href.match(/@@(-?\d+(\.\d+)?),\s*(-?\d+(\.\d+)?)/);
       if (m) return { lat: +m[1], lng: +m[3] };
       const q = u.searchParams.get('q');
       if (q) {
@@ -730,7 +730,7 @@
         const destroyUrlTemplate = @json(route('business.attendances.devices.destroy', ['business' => $business->slug, 'device' => '__ID__']));
         const enrollmentsFetchTemplate = @json(route('business.attendances.devices.enrollments.fetch', ['business' => $business->slug, 'device' => '__ID__']));
         const enrollmentsStoreTemplate = @json(route('business.attendances.devices.enrollments.store', ['business' => $business->slug, 'device' => '__ID__']));
-        const enrollmentsDestroyTemplate = @json(route('business.attendances.devices.enrollments.destroy', ['business' => $business->slug, 'device' => '__ID__', 'enrollment' => '__ENROLLMENT__']));
+        const enrollmentsDestroyTemplate = {!! json_encode(route('business.attendances.devices.enrollments.destroy', ['business' => $business->slug, 'device' => '__ID__', 'enrollment' => '__ENROLLMENT__'])) !!};
         const employeeOptionsUrl = @json(route('business.organogram.employee-options', $business->slug));
 
         async function postJson(url, data, method = 'POST') {

@@ -49,6 +49,20 @@
     <link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.min.css">
     <link rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.12/css/intlTelInput.min.css">
+    <style>
+        .iti__country-list .iti__country {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .iti__country-list .iti__country::after {
+            content: "+" attr(data-dial-code);
+            color: #6c757d;
+            font-size: 0.85em;
+            margin-left: 8px;
+            white-space: nowrap;
+        }
+    </style>
     <link rel="shortcut icon" href="{{ asset('media/favicon.png') }}" type="image/png">
 
     <link rel="manifest" href="{{ asset('manifest.json') }}">

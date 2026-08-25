@@ -5,6 +5,10 @@
         <div class="card shadow-sm border-0 rounded-3">
             <div class="card-header bg-white d-flex justify-content-between align-items-center py-3 border-bottom">
                 <h2 class="mb-0 fw-bold text-dark">Clients Management</h2>
+                <a href="{{ route('business.clients.view', [$business->slug, $business->slug]) }}"
+                    class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                    <i class="bi bi-toggles me-1"></i> Manage {{ $business->company_name }}'s Own Modules
+                </a>
             </div>
             <div class="card-body p-4">
 

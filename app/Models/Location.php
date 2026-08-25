@@ -43,6 +43,11 @@ class Location extends Model
     {
         return $this->country ?: optional($this->business)->country;
     }
+
+    public function resolvedJurisdiction(): ?string
+    {
+        return $this->jurisdiction ?: null;
+    }
     public function payrolls(): HasMany
     {
         return $this->hasMany(Payroll::class);

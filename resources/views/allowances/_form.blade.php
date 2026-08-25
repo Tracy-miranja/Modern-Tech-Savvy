@@ -53,6 +53,16 @@
                 <input type="checkbox" name="is_taxable" id="is_taxable" class="form-check-input" value="1" {{ isset($allowance) && $allowance->is_taxable ? 'checked' : '' }}>
                 <label for="is_taxable" class="form-check-label fw-medium text-dark">Taxable</label>
             </div>
+            <div class="form-check">
+                <input type="checkbox" name="is_nssf_applicable" id="is_nssf_applicable" class="form-check-input" value="1" {{ !isset($allowance) || $allowance->is_nssf_applicable ? 'checked' : '' }}>
+                <label for="is_nssf_applicable" class="form-check-label fw-medium text-dark">Counts toward NSSF base</label>
+            </div>
+            @if (isset($business) && in_array(strtoupper(trim($business->country ?? '')), ['TANZANIA', 'TZ']))
+            <div class="form-check">
+                <input type="checkbox" name="is_sdl_applicable" id="is_sdl_applicable" class="form-check-input" value="1" {{ !isset($allowance) || $allowance->is_sdl_applicable ? 'checked' : '' }}>
+                <label for="is_sdl_applicable" class="form-check-label fw-medium text-dark">Counts toward SDL base</label>
+            </div>
+            @endif
         </div>
         <div class="col-12">
             <label for="applies_to" class="form-label fw-medium text-dark">Applies To</label>

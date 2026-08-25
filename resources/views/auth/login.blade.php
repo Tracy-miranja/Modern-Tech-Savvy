@@ -3,10 +3,10 @@
         <div class="authentication-inner">
             <div class="card__wrapper">
                 <div class="authentication-top text-center mb-20">
-                    <a href="javascript:;" class="authentication-logo logo-black">
+                    <a href="{{ route('welcome') }}" class="authentication-logo logo-black">
                         <img src="{{ asset('media/krstlogo.png') }}" alt="{{ config('app.name') }}">
                     </a>
-                    <a href="javascript:;" class="authentication-logo logo-white">
+                    <a href="{{ route('welcome') }}" class="authentication-logo logo-white">
                         <img src="{{ asset('media/krstlogo.png') }}" alt="{{ config('app.name') }}">
                     </a>
                     <h4 class="mb-15">{{ config('app.name') }}</h4>
@@ -50,6 +50,11 @@
                 <p class="text-center mt-2">
                     <a href="{{ route('password.request') }}" class="fw-bold text-decoration-underline">
                         Forgot your password?
+                    </a>
+                </p>
+                <p class="text-center mt-2">
+                    <a href="{{ route('welcome') }}" class="d-inline-flex align-items-center justify-content-center gap-1 text-decoration-none">
+                        <i class="bi bi-arrow-left"></i> Back to homepage
                     </a>
                 </p>
             </div>

@@ -90,6 +90,23 @@ window.deleteFormula = async function (btn) {
     });
 };
 
+window.saveRemittanceDeadline = async function (btn) {
+    btn = $(btn);
+    btn_loader(btn, true);
+
+    const data = { payroll_remittance_deadline_day: $('#payroll_remittance_deadline_day').val() };
+
+    try {
+        const response = await payrollFormulasService.updateRemittanceDeadline(data);
+        toastr.success(response.message, "Success");
+    } catch (error) {
+        console.error("Error saving remittance deadline:", error);
+        Swal.fire('Error!', error.response?.data?.message || 'Failed to save remittance deadline.', 'error');
+    } finally {
+        btn_loader(btn, false);
+    }
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     getFormulas();
 });

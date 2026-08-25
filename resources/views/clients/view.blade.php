@@ -166,6 +166,7 @@
                     </div>
                 </div>
 
+                @if ($business->slug !== $clientBusiness->slug)
                 <div class="row g-4 mt-2">
                     <div class="col-12">
                         <div class="card border-0 rounded-3 mt-4">
@@ -196,6 +197,7 @@
                         </div>
                     </div>
                 </div>
+                @endif
 
                 <div class="card border-0 rounded-3 mt-4">
                     <div class="card-body p-4">

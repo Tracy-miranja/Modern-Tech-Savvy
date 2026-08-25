@@ -139,6 +139,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/edit', [PayrollFormulaController::class, 'edit'])->name('edit');
         Route::post('/{id}/update', [PayrollFormulaController::class, 'update'])->name('update');
         Route::post('/{id}/destroy', [PayrollFormulaController::class, 'destroy'])->name('destroy');
+        Route::post('/remittance-deadline', [PayrollFormulaController::class, 'updateRemittanceDeadline'])->name('remittance-deadline');
     });
 
     Route::name('deductions.')->prefix('deductions')->group(function () {

@@ -21,6 +21,8 @@ class Allowance extends Model
         'name',
         'slug',
         'is_taxable',
+        'is_nssf_applicable',
+        'is_sdl_applicable',
         'amount',
         'rate',
     ];
@@ -28,7 +30,9 @@ class Allowance extends Model
     protected function casts(): array
     {
         return [
-            'is_taxable' => 'boolean'
+            'is_taxable' => 'boolean',
+            'is_nssf_applicable' => 'boolean',
+            'is_sdl_applicable' => 'boolean',
         ];
     }
 

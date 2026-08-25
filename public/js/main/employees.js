@@ -531,34 +531,39 @@ window.exportEmployees = async function () {
             job_category: $('#filterJobCategory').val()
         };
 
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = '/employees/export';
-        form.style.display = 'none';
-
         const csrfToken = $('meta[name="csrf-token"]').attr('content');
-        const csrfInput = document.createElement('input');
-        csrfInput.type = 'hidden';
-        csrfInput.name = '_token';
-        csrfInput.value = csrfToken;
-        form.appendChild(csrfInput);
-
-        Object.keys(filters).forEach(key => {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = key;
-            input.value = filters[key] || '';
-            form.appendChild(input);
+        const response = await fetch('/employees/export', {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(filters),
         });
 
-        document.body.appendChild(form);
-        form.submit();
+        const contentType = response.headers.get('content-type') || '';
+        if (!response.ok || contentType.includes('application/json')) {
+            const payload = await response.json().catch(() => ({}));
+            throw new Error(payload.message || 'Failed to export employees. Please try again.');
+        }
 
-        setTimeout(() => {
-            document.body.removeChild(form);
-            Swal.close();
-            toastr.success('Export started successfully. Check your downloads.');
-        }, 100);
+        const blob = await response.blob();
+        const disposition = response.headers.get('content-disposition') || '';
+        const filenameMatch = disposition.match(/filename="?([^"]+)"?/);
+        const filename = filenameMatch ? filenameMatch[1] : 'employees.xlsx';
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        Swal.close();
+        toastr.success('Export completed successfully. Check your downloads.');
     } catch (error) {
         console.error('Export Employees Error:', error);
         Swal.fire({

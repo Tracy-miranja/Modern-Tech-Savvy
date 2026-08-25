@@ -1,3 +1,8 @@
+@php
+    $countryUpper = strtoupper(trim($business->country ?? ''));
+    $isKenya = in_array($countryUpper, ['KENYA', 'KE']);
+    $isTanzania = in_array($countryUpper, ['TANZANIA', 'TZ']);
+@endphp
 <form id="employeeForm" enctype="multipart/form-data" class="needs-validation p-3 rounded" novalidate>
     @csrf
     @if(isset($employee))
@@ -140,10 +145,12 @@
                         <input type="text" name="tax_no" id="tax_no" class="form-control border-primary"
                             value="{{ isset($employee) ? $employee->tax_no : '' }}" placeholder="Tax Number">
                     </div>
+                    @if ($isKenya)
                     <div class="col-md-4">
                         <input type="text" name="nhif_no" id="nhif_no" class="form-control border-primary"
                             value="{{ isset($employee) ? $employee->nhif_no : '' }}" placeholder="NHIF Number">
                     </div>
+                    @endif
                     <div class="col-md-4">
                         <input type="text" name="nssf_no" id="nssf_no" class="form-control border-primary"
                             value="{{ isset($employee) ? $employee->nssf_no : '' }}" placeholder="NSSF Number">
@@ -176,11 +183,20 @@
                             placeholder="Passport Expiry Date">
                     </div>
                     <div class="col-md-4">
+                        @if ($isTanzania)
+                        <select name="resident_status" id="resident_status" class="form-select border-primary">
+                            <option value="Resident" {{ (optional($employee ?? null)->resident_status ?: 'Resident') === 'Resident' ? 'selected' : '' }}>Resident</option>
+                            <option value="Non-Resident" {{ optional($employee ?? null)->resident_status === 'Non-Resident' ? 'selected' : '' }}>Non-Resident</option>
+                        </select>
+                        <small class="text-muted">Residents use progressive PAYE bands; non-residents pay a flat 15%.</small>
+                        @else
                         <input type="text" name="resident_status" id="resident_status"
                             class="form-control border-primary"
                             value="{{ isset($employee) ? $employee->resident_status : '' }}"
                             placeholder="Resident Status (e.g., Resident, Non-Resident)">
+                        @endif
                     </div>
+                    @if ($isKenya)
                     <div class="col-md-4">
                         <select name="kra_employee_status" id="kra_employee_status" class="form-select border-primary">
                             <option value="">Select KRA Employee Status</option>
@@ -192,6 +208,7 @@
                                 Secondary Employee</option>
                         </select>
                     </div>
+                    @endif
                 </div>
             </div>
 
@@ -371,6 +388,7 @@
 </div>
             </div>
 
+@if ($isKenya)
 <div class="mb-3">
     <h6 class="text-muted fw-semibold mb-2">
         <i class="fa fa-wheelchair me-1"></i> Persons with Disabilities (PWD) Tax Exemption
@@ -419,6 +437,7 @@
         </div>
     </div>
 </div>
+        @endif
         </div>
 
 <div class="tab-pane fade" id="payment" role="tabpanel">
@@ -449,17 +468,19 @@
         <h6 class="text-muted fw-semibold mb-2">Currency</h6>
         <div class="row g-2">
             <div class="col-md-6">
+                @php
+                    $defaultCurrency = (isset($employee) ? optional($employee->paymentDetails)->currency : null) ?: ($business->currency ?: 'KES');
+                @endphp
                 <select name="currency" id="currency" class="form-select border-primary" required>
                     <option value="">Select Currency</option>
-                    <option value="KES"
-                        {{ isset($employee) && optional($employee->paymentDetails)->currency === 'KES' ? 'selected' : 'selected' }}>
+                    <option value="KES" {{ $defaultCurrency === 'KES' ? 'selected' : '' }}>
                         KES - Kenyan Shilling</option>
-                    <option value="USD"
-                        {{ isset($employee) && optional($employee->paymentDetails)->currency === 'USD' ? 'selected' : '' }}>
+                    <option value="USD" {{ $defaultCurrency === 'USD' ? 'selected' : '' }}>
                         USD - US Dollar</option>
-                    <option value="UGX"
-                        {{ isset($employee) && optional($employee->paymentDetails)->currency === 'UGX' ? 'selected' : '' }}>
+                    <option value="UGX" {{ $defaultCurrency === 'UGX' ? 'selected' : '' }}>
                         UGX - Uganda Shilling</option>
+                    <option value="TZS" {{ $defaultCurrency === 'TZS' ? 'selected' : '' }}>
+                        TZS - Tanzanian Shilling</option>
                 </select>
             </div>
         </div>
@@ -556,6 +577,7 @@
         </div>
     </div>
 
+@if ($isKenya)
 <div class="mb-3 border rounded p-3 bg-light"
      id="wht_section"
      style="display: {{ isset($employee) && in_array(optional($employee->employmentDetails)->employment_term, ['consultant', 'locum']) ? 'block' : 'none' }};">
@@ -760,6 +782,7 @@
 
     </div>
 </div>
+@endif
 </div>
 
         <div class="tab-pane fade" id="documents" role="tabpanel">
@@ -971,8 +994,8 @@
 document.getElementById('employment_term')
     .addEventListener('change', function() {
         const isConsultant = ['consultant', 'locum'].includes(this.value);
-        document.getElementById('wht_section').style.display =
-            isConsultant ? 'block' : 'none';
+        const whtSection = document.getElementById('wht_section');
+        if (whtSection) whtSection.style.display = isConsultant ? 'block' : 'none';
 
         // Also hide PAYE-related fields if consultant
         // (optional — depends on your form layout)
@@ -998,8 +1021,9 @@ function toggleNssfAmount(select) {
 // Run on page load for edit mode
 document.addEventListener('DOMContentLoaded', function() {
     const term = document.getElementById('employment_term').value;
-    if (['consultant', 'locum'].includes(term)) {
-        document.getElementById('wht_section').style.display = 'block';
+    const whtSection = document.getElementById('wht_section');
+    if (whtSection && ['consultant', 'locum'].includes(term)) {
+        whtSection.style.display = 'block';
     }
 });
 

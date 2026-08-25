@@ -43,6 +43,7 @@ class Business extends Model implements HasMedia
         'learning_certificate_expiry_reminder_days',
         'project_task_due_reminder_days',
         'leave_planner_capacity_warning_percent',
+        'payroll_remittance_deadline_day',
     ];
 
     protected $casts = [

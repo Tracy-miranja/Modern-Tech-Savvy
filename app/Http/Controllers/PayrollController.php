@@ -572,6 +572,9 @@ class PayrollController extends Controller
                     'allowances' => json_encode($data['allowances']),
                     'shif' => $data['shif'],
                     'nssf' => $data['nssf'],
+                    'employer_nssf' => $data['nssf_employer'] ?? null,
+                    'sdl' => $data['sdl'] ?? null,
+                    'wcf' => $data['wcf'] ?? null,
                     'paye' => $data['paye'],
                     'paye_before_reliefs' => $data['paye_before_reliefs'],
                     'housing_levy' => $data['housing_levy'],
@@ -1030,8 +1033,19 @@ class PayrollController extends Controller
                         fn($a) => !($a['is_taxable'] ?? false) ? ($a['amount'] ?? 0) : 0,
                         $allowances
                     ));
+                    $totalNssfableAllowances = array_sum(array_map(
+                        fn($a) => ($a['is_nssf_applicable'] ?? true) ? ($a['amount'] ?? 0) : 0,
+                        $allowances
+                    ));
+                    $totalSdlableAllowances = array_sum(array_map(
+                        fn($a) => ($a['is_sdl_applicable'] ?? true) ? ($a['amount'] ?? 0) : 0,
+                        $allowances
+                    ));
 
                     $grossPayBeforeAbsenteeism = $proratedBasicSalary + $overtimePay + $totalTaxableAllowances + $totalNonTaxableAllowances;
+                    $taxablePayBeforeAbsenteeism = $proratedBasicSalary + $overtimePay + $totalTaxableAllowances;
+                    $nssfablePayBeforeAbsenteeism = $proratedBasicSalary + $overtimePay + $totalNssfableAllowances;
+                    $sdlablePayBeforeAbsenteeism = $proratedBasicSalary + $overtimePay + $totalSdlableAllowances;
                 } catch (\Exception $e) {
                     Log::error("Hourly pay calculation failed", [
                         'employee_id' => $employeeId,
@@ -1047,7 +1061,12 @@ class PayrollController extends Controller
                     $allowances = [];
                     $totalTaxableAllowances = 0;
                     $totalNonTaxableAllowances = 0;
+                    $totalNssfableAllowances = 0;
+                    $totalSdlableAllowances = 0;
                     $grossPayBeforeAbsenteeism = 0;
+                    $taxablePayBeforeAbsenteeism = 0;
+                    $nssfablePayBeforeAbsenteeism = 0;
+                    $sdlablePayBeforeAbsenteeism = 0;
                 }
             } else {
 
@@ -1079,6 +1098,14 @@ class PayrollController extends Controller
                     fn($a) => !$a['is_taxable'] ? $a['amount'] : 0,
                     $allowances
                 ));
+                $totalNssfableAllowances = array_sum(array_map(
+                    fn($a) => ($a['is_nssf_applicable'] ?? true) ? $a['amount'] : 0,
+                    $allowances
+                ));
+                $totalSdlableAllowances = array_sum(array_map(
+                    fn($a) => ($a['is_sdl_applicable'] ?? true) ? $a['amount'] : 0,
+                    $allowances
+                ));
 
                 $overtimePay = $this->calculateOvertime(
                     $employeeId,
@@ -1090,16 +1117,24 @@ class PayrollController extends Controller
                 );
 
                 $grossPayBeforeAbsenteeism = $proratedBasicSalary + $totalTaxableAllowances + $totalNonTaxableAllowances + $overtimePay;
+                $taxablePayBeforeAbsenteeism = $proratedBasicSalary + $totalTaxableAllowances + $overtimePay;
+                $nssfablePayBeforeAbsenteeism = $proratedBasicSalary + $totalNssfableAllowances + $overtimePay;
+                $sdlablePayBeforeAbsenteeism = $proratedBasicSalary + $totalSdlableAllowances + $overtimePay;
             }
 
             $grossPay = max(0, $grossPayBeforeAbsenteeism - $absenteeismCharge);
+            $taxablePay = max(0, $taxablePayBeforeAbsenteeism - $absenteeismCharge);
+            $nssfablePay = max(0, $nssfablePayBeforeAbsenteeism - $absenteeismCharge);
+            $sdlablePay = max(0, $sdlablePayBeforeAbsenteeism - $absenteeismCharge);
 
             $country = strtoupper(trim($business->country));
-            $statutoryDeductions = $this->getStatutoryDeductions($country, $business->id, $grossPay, $proratedBasicSalary, $employeeId, null);
+            $statutoryDeductions = $this->getStatutoryDeductions($country, $business->id, $grossPay, $proratedBasicSalary, $employeeId, null, $nssfablePay, $sdlablePay);
 
             $nssfEmployee = $statutoryDeductions['nssf']['employee'] ?? 0;
             $nssfEmployer = $statutoryDeductions['nssf']['employer'] ?? 0;
             $nssfTotal = $statutoryDeductions['nssf']['total'] ?? ($nssfEmployee + $nssfEmployer);
+            $sdl = $statutoryDeductions['sdl'] ?? 0;
+            $wcf = $statutoryDeductions['wcf'] ?? 0;
 
             if ($country === 'UGANDA' || $country === 'UG') {
 
@@ -1107,7 +1142,7 @@ class PayrollController extends Controller
                 $housingLevy = 0;
                 $helb = 0;
 
-                $taxableIncome = max(0, $grossPay);
+                $taxableIncome = max(0, $taxablePay);
 
                 $reliefs = [];
                 $totalReliefs = 0;
@@ -1121,13 +1156,35 @@ class PayrollController extends Controller
                     'nssf_employee' => $nssfEmployee,
                     'taxable_income' => $taxableIncome,
                 ]);
+            } elseif ($country === 'TANZANIA' || $country === 'TZ') {
+
+                $shif = 0;
+                $housingLevy = 0;
+                $helb = 0;
+
+                $taxableIncome = max(0, $taxablePay - $nssfEmployee);
+
+                $reliefs = [];
+                $totalReliefs = 0;
+                $personalRelief = 0;
+                $insuranceRelief = 0;
+                $isDisabilityExempt = false;
+                $pwdExemptionApplied = false;
+                $pwdExemptionAmount = 0;
+
+                Log::debug("Tanzania payroll calculation", [
+                    'employee_id' => $employeeId,
+                    'gross_pay' => $grossPay,
+                    'nssf_employee' => $nssfEmployee,
+                    'taxable_income' => $taxableIncome,
+                ]);
             } else {
 
                 $shif = $statutoryDeductions['shif'] ?? 0;
                 $housingLevy = $statutoryDeductions['housing-levy'] ?? 0;
                 $helb = $statutoryDeductions['helb'] ?? 0;
 
-                $taxableIncome = max(0, $grossPay - $nssfTotal - $shif - $housingLevy - $helb);
+                $taxableIncome = max(0, $taxablePay - $nssfTotal - $shif - $housingLevy - $helb);
 
                 $pwdExemptionApplied = false;
                 $pwdExemptionAmount  = 0;
@@ -1210,9 +1267,13 @@ class PayrollController extends Controller
                 }
             }
 
-            $payeBeforeReliefs = $this->calculatePAYEByCountry($country, $taxableIncome, $grossPay);
+            $isResidentForTax = ($employee->resident_status ?? null) !== 'Non-Resident';
+            $payeBeforeReliefs = $this->calculatePAYEByCountry($country, $taxableIncome, $grossPay, $isResidentForTax);
 
             if ($country === 'UGANDA' || $country === 'UG') {
+
+                $paye = $payeBeforeReliefs;
+            } elseif ($country === 'TANZANIA' || $country === 'TZ') {
 
                 $paye = $payeBeforeReliefs;
             } else {
@@ -1232,6 +1293,22 @@ class PayrollController extends Controller
                 $netPay = floor(max(0, $grossPay - $totalDeductions));
 
                 Log::debug("Uganda Net Pay Calculation", [
+                    'gross_pay' => $grossPay,
+                    'nssf_employee' => $nssfEmployee,
+                    'paye' => $paye,
+                    'custom_deductions' => $totalCustomDeductions,
+                    'loans' => $loanRepayment,
+                    'advances' => $advanceRecovery,
+                    'absenteeism' => $absenteeismCharge,
+                    'total_deductions' => $totalDeductions,
+                    'net_pay' => $netPay,
+                ]);
+            } elseif ($country === 'TANZANIA' || $country === 'TZ') {
+
+                $totalDeductions = $nssfEmployee + $paye + $totalCustomDeductions + $loanRepayment + $advanceRecovery + $absenteeismCharge;
+                $netPay = floor(max(0, $grossPay - $totalDeductions));
+
+                Log::debug("Tanzania Net Pay Calculation", [
                     'gross_pay' => $grossPay,
                     'nssf_employee' => $nssfEmployee,
                     'paye' => $paye,
@@ -1269,6 +1346,8 @@ class PayrollController extends Controller
                 'nssf' => $nssfTotal,
                 'nssf_employee' => $nssfEmployee,
                 'nssf_employer' => $nssfEmployer,
+                'sdl' => $sdl,
+                'wcf' => $wcf,
                 'paye' => $paye,
                 'paye_before_reliefs' => $payeBeforeReliefs,
                 'housing_levy' => $housingLevy,
@@ -1283,7 +1362,7 @@ class PayrollController extends Controller
                 'insurance_relief' => $insuranceRelief,
                 'bank_name' => $bankName,
                 'account_number' => $accountNumber,
-                'currency' => $paymentDetail->currency ?? ($country === 'UGANDA' ? 'UGX' : 'KES'),
+                'currency' => $paymentDetail->currency ?? ($country === 'UGANDA' ? 'UGX' : ($country === 'TANZANIA' ? 'TZS' : 'KES')),
                 'payment_mode' => $paymentDetail->payment_mode ?? 'N/A',
                 'attendance_present' => $presentDays,
                 'attendance_absent' => $absentDays,
@@ -1504,12 +1583,14 @@ class PayrollController extends Controller
 
     //     }
 
-    protected function calculatePAYEByCountry($country, $taxableIncome, $grossPay = 0)
+    protected function calculatePAYEByCountry($country, $taxableIncome, $grossPay = 0, $isResident = true)
     {
         $countryUpper = strtoupper(trim($country));
 
         if ($countryUpper === 'UGANDA' || $countryUpper === 'UG') {
             return $this->calculateUgandaPAYE($taxableIncome);
+        } elseif ($countryUpper === 'TANZANIA' || $countryUpper === 'TZ') {
+            return $this->calculateTanzaniaPAYE($taxableIncome, $isResident);
         } elseif ($countryUpper === 'KENYA' || $countryUpper === 'KE') {
             return $this->calculateKenyaPAYE($taxableIncome);
         }
@@ -1556,25 +1637,111 @@ class PayrollController extends Controller
     return round($tax, 2);
 }
 
-    protected function getStatutoryDeductions($country, $businessId, $grossPay, $basicPay, $employeeId, $payrollId)
+    // Tanzania PAYE - progressive resident bands or flat non-resident rate
+    protected function calculateTanzaniaPAYE($taxableIncome, $isResident = true)
+    {
+        if (!$isResident) {
+            $flat = \App\Models\PayrollTaxRule::flatRule('Tanzania', 'paye_nonresident_flat');
+            $rate = $flat ? (float) $flat->rate : 15;
+            return round($taxableIncome * ($rate / 100), 2);
+        }
+
+        $bands = \App\Models\PayrollTaxRule::bands('Tanzania', 'paye_resident_band');
+        if ($bands->isEmpty()) {
+            Log::warning('No Tanzania PAYE bands found in payroll_tax_rules - returning 0.');
+            return 0;
+        }
+
+        foreach ($bands as $band) {
+            if (is_null($band->upper_limit) || $taxableIncome <= (float) $band->upper_limit) {
+                if ((float) $band->rate <= 0) {
+                    return 0.0;
+                }
+                $excess = max(0, $taxableIncome - (float) $band->lower_limit);
+                return round((float) $band->fixed_amount + ($excess * ((float) $band->rate / 100)), 2);
+            }
+        }
+
+        Log::warning('Tanzania PAYE bands in payroll_tax_rules do not cover this income - returning 0.', ['taxable_income' => $taxableIncome]);
+        return 0.0;
+    }
+
+    protected function getStatutoryDeductions($country, $businessId, $grossPay, $basicPay, $employeeId, $payrollId, $nssfablePay = null, $sdlablePay = null)
     {
         $countryUpper = strtoupper(trim($country));
 
         if ($countryUpper === 'UGANDA' || $countryUpper === 'UG') {
-            return $this->getUgandaStatutoryDeductions($businessId, $grossPay, $basicPay, $employeeId, $payrollId);
+            return $this->getUgandaStatutoryDeductions($businessId, $grossPay, $basicPay, $employeeId, $payrollId, $nssfablePay);
+        } elseif ($countryUpper === 'TANZANIA' || $countryUpper === 'TZ') {
+            return $this->getTanzaniaStatutoryDeductions($businessId, $grossPay, $basicPay, $employeeId, $payrollId, $nssfablePay, $sdlablePay);
         } elseif ($countryUpper === 'KENYA' || $countryUpper === 'KE') {
-            return $this->getKenyaStatutoryDeductions($businessId, $grossPay, $basicPay, $employeeId, $payrollId);
+            return $this->getKenyaStatutoryDeductions($businessId, $grossPay, $basicPay, $employeeId, $payrollId, $nssfablePay);
         }
 
         Log::warning("Unknown country: {$country}, defaulting to Kenya statutory deductions");
-        return $this->getKenyaStatutoryDeductions($businessId, $grossPay, $basicPay, $employeeId, $payrollId);
+        return $this->getKenyaStatutoryDeductions($businessId, $grossPay, $basicPay, $employeeId, $payrollId, $nssfablePay);
     }
 
-    protected function getUgandaStatutoryDeductions($businessId, $grossPay, $basicPay, $employeeId, $payrollId)
+    // Tanzania NSSF, SDL and WCF, rate-driven from payroll_tax_rules
+    protected function getTanzaniaStatutoryDeductions($businessId, $grossPay, $basicPay, $employeeId, $payrollId, $nssfablePay = null, $sdlablePay = null)
     {
+        $nssfablePay = $nssfablePay ?? $grossPay;
+        $sdlablePay = $sdlablePay ?? $grossPay;
+
         $deductions = [];
 
-        $nssfEmployee = round($grossPay * 0.05, 2);
+        $nssfEmployeeRule = \App\Models\PayrollTaxRule::flatRule('Tanzania', 'nssf_employee');
+        $nssfEmployerRule = \App\Models\PayrollTaxRule::flatRule('Tanzania', 'nssf_employer');
+        $nssfEmployeeRate = $nssfEmployeeRule ? (float) $nssfEmployeeRule->rate : 10;
+        $nssfEmployerRate = $nssfEmployerRule ? (float) $nssfEmployerRule->rate : 10;
+
+        $nssfEmployee = round($nssfablePay * ($nssfEmployeeRate / 100), 2);
+        $nssfEmployer = round($nssfablePay * ($nssfEmployerRate / 100), 2);
+
+        $deductions['nssf'] = [
+            'employee' => $nssfEmployee,
+            'employer' => $nssfEmployer,
+            'total' => round($nssfEmployee + $nssfEmployer, 2),
+        ];
+
+        $employeeCount = \App\Models\Employee::where('business_id', $businessId)->count();
+        if ($employeeCount >= 10) {
+            $sdlRule = \App\Models\PayrollTaxRule::flatRule('Tanzania', 'sdl');
+            $sdlRate = $sdlRule ? (float) $sdlRule->rate : 3.5;
+            $deductions['sdl'] = round($sdlablePay * ($sdlRate / 100), 2);
+        } else {
+            $deductions['sdl'] = 0;
+        }
+
+        $wcfRule = \App\Models\PayrollTaxRule::flatRule('Tanzania', 'wcf');
+        $wcfRate = $wcfRule ? (float) $wcfRule->rate : 0.5;
+        $deductions['wcf'] = round($grossPay * ($wcfRate / 100), 2);
+
+        $deductions['shif'] = 0;
+        $deductions['housing-levy'] = 0;
+        $deductions['nhif'] = 0;
+        $deductions['helb'] = 0;
+        $deductions['paye'] = 0;
+
+        Log::debug("Tanzania statutory deductions calculated", [
+            'employee_id' => $employeeId,
+            'gross_pay' => $grossPay,
+            'nssf_employee' => $nssfEmployee,
+            'nssf_employer' => $nssfEmployer,
+            'sdl' => $deductions['sdl'],
+            'wcf' => $deductions['wcf'],
+        ]);
+
+        return $deductions;
+    }
+
+    protected function getUgandaStatutoryDeductions($businessId, $grossPay, $basicPay, $employeeId, $payrollId, $nssfablePay = null)
+    {
+        $nssfablePay = $nssfablePay ?? $grossPay;
+
+        $deductions = [];
+
+        $nssfEmployee = round($nssfablePay * 0.05, 2);
         $nssfTotal = round($nssfEmployee);
 
         $deductions['nssf'] = [
@@ -1597,8 +1764,10 @@ class PayrollController extends Controller
         return $deductions;
     }
 
-    protected function getKenyaStatutoryDeductions($businessId, $grossPay, $basicPay, $employeeId, $payrollId)
+    protected function getKenyaStatutoryDeductions($businessId, $grossPay, $basicPay, $employeeId, $payrollId, $nssfablePay = null)
     {
+        $nssfablePay = $nssfablePay ?? $grossPay;
+
         $deductions = [];
         $statutorySlugs = ['nssf', 'shif', 'housing-levy', 'nhif', 'helb'];
 
@@ -1606,7 +1775,7 @@ class PayrollController extends Controller
             $deductions[$slug] = $this->calculateStatutoryDeduction($businessId, $slug, $grossPay, $basicPay, $grossPay, $employeeId, $payrollId);
         }
 
-        $nssfTotal = $this->calculateNSSFContribution($businessId, $grossPay, $employeeId, $payrollId);
+        $nssfTotal = $this->calculateNSSFContribution($businessId, $nssfablePay, $employeeId, $payrollId);
         $nssfEmployee = $nssfTotal / 2;
         $nssfEmployer = $nssfTotal / 2;
         $deductions['nssf'] = [
@@ -1658,6 +1827,8 @@ class PayrollController extends Controller
                         'name' => $modelItem->name,
                         'amount' => $computedAmount,
                         'is_taxable' => $modelItem->is_taxable,
+                        'is_nssf_applicable' => $modelItem->is_nssf_applicable ?? true,
+                        'is_sdl_applicable' => $modelItem->is_sdl_applicable ?? true,
                         'tax_application' => 'before_tax',
                     ];
                 } elseif ($type === 'reliefs') {
@@ -1739,6 +1910,8 @@ class PayrollController extends Controller
                         'name' => $modelItem->name,
                         'amount' => $computedAmount,
                         'is_taxable' => $modelItem->is_taxable,
+                        'is_nssf_applicable' => $modelItem->is_nssf_applicable ?? true,
+                        'is_sdl_applicable' => $modelItem->is_sdl_applicable ?? true,
                         'tax_application' => 'before_tax',
                     ];
                 } elseif ($type === 'reliefs') {

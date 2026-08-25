@@ -26,7 +26,7 @@ class AllowanceController extends Controller
 
         $allowances = Allowance::where('business_id', $business->id)->get();
 
-        return view('allowances.index', compact('page', 'description', 'allowances'));
+        return view('allowances.index', compact('page', 'description', 'allowances', 'business'));
     }
 
     public function fetch(Request $request)
@@ -38,7 +38,7 @@ class AllowanceController extends Controller
             }
 
             $allowances = Allowance::where('business_id', $business->id)->get();
-            $allowancesTable = view('allowances._table', compact('allowances'))->render();
+            $allowancesTable = view('allowances._table', compact('allowances', 'business'))->render();
 
             return RequestResponse::ok('Allowances fetched successfully.', [
                 'html' => $allowancesTable,
@@ -61,6 +61,8 @@ class AllowanceController extends Controller
             'amount' => 'required_if:type,fixed|nullable|numeric|min:0',
             'rate' => 'required_if:type,rate|nullable|numeric|min:0|max:100',
             'is_taxable' => 'nullable|boolean',
+            'is_nssf_applicable' => 'nullable|boolean',
+            'is_sdl_applicable' => 'nullable|boolean',
             'applies_to' => 'required|in:all,specific',
         ]);
 
@@ -90,6 +92,8 @@ class AllowanceController extends Controller
             'rate'              => $rate,
 
             'is_taxable'        => $request->boolean('is_taxable'),
+            'is_nssf_applicable' => $request->boolean('is_nssf_applicable'),
+            'is_sdl_applicable' => $request->boolean('is_sdl_applicable'),
             'applies_to'        => $validatedData['applies_to'],
             'business_id'       => $business->id,
         ]);
@@ -124,7 +128,7 @@ class AllowanceController extends Controller
                 ->firstOrFail();
         }
 
-        $form = view('allowances._form', compact('allowance'))->render();
+        $form = view('allowances._form', compact('allowance', 'business'))->render();
         return RequestResponse::ok('Allowance form loaded successfully.', $form);
     }
 
@@ -138,6 +142,8 @@ class AllowanceController extends Controller
             'amount' => 'required_if:type,fixed|nullable|numeric|min:0',
             'rate' => 'required_if:type,rate|nullable|numeric|min:0|max:100',
             'is_taxable' => 'nullable|boolean',
+            'is_nssf_applicable' => 'nullable|boolean',
+            'is_sdl_applicable' => 'nullable|boolean',
             'applies_to' => 'required|in:all,specific',
         ]);
 
@@ -167,6 +173,8 @@ class AllowanceController extends Controller
     'rate' => $validatedData['type'] === 'rate' && $validatedData['rate'] !== '' ? $validatedData['rate'] : null,
 
     'is_taxable' => $request->boolean('is_taxable'),
+    'is_nssf_applicable' => $request->boolean('is_nssf_applicable'),
+    'is_sdl_applicable' => $request->boolean('is_sdl_applicable'),
     'applies_to' => $validatedData['applies_to'],
 ];
 

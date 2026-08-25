@@ -81,7 +81,7 @@ class ClientController extends Controller
             ->get();
 
         return view('clients.view', compact(
-            'clientBusiness', 'modules', 'activeModuleIds', 'employeeCount', 'userCount', 'recentActivities'
+            'business', 'clientBusiness', 'modules', 'activeModuleIds', 'employeeCount', 'userCount', 'recentActivities'
         ));
     }
 

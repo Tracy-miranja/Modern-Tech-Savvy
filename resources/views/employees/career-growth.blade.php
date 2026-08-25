@@ -92,32 +92,38 @@
             if (type) params.set('event_type', type);
             if (status) params.set('status', status);
 
+            let events;
             try {
                 const resp = await fetch(`${fetchUrl}?${params.toString()}`, { headers: { 'Accept': 'application/json' } });
                 const payload = await resp.json();
-                const events = payload.data ?? [];
+                events = payload.data ?? [];
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Could not load career events.</td></tr>';
+                return;
+            }
 
+            try {
                 if (window.jQuery && $.fn.DataTable && $.fn.DataTable.isDataTable('#careerGrowthTable')) {
                     $('#careerGrowthTable').DataTable().destroy();
                     table = null;
                 }
+            } catch (e) { /* not critical */ }
 
-                tbody.innerHTML = events.length ? events.map(e => `
-                    <tr>
-                        <td>${escapeHtml(e.employee?.user?.name ?? 'N/A')}</td>
-                        <td>${typeLabel(e.event_type)}</td>
-                        <td>${formatDate(e.effective_date)}</td>
-                        <td>${describeChange(e)}</td>
-                        <td>${escapeHtml(e.reason)}</td>
-                        <td><span class="badge ${e.status === 'applied' ? 'bg-success' : 'bg-warning text-dark'}">${escapeHtml(e.status)}</span></td>
-                    </tr>`).join('') : '<tr><td colspan="6" class="text-center text-muted">No career growth records yet.</td></tr>';
+            tbody.innerHTML = events.length ? events.map(e => `
+                <tr>
+                    <td>${escapeHtml(e.employee?.user?.name ?? 'N/A')}</td>
+                    <td>${typeLabel(e.event_type)}</td>
+                    <td>${formatDate(e.effective_date)}</td>
+                    <td>${describeChange(e)}</td>
+                    <td>${escapeHtml(e.reason)}</td>
+                    <td><span class="badge ${e.status === 'applied' ? 'bg-success' : 'bg-warning text-dark'}">${escapeHtml(e.status)}</span></td>
+                </tr>`).join('') : '<tr><td colspan="6" class="text-center text-muted">No career events available.</td></tr>';
 
+            try {
                 if (window.jQuery && $.fn.DataTable) {
                     table = $('#careerGrowthTable').DataTable({ responsive: true, order: [] });
                 }
-            } catch (e) {
-                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Could not load career events.</td></tr>';
-            }
+            } catch (e) { /* not critical */ }
         }
 
         document.getElementById('careerGrowthTypeFilter').addEventListener('change', loadEvents);

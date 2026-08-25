@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
         $this->call(LeaveTypeListSeeder::class);
         $this->call(IndustriesSeeder::class);
         $this->call(PayrollFormulaSeeder::class);
+        $this->call(PayrollTaxRuleSeeder::class);
         $this->call(AllowanceSeeder::class);
         $this->call(ReliefSeeder::class);
         $this->call(DeductionSeeder::class);

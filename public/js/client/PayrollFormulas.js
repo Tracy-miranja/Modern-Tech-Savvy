@@ -52,6 +52,15 @@ class PayrollFormulasService {
             throw { response: error.response || { data: { message: 'Failed to delete formula.', errors: [] } } };
         }
     }
+
+    async updateRemittanceDeadline(data) {
+        try {
+            const response = await this.requestClient.post('/payroll-formulas/remittance-deadline', data);
+            return response;
+        } catch (error) {
+            throw { response: error.response || { data: { message: 'Failed to update remittance deadline.', errors: [] } } };
+        }
+    }
 }
 
 export default PayrollFormulasService;

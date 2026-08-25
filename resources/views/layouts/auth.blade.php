@@ -42,6 +42,20 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/css/intlTelInput.css" />
+    <style>
+        .iti__country-list .iti__country {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .iti__country-list .iti__country::after {
+            content: "+" attr(data-dial-code);
+            color: #6c757d;
+            font-size: 0.85em;
+            margin-left: 8px;
+            white-space: nowrap;
+        }
+    </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" />
 
     @stack('styles')

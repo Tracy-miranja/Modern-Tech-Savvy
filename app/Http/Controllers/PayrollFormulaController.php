@@ -42,6 +42,30 @@ class PayrollFormulaController extends Controller
         return view('payroll-formulas.index', compact('formulas', 'business', 'page', 'employees', 'countries'));
     }
 
+    public function updateRemittanceDeadline(Request $request)
+    {
+        $validated = $request->validate([
+            'payroll_remittance_deadline_day' => 'nullable|integer|min:1|max:31',
+        ]);
+
+        $business = Business::findBySlug(session('active_business_slug'));
+        if (!$business) {
+            return RequestResponse::badRequest('Business not found.');
+        }
+
+        if (!$business->hasModule('payroll-management')) {
+            return RequestResponse::badRequest('Your business does not have the Payroll module active.');
+        }
+
+        $business->update([
+            'payroll_remittance_deadline_day' => $validated['payroll_remittance_deadline_day'] ?? null,
+        ]);
+
+        return RequestResponse::ok('Remittance deadline updated successfully.', [
+            'payroll_remittance_deadline_day' => $business->payroll_remittance_deadline_day,
+        ]);
+    }
+
     public function store(Request $request)
 {
     $validated = $request->validate([
