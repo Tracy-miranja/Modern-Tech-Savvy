@@ -48,17 +48,13 @@ class AuthenticatedSessionController extends Controller
                 $user = Auth::user();
 
                 if ($user->requiresTwoFactorAuthentication()) {
-                    // Generate and send 2FA code
+
                     $user->generateTwoFactorCode();
 
-
-                    // Store user ID in session for 2FA verification
                     $request->session()->put('2fa_user_id', $user->id);
 
-                    // Log out to prevent access
                     Auth::logout();
 
-                    // Invalidate session but keep 2fa_user_id
                     $request->session()->invalidate();
                     $request->session()->regenerateToken();
                     $request->session()->put('2fa_user_id', $user->id);
@@ -70,21 +66,17 @@ class AuthenticatedSessionController extends Controller
 
                 $request->session()->regenerate();
 
-                // Reset attempts on success
                 $attempt->update(['attempts' => 0, 'banned_until' => null]);
 
-                // Log login details
                 $loginLog = $this->logLoginDetails($user, $request);
 
                 $redirectUrl = $this->getRedirectUrlForRole($user);
 
-                // Mark 2FA as verified for non-2FA users
                 $request->session()->put('2fa_verified', true);
 
                 return RequestResponse::ok('Welcome back.', ['redirect_url' => $redirectUrl]);
             }
 
-            // Increment failed attempts
             $attempt->increment('attempts');
 
             if ($attempt->attempts >= 4) {
@@ -128,18 +120,15 @@ class AuthenticatedSessionController extends Controller
             }
 
             if ($user->verifyTwoFactorCode($request->code)) {
-                // Log the user in
+
                 Auth::login($user);
                 $request->session()->regenerate();
 
-                // Mark 2FA as verified
                 $request->session()->put('2fa_verified', true);
                 $request->session()->forget('2fa_user_id');
 
-                // Log login details
                 $loginLog = $this->logLoginDetails($user, $request);
 
-                // Log successful 2FA verification
                 activity()
                     ->causedBy($user)
                     ->performedOn($user)
@@ -150,7 +139,6 @@ class AuthenticatedSessionController extends Controller
                 return RequestResponse::ok('Verification successful.', ['redirect_url' => $redirectUrl]);
             }
 
-            // Log failed attempt
             activity()
                 ->causedBy($user)
                 ->performedOn($user)
@@ -178,10 +166,8 @@ class AuthenticatedSessionController extends Controller
                 return RequestResponse::error('User not found.', ['redirect_url' => route('login')]);
             }
 
-            // Generate and send a new code
             $user->generateTwoFactorCode();
 
-            // Log the resend action
             activity()
                 ->causedBy($user)
                 ->performedOn($user)
@@ -196,7 +182,6 @@ class AuthenticatedSessionController extends Controller
         $agent = new Agent();
         $ip = $request->ip();
 
-        // Handle local IPs
         if (in_array($ip, ['127.0.0.1', '::1'])) {
             return LoginLog::create([
                 'user_id' => $user->id,
@@ -209,10 +194,8 @@ class AuthenticatedSessionController extends Controller
             ]);
         }
 
-        // Fetch geolocation
         $geo = Http::timeout(5)->get("http://ip-api.com/json/{$ip}")->json();
 
-        // Build location
         $location = 'Unknown Location';
         if (!empty($geo) && isset($geo['status']) && $geo['status'] === 'success') {
             if (isset($geo['city'], $geo['country'])) {
@@ -224,7 +207,6 @@ class AuthenticatedSessionController extends Controller
             }
         }
 
-        // Build network
         $network = $geo['isp'] ?? ($geo['org'] ?? 'Unknown Network');
 
         return LoginLog::create([
@@ -241,10 +223,7 @@ class AuthenticatedSessionController extends Controller
     private function getRedirectUrlForRole($user)
     {
         if ($user->hasRole('super-admin')) {
-            // Land on the platform business's own dashboard, same as any
-            // other business user - the "Manage Clients" nav link
-            // (app-header.blade.php) is how they reach the Clients list/
-            // impersonation from there.
+
             $business = \App\Models\Business::where('slug', config('business.main_slug'))->first();
             if ($business) {
                 session(['active_business_slug' => $business->slug]);
@@ -254,7 +233,7 @@ class AuthenticatedSessionController extends Controller
         }
 
         if ($user->hasRole('business-admin')) {
-            // Check if business exists to avoid null slug error
+
             $business = $user->business;
             if ($user->status === "setup" || !$business) {
                 return route('setup.business');
@@ -266,10 +245,7 @@ class AuthenticatedSessionController extends Controller
             session(['active_role' => 'business-admin']);
             return route('business.index', $business->slug);
         } elseif ($user->hasRole('business-hr')) {
-            // business-hr's permission set (PermissionSeeder) deliberately
-            // excludes access.dashboard ("aligned with restricted-hr") -
-            // sending them to business.index would 403 them on their own
-            // landing page. access.employees is guaranteed, so land there.
+
             $business = $user->employee->business;
             session(['active_business_slug' => $business->slug]);
             session(['active_role' => 'business-hr']);
@@ -285,24 +261,29 @@ class AuthenticatedSessionController extends Controller
             session(['active_role' => 'business-employee']);
             return route('myaccount.index', $business->slug);
         } elseif ($user->hasRole('restricted-hr')) {
-            // Same access.dashboard exclusion as business-hr.
+
             $business = $user->employee->business;
             session(['active_business_slug' => $business->slug]);
             session(['active_role' => 'restricted-hr']);
             return route('business.employees.index', $business->slug);
         } elseif ($user->hasRole('head-of-department') || $user->hasRole('chief-of-staff')) {
-            // No branch existed for these roles at all - they'd fall
-            // through to route('login') below and bounce right back,
-            // same dead-end super-admin had before.
-            // EnsureCorrectRole's restrictedRoutes list for these two
-            // roles blocks almost everything (including
-            // business.employees.index, despite them holding the
-            // access.employees permission) - business.leave.index is one
-            // of the few pages actually left reachable, so land there.
+
             $business = $user->employee->business;
             session(['active_business_slug' => $business->slug]);
             session(['active_role' => $user->hasRole('head-of-department') ? 'head-of-department' : 'chief-of-staff']);
             return route('business.leave.index', $business->slug);
+        }
+
+        $employee = $user->employee;
+        if ($employee && $employee->business) {
+            foreach (\Database\Seeders\ModuleActionPermissionSeeder::MODULE_HOME_ROUTES as $module => $routeName) {
+                if ($user->hasPermissionTo("module.{$module}.view", 'web')) {
+                    $customRole = $user->roles()->where('business_id', $employee->business_id)->where('is_custom', true)->first();
+                    session(['active_business_slug' => $employee->business->slug]);
+                    session(['active_role' => $customRole?->name ?? $user->getRoleNames()->first()]);
+                    return route($routeName, $employee->business->slug);
+                }
+            }
         }
 
         return route('login');

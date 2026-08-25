@@ -109,7 +109,6 @@
         </div>
     </div>
 
-    <!-- Add/Edit Project Modal -->
     <div class="modal fade" id="projectModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -177,7 +176,6 @@
         </div>
     </div>
 
-    <!-- Add/Edit Status Modal -->
     <div class="modal fade" id="statusModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -215,7 +213,6 @@
         </div>
     </div>
 
-    <!-- Add/Edit Task Category Modal -->
     <div class="modal fade" id="taskCategoryModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">

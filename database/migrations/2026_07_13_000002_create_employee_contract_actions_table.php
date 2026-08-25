@@ -6,12 +6,7 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Documents schema that already exists on production/dev databases
-     * (created out-of-band, never tracked by a migration) so a fresh
-     * install ends up with the same structure. Guarded to stay a no-op
-     * where the table is already present.
-     */
+
     public function up(): void
     {
         if (Schema::hasTable('employee_contract_actions')) {

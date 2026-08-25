@@ -65,13 +65,6 @@ class ClientController extends Controller
 
         $modules = \App\Models\Module::all();
 
-        // Assigned = has a business_modules row at all, regardless of
-        // state; active = is_active AND (no expiry OR expiry hasn't
-        // passed) - Business::activeModules()'s own definition. A module
-        // can be assigned but not active (soft-disabled, or its
-        // subscription_ends_at from an earlier payment has lapsed) - the
-        // "I assigned it but it's not active" gap this page exists to
-        // make visible.
         $activeModuleIds = $clientBusiness->activeModules()->pluck('modules.id')->all();
 
         $employeeCount = \App\Models\Employee::where('business_id', $clientBusiness->id)->count();
@@ -190,11 +183,6 @@ class ClientController extends Controller
                 return RequestResponse::badRequest('User not found.');
             }
 
-            // The Spatie role, not just the pivot's own 'role' column below,
-            // is what every permission check in the app actually reads
-            // (hasRole()) - without this, a platform-granted client admin
-            // could never actually use the business-admin features they
-            // were just granted.
             if (!$user->hasRole($request->role)) {
                 $user->assignRole($request->role);
             }
@@ -219,31 +207,6 @@ class ClientController extends Controller
         });
     }
 
-//    public function impersonateManagedBusiness(Request $request, $business_slug, $client_business_slug)
-// {
-//     $business = Business::findBySlug($business_slug);
-//     if (!$business || $business->slug !== config('business.main_slug')) {
-//         return RequestResponse::forbidden('Only the platform business can impersonate businesses.');
-//     }
-
-//     $managedBusiness = Business::findBySlug($client_business_slug);
-//     if (!$managedBusiness) {
-//         return RequestResponse::badRequest('Managed business not found.');
-//     }
-
-//     // Store the original business slug before switching
-//     session(['original_business_slug' => $business_slug]);
-//     session(['active_business_slug' => $managedBusiness->slug]);
-
-//     activity()
-//         ->causedBy($request->user())
-//         ->performedOn($managedBusiness)
-//         ->log('Impersonated business');
-
-//     return RequestResponse::ok(
-//         message: "Welcome to {$managedBusiness->company_name} dashboard",
-//         data: ['redirect_url' => route('business.index', ['business' => $managedBusiness->slug])]
-//     );
 // }
 public function impersonateManagedBusiness(Request $request, $business_slug, $client_business_slug)
 {
@@ -408,14 +371,6 @@ public function switchBackToAdmin(Request $request, $business_slug)
         return $this->handleTransaction(function () use ($clientBusiness, $request) {
             $selectedIds = array_map('intval', $request->input('modules', []));
 
-            // A submission with zero modules is indistinguishable here
-            // from "the form genuinely wasn't ready yet" (e.g. the
-            // clients table was refreshed by another action while this
-            // modal was still open, orphaning its form) - silently
-            // proceeding would disable every module this business
-            // already had, with a 200 "success" response giving no sign
-            // anything just got wiped. Require the request to explicitly
-            // say it means to clear everything.
             if (empty($selectedIds) && !$request->boolean('confirm_clear_all')) {
                 $hadModules = $clientBusiness->modules()->wherePivot('is_active', true)->exists();
                 if ($hadModules) {
@@ -425,13 +380,6 @@ public function switchBackToAdmin(Request $request, $business_slug)
                 }
             }
 
-            // A bare sync($ids) recreates every pivot row from column
-            // defaults, silently wiping subscription_ends_at (no default,
-            // nullable) back to null even for a module that stays checked
-            // and already had a payment-extended expiry. Preserve it
-            // instead, and soft-disable (is_active=false) rather than
-            // detach anything unchecked, so payment history recorded
-            // against that module_id stays meaningful.
             $existing = $clientBusiness->modules()->withPivot('subscription_ends_at')->get()->keyBy('id');
 
             foreach ($selectedIds as $moduleId) {
@@ -457,15 +405,6 @@ public function switchBackToAdmin(Request $request, $business_slug)
         });
     }
 
-    /**
-     * Explicit per-module activate/deactivate, with an optional expiry
-     * date - the direct, single-module counterpart to the bulk Assign
-     * Modules checkbox form above. Always assigns the module (creates the
-     * pivot row if it didn't already exist) and sets is_active/
-     * subscription_ends_at to exactly what was submitted, rather than
-     * preserving whatever was there before - this is a deliberate,
-     * one-module edit, not a bulk resubmit.
-     */
     public function updateModuleStatus(Request $request, $business_slug, $client_business_slug)
     {
         $business = Business::findBySlug($business_slug);

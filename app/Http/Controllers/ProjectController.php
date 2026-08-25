@@ -10,14 +10,6 @@ use App\Http\RequestResponse;
 use App\Services\ProjectTaskStatusService;
 use Illuminate\Http\Request;
 
-/**
- * Project Management - the last of the originally-unimplemented modules
- * (see Asset/Learning Management for the sibling precedent this follows).
- * One list page (this controller) + a per-project Kanban board
- * (ProjectTaskController) - a full drag-drop board is genuinely too large
- * for a modal, same exception this app already makes for Disciplinary case
- * detail and the employee profile page.
- */
 class ProjectController extends Controller
 {
     public function index(Business $business, ProjectTaskStatusService $statusService)
@@ -30,10 +22,6 @@ class ProjectController extends Controller
         return view('projects.index', compact('page', 'business', 'departments', 'jobCategories'));
     }
 
-    /**
-     * The Kanban board page for one project - a full drag-drop board is
-     * genuinely too large for a modal (see class docblock).
-     */
     public function showBoard(Business $business, Project $project, ProjectTaskStatusService $statusService)
     {
         if ((int) $project->business_id !== (int) $business->id) {
@@ -43,23 +31,11 @@ class ProjectController extends Controller
         $statusService->ensureSeeded($business);
         $page = $project->name;
 
-        // Same view/JS reused for the employee-portal board (see
-        // EnsureProjectMember + ProjectController::myProjects) - only the
-        // route names it calls differ, resolved from which named route
-        // got us here rather than a second near-duplicate controller/view.
         $routePrefix = str_starts_with((string) request()->route()?->getName(), 'myaccount.') ? 'myaccount.' : 'business.';
 
         return view('projects.board', compact('page', 'business', 'project', 'routePrefix'));
     }
 
-    /**
-     * Employee-portal "My Projects" - projects the logged-in employee is
-     * either the manager of or an active (not left_at) member of. Reuses
-     * the exact same board/task/comment/time-log controllers and views as
-     * the business-admin side (see EnsureProjectMember, which is what
-     * makes that reuse safe for a plain business-employee), just its own
-     * scoped list page.
-     */
     public function myProjects(Business $business)
     {
         $page = 'My Projects';
@@ -96,9 +72,6 @@ class ProjectController extends Controller
         return RequestResponse::ok('Projects fetched.', $projects);
     }
 
-    /**
-     * Lightweight id/name list for the shared report modal's project filter.
-     */
     public function options(Request $request, Business $business)
     {
         $projects = Project::where('business_id', $business->id)->orderBy('name')->get(['id', 'name']);

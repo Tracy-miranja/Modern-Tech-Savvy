@@ -1,14 +1,14 @@
 <?php
 namespace App\Libraries;
 
-require_once __DIR__ . '/Fpdf/fpdf.php';   // load your local fpdf.php
+require_once __DIR__ . '/Fpdf/fpdf.php';
 
 class FPDF_Protection extends \FPDF
 {
-    protected $encrypted = false;  // whether document is protected
-    protected $Uvalue;             // user password (hashed)
-    protected $Ovalue;             // owner password
-    protected $Pvalue;             // permissions as integer
+    protected $encrypted = false;
+    protected $Uvalue;
+    protected $Ovalue;
+    protected $Pvalue;
     protected $enc_obj_id;         // encryption object id
 
     public function SetProtection($permissions = [], $user_pass = '', $owner_pass = null)

@@ -244,7 +244,6 @@
                 </div>
             </div>
 
-            <!-- Registration Certificate -->
             <p>Registration Certificate</p>
             <div class="card mb-3 shadow-sm">
                 <div class="card-body text-center">
@@ -261,7 +260,6 @@
                 </div>
             </div>
 
-            <!-- Tax Pin Certificate -->
             <p>Tax Pin Certificate</p>
             <div class="card mb-3 shadow-sm">
                 <div class="card-body text-center">
@@ -277,7 +275,6 @@
                 </div>
             </div>
 
-            <!-- Business License Certificate -->
             <p>Business License Certificate</p>
             <div class="card mb-3 shadow-sm">
                 <div class="card-body text-center">
@@ -295,7 +292,7 @@
             </div>
 
             @if($business->verified && $business->slug === config('business.main_slug'))
-            <!-- API Token -->
+
             <p>API Token</p>
             <div class="card shadow-sm">
                 <div class="card-body text-center">

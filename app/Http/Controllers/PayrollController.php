@@ -50,7 +50,6 @@ use Illuminate\Support\Facades\File;
 use App\Exports\NssfMonthlySummaryExport;
 use App\Exports\ShifMonthlySummaryExport;
 
-
 use function Illuminate\Log\log;
 
 class PayrollController extends Controller
@@ -457,7 +456,6 @@ class PayrollController extends Controller
             ];
         }, array_column($existingData, null, 'item_id'));
 
-        // Process all new data (active and inactive items)
         foreach ($newData as $id => $item) {
             $defaultItem = $modelClass::find($id);
             $itemName = $defaultItem ? $defaultItem->name : ($item['item_name'] ?? "Unknown Item (ID: {$id})");
@@ -551,7 +549,7 @@ class PayrollController extends Controller
 
             foreach ($payrollData as $data) {
                 $paymentDetail = EmployeePaymentDetail::where('employee_id', $data['employee_id'])->first();
-                // ========== NEW: Update basic_salary for hourly employees ==========
+
                 if ($paymentDetail && $paymentDetail->payment_type === 'hourly') {
                     $paymentDetail->update(['basic_salary' => $data['basic_salary']]);
 
@@ -579,7 +577,7 @@ class PayrollController extends Controller
                     'housing_levy' => $data['housing_levy'],
                     'helb' => $data['helb'],
                     'taxable_income' => $data['taxable_income'],
-                    'reliefs' => json_encode($data['reliefs']), // Store all reliefs as JSON
+                    'reliefs' => json_encode($data['reliefs']),
                     'personal_relief' => $data['personal_relief'],
                     'insurance_relief' => $data['insurance_relief'],
                     'pay_after_tax' => $data['gross_pay'] - $data['paye'],
@@ -606,7 +604,6 @@ class PayrollController extends Controller
                 $this->updateLoanAndAdvance($data, $year, $month, $options);
             }
 
-            // Clear session data after successful storage
             session()->forget('payroll_preview_data');
 
             return RequestResponse::ok('success', [
@@ -711,7 +708,7 @@ class PayrollController extends Controller
                 'employmentDetails.jobCategory',
                 'employeeAllowances.allowance',
                 'employeeDeductions.deduction',
-                'reliefs', // Remove whereNotNull('relief_id')
+                'reliefs',
                 'overtimes' => fn($q) => $q->whereYear('date', $request->year)->whereMonth('date', $request->month),
                 'advances' => fn($q) => $q->whereYear('date', $request->year)->whereMonth('date', $request->month),
                 'loans' => fn($q) => $q->where('start_date', '<=', Carbon::create($request->year, $request->month)->endOfMonth()),
@@ -719,7 +716,6 @@ class PayrollController extends Controller
                 'attendances' => fn($q) => $q->whereYear('date', $request->year)->whereMonth('date', $request->month),
             ]);
 
-        // Location, department, job category filters remain unchanged
         if ($request->location_id) {
             if (str_starts_with($request->location_id, 'business_')) {
                 $query->whereNull('location_id');
@@ -788,7 +784,6 @@ class PayrollController extends Controller
                 $employeeWarnings[] = 'Missing payment details';
             }
 
-            // ========== FIX: Skip basic salary check for hourly employees ==========
             if ($employee->paymentDetails) {
                 if (
                     $employee->paymentDetails->payment_type === 'salary' &&
@@ -804,7 +799,6 @@ class PayrollController extends Controller
                     $employeeWarnings[] = 'Hourly rate is 0';
                 }
             }
-            // ========================================================================
 
             if (!$employee->tax_no) {
                 $employeeWarnings[] = 'Missing KRA PIN';
@@ -892,7 +886,6 @@ class PayrollController extends Controller
             ], 400);
         }
 
-        // Load payroll settings for non-exempted employees
         $payrollSettings = PayrollSettings::where('year', $year)
             ->where('month', $month)
             ->whereIn('employee_id', $nonExemptedEmployees->pluck('id'))
@@ -915,7 +908,6 @@ class PayrollController extends Controller
 
         $payrollData = $this->calculatePayroll($nonExemptedEmployees, $year, $month, $options, $daysInMonth);
 
-        // Store payroll data and metadata in session
         session([
             'payroll_preview_data' => [
                 'payroll_data' => $payrollData,
@@ -935,7 +927,6 @@ class PayrollController extends Controller
         ]);
     }
 
-
     protected function calculatePayroll($employees, $year, $month, $options, $daysInMonth)
     {
         $business = Business::findBySlug(session('active_business_slug'));
@@ -950,17 +941,14 @@ class PayrollController extends Controller
             $employeeId = $employee->id;
             $settings = $options['payroll_settings'][$employeeId] ?? null;
 
-            // ========== CRITICAL FIX: MUST fetch $paymentDetail FIRST ==========
             $paymentDetail = EmployeePaymentDetail::where('employee_id', $employeeId)->first();
             $payrollDetail = EmployeePayrollDetail::where('employee_id', $employeeId)->first();
 
-            // Check if payment details exist - skip employee if missing
             if (!$paymentDetail) {
                 Log::warning("No payment details found for employee {$employeeId}. Skipping.");
                 continue;
             }
 
-            // Now we can safely access payment detail properties
             $bankName = $paymentDetail->bank_name ?? 'N/A';
             $accountNumber = $paymentDetail->account_number ?? 'N/A';
             $bankCode = $paymentDetail->bank_code ?? 'Not Set';
@@ -973,30 +961,25 @@ class PayrollController extends Controller
                     'payment_type' => $paymentDetail->payment_type
                 ]);
 
-                // Use HourlyPayCalculator for hourly employees
                 $calculator = app(\App\Services\HourlyPayCalculator::class);
 
                 $startDate = Carbon::create($year, $month, 1)->startOfMonth();
                 $endDate = Carbon::create($year, $month, 1)->endOfMonth();
 
                 try {
-                    // Calculate hourly pay from attendance
+
                     $hourlyPayData = $calculator->calculateHourlyGrossPay(
                         $employee,
                         $startDate->format('Y-m-d'),
                         $endDate->format('Y-m-d')
                     );
 
-                    // CRITICAL: Check if calculation was successful
                     if (!isset($hourlyPayData['regular_pay']) || !isset($hourlyPayData['overtime_pay'])) {
                         throw new \Exception('Invalid hourly pay data structure returned from calculator');
                     }
 
-                    // Set salary values from hourly calculation
                     $proratedBasicSalary = $hourlyPayData['regular_pay'];
                     $overtimePay = $hourlyPayData['overtime_pay'];
-
-                    // ========== NEW: Update basic_salary in database ==========
 
                     $paymentDetail->update(['basic_salary' => $proratedBasicSalary]);
 
@@ -1005,12 +988,9 @@ class PayrollController extends Controller
                         'calculated_basic_salary' => $proratedBasicSalary,
                         'hours_worked' => $hourlyPayData['hours_worked'],
                     ]);
-                    // ===========================================================
 
-                    // Initialize allowances array
                     $allowances = [];
 
-                    // Store hourly breakdown in allowances for payslip display
                     $allowances['hourly_breakdown'] = [
                         'name' => 'Hourly Pay Breakdown',
                         'hours_worked' => $hourlyPayData['hours_worked'],
@@ -1021,8 +1001,6 @@ class PayrollController extends Controller
                         'overtime_pay' => $hourlyPayData['overtime_pay'],
                     ];
 
-
-                    // Get attendance summary for hourly employees
                     $attendanceSummary = $calculator->getAttendanceSummary(
                         $employee,
                         $startDate->format('Y-m-d'),
@@ -1031,9 +1009,8 @@ class PayrollController extends Controller
 
                     $presentDays = $attendanceSummary['present_days'];
                     $absentDays = $attendanceSummary['absent_days'];
-                    $absenteeismCharge = 0; // Already factored into hours worked
+                    $absenteeismCharge = 0;
 
-                    // Get additional allowances
                     $additionalAllowances = $this->getEmployeeItems(
                         $employee,
                         'allowances',
@@ -1043,7 +1020,6 @@ class PayrollController extends Controller
                         $proratedBasicSalary
                     );
 
-                    // Merge with hourly breakdown
                     $allowances = array_merge($allowances, $additionalAllowances);
 
                     $totalTaxableAllowances = array_sum(array_map(
@@ -1062,7 +1038,7 @@ class PayrollController extends Controller
                         'error' => $e->getMessage(),
                         'trace' => $e->getTraceAsString()
                     ]);
-                    // Fallback to zero pay if hourly calculation fails
+
                     $proratedBasicSalary = 0;
                     $overtimePay = 0;
                     $presentDays = 0;
@@ -1074,7 +1050,7 @@ class PayrollController extends Controller
                     $grossPayBeforeAbsenteeism = 0;
                 }
             } else {
-                // ========== SALARY-BASED CALCULATION ==========
+
                 $basicSalary = floatval($paymentDetail->basic_salary ?? 0);
 
                 $presentDays = $daysInMonth;
@@ -1116,10 +1092,8 @@ class PayrollController extends Controller
                 $grossPayBeforeAbsenteeism = $proratedBasicSalary + $totalTaxableAllowances + $totalNonTaxableAllowances + $overtimePay;
             }
 
-            // ========== COMMON CALCULATION (both salary and hourly) ==========
             $grossPay = max(0, $grossPayBeforeAbsenteeism - $absenteeismCharge);
 
-            // Get country and statutory deductions
             $country = strtoupper(trim($business->country));
             $statutoryDeductions = $this->getStatutoryDeductions($country, $business->id, $grossPay, $proratedBasicSalary, $employeeId, null);
 
@@ -1127,19 +1101,14 @@ class PayrollController extends Controller
             $nssfEmployer = $statutoryDeductions['nssf']['employer'] ?? 0;
             $nssfTotal = $statutoryDeductions['nssf']['total'] ?? ($nssfEmployee + $nssfEmployer);
 
-            // Country-specific deductions and reliefs
             if ($country === 'UGANDA' || $country === 'UG') {
-                // ========== UGANDA PAYROLL LOGIC ==========
 
-                // Uganda: Only NSSF deduction (no SHIF, Housing Levy, HELB)
                 $shif = 0;
                 $housingLevy = 0;
                 $helb = 0;
 
-                // Taxable income for Uganda = Gross Pay - NSSF Employee contribution only
                 $taxableIncome = max(0, $grossPay);
 
-                // Uganda has NO tax reliefs (no personal relief, no insurance relief)
                 $reliefs = [];
                 $totalReliefs = 0;
                 $personalRelief = 0;
@@ -1153,16 +1122,13 @@ class PayrollController extends Controller
                     'taxable_income' => $taxableIncome,
                 ]);
             } else {
-                // ========== KENYA PAYROLL LOGIC (UNCHANGED) ==========
 
-                // Kenya: All statutory deductions
                 $shif = $statutoryDeductions['shif'] ?? 0;
                 $housingLevy = $statutoryDeductions['housing-levy'] ?? 0;
                 $helb = $statutoryDeductions['helb'] ?? 0;
 
-                // Taxable income for Kenya
                 $taxableIncome = max(0, $grossPay - $nssfTotal - $shif - $housingLevy - $helb);
-                // ========== PWD TAX EXEMPTION ==========
+
                 $pwdExemptionApplied = false;
                 $pwdExemptionAmount  = 0;
 
@@ -1180,23 +1146,19 @@ class PayrollController extends Controller
                     ]);
                 }
 
-
-                // Kenya has reliefs - keep all your existing relief calculation logic
                 $reliefs = $this->getEmployeeItems($employee, 'reliefs', $settings, Relief::class, EmployeeRelief::class, $grossPay, $taxableIncome);
                 $totalReliefs = 0;
                 $isDisabilityExempt = false;
 
-                // Ensure default personal relief for Kenya (unless explicitly disabled)
                 if (!isset($reliefs['personal-relief']) || $reliefs['personal-relief']['amount'] == 0) {
                     $reliefs['personal-relief'] = [
                         'name' => 'Personal Relief',
-                        'amount' => 2400, // Standard Kenyan personal relief
+                        'amount' => 2400,
                         'is_taxable' => false,
                         'tax_application' => 'before_tax',
                     ];
                 }
 
-                // Process all reliefs (keep your existing relief processing code)
                 foreach ($reliefs as $reliefSlug => $reliefData) {
                     $reliefModel = Relief::where('business_id', $business->id)->where('slug', $reliefSlug)->first();
                     if (!$reliefModel) continue;
@@ -1248,27 +1210,24 @@ class PayrollController extends Controller
                 }
             }
 
-            // Calculate PAYE based on country
             $payeBeforeReliefs = $this->calculatePAYEByCountry($country, $taxableIncome, $grossPay);
 
             if ($country === 'UGANDA' || $country === 'UG') {
-                // Uganda: No reliefs applied, PAYE is the final tax
+
                 $paye = $payeBeforeReliefs;
             } else {
-                // Kenya: Apply reliefs to reduce PAYE
+
                 $paye = max(0, $payeBeforeReliefs - $totalReliefs);
             }
 
-            // Continue with rest of your existing code for deductions, loans, advances, etc.
             $deductions = $this->getEmployeeItems($employee, 'deductions', $settings, Deduction::class, EmployeeDeduction::class, $grossPay);
             $totalCustomDeductions = array_sum(array_map(fn($d) => $d['amount'], $deductions));
 
             $loanRepayment = $this->calculateLoanRepayment($employeeId, $year, $month, $settings, $options);
             $advanceRecovery = $this->calculateAdvanceRecovery($employeeId, $year, $month, $settings, $options);
 
-            // Calculate total deductions (country-aware)
             if ($country === 'UGANDA' || $country === 'UG') {
-                // Uganda: Only NSSF, PAYE, custom deductions, loans, advances, absenteeism
+
                 $totalDeductions = $nssfEmployee + $paye + $totalCustomDeductions + $loanRepayment + $advanceRecovery + $absenteeismCharge;
                 $netPay = floor(max(0, $grossPay - $totalDeductions));
 
@@ -1284,12 +1243,10 @@ class PayrollController extends Controller
                     'net_pay' => $netPay,
                 ]);
             } else {
-                // Kenya Net Pay = Taxable Income - PAYE (after reliefs) - After-tax deductions
-                // After-tax deductions include: custom deductions, loans, advances, absenteeism
+
                 $afterTaxDeductions = $totalCustomDeductions + $loanRepayment + $advanceRecovery + $absenteeismCharge;
                 $netPay = floor(max(0, $taxableIncome - $paye - $afterTaxDeductions));
 
-                // Calculate total deductions for Kenya (for reporting purposes)
                 $totalDeductions = $nssfEmployee + $shif + $housingLevy + $helb + $paye + $afterTaxDeductions;
 
                 Log::debug("Kenya Net Pay Calculation", [
@@ -1301,9 +1258,6 @@ class PayrollController extends Controller
                 ]);
             }
 
-            // $netPay = floor(max(0, $grossPay - $totalDeductions));
-
-            // Continue with your existing payrollData array population...
             $payrollData[$employeeId] = [
                 'employee_id' => $employeeId,
                 'employee' => $employee,
@@ -1342,40 +1296,6 @@ class PayrollController extends Controller
         return $payrollData;
     }
 
-    // protected function getStatutoryDeductions($country, $businessId, $grossPay, $basicPay, $employeeId, $payrollId)
-    //     {
-    //         $deductions = [];
-
-    //         if (strtoupper($country) === 'KENYA' || strtoupper($country) === 'KE') {
-    //             $statutorySlugs = ['nssf', 'shif', 'housing-levy', 'nhif', 'helb'];
-
-    //             foreach ($statutorySlugs as $slug) {
-    //                 $deductions[$slug] = $this->calculateStatutoryDeduction($businessId, $slug, $grossPay, $basicPay, $grossPay, $employeeId, $payrollId);
-    //             }
-
-    //             // NSSF split into employee and employer contributions
-    //             $nssfTotal = $this->calculateNSSFContribution($businessId, $grossPay, $employeeId, $payrollId);
-    //             $nssfEmployee = $nssfTotal / 2; // Employee pays half
-    //             $nssfEmployer = $nssfTotal / 2; // Employer matches
-    //             $deductions['nssf'] = [
-    //                 'employee' => $nssfEmployee,
-    //                 'employer' => $nssfEmployer,
-    //                 'total' => $nssfTotal,
-    //             ];
-
-    //             $deductions['paye'] = 0;
-    //         } else {
-    //             $deductions = [
-    //                 'nssf' => ['employee' => 0, 'employer' => 0, 'total' => 0],
-    //                 'shif' => 0,
-    //                 'housing-levy' => 0,
-    //                 'nhif' => 0,
-    //                 'helb' => 0,
-    //                 'paye' => 0,
-    //             ];
-    //         }
-
-    //         return $deductions;
     //     }
 
     protected function calculateStatutoryDeduction($businessId, $slug, $grossPay, $basicPay, $taxablePay, $employeeId, $payrollId)
@@ -1436,7 +1356,7 @@ class PayrollController extends Controller
             return $this->fallbackStatutoryDeduction('nssf', $grossPay, $grossPay);
         }
 
-        $baseAmount = $grossPay; // NSSF uses gross_pay
+        $baseAmount = $grossPay;
         $totalContribution = $formula->calculate($baseAmount);
 
         if ($payrollId) {
@@ -1457,7 +1377,7 @@ class PayrollController extends Controller
         switch ($slug) {
             case 'nssf':
                 if ($grossPay <= 9000) {
-                    return 540; // Tier 1
+                    return 540;
                 } else {
                     $tier1 = 540;
                     $tier2 = min($grossPay - 9000, 29000) * 0.06;
@@ -1478,9 +1398,9 @@ class PayrollController extends Controller
                 } elseif ($taxablePay <= 500000) {
                     $tax = 4483.25 + (($taxablePay - 32333) * 0.30);
                  } elseif ($taxablePay <= 800000) {
-        $tax = 144783.35 + (($taxablePay - 500000) * 0.325); // ← fix here too
+        $tax = 144783.35 + (($taxablePay - 500000) * 0.325);
     } else {
-        $tax = 242283.35 + (($taxablePay - 800000) * 0.35);  // ← and here
+        $tax = 242283.35 + (($taxablePay - 800000) * 0.35);
     }
                 return round($tax, 2);
             case 'helb':
@@ -1492,7 +1412,7 @@ class PayrollController extends Controller
 
     protected function calculateOvertime($employeeId, $year, $month, $settings, $options, $basicSalary)
     {
-        $hourlyRate = $basicSalary / 173; // Standard 173 hours/month
+        $hourlyRate = $basicSalary / 173;
         $totalOvertimePay = 0;
 
         if (!is_null($settings) && !empty($settings['overtime'])) {
@@ -1501,7 +1421,7 @@ class PayrollController extends Controller
                     $overtime = Overtime::find($item['item_id']);
                     if ($overtime) {
                         $hours = floatval($item['amount']);
-                        $rate = $overtime->rate ?? 1.5; // Default 1.5x rate
+                        $rate = $overtime->rate ?? 1.5;
                         $totalOvertimePay += $hours * $hourlyRate * $rate;
                     }
                 }
@@ -1582,37 +1502,6 @@ class PayrollController extends Controller
         return $totalRepayment;
     }
 
-    //     protected function calculateNSSF($grossPay)
-    //     {
-    //         $business = Business::findBySlug(session('active_business_slug'));
-    //         if (!$business) {
-    //             throw new Exception('Business not found.');
-    //         }
-
-    //         $totalContribution = $this->calculateNSSFContribution($business->id, $grossPay, null, null);
-
-    //         return [
-    //             'employee' => $totalContribution / 2, // Employee pays half
-    //             'employer' => $totalContribution / 2, // Employer matches
-    //             'total' => $totalContribution,
-    //         ];
-    //     }
-
-    //     protected function calculatePAYE($taxableIncome)
-    //     {
-    //         $tax = 0;
-    //         if ($taxableIncome <= 24000) {
-    //             $tax = $taxableIncome * 0.10; // 10% on first 24,000
-    //         } elseif ($taxableIncome <= 32333) {
-    //             $tax = 2400 + (($taxableIncome - 24000) * 0.25); // 25% on next 8,333
-    //         } elseif ($taxableIncome <= 500000) {
-    //             $tax = 4482.25 + (($taxableIncome - 32333) * 0.30); // 30% on next 467,667
-    //         } elseif ($taxableIncome <= 800000) {
-    //             $tax = 144682.15 + (($taxableIncome - 500000) * 0.325); // 32.5% on next 300,000
-    //         } else {
-    //             $tax = 242182.15 + (($taxableIncome - 800000) * 0.35); // 35% above 800,000
-    //         }
-    //         return $tax;
     //     }
 
     protected function calculatePAYEByCountry($country, $taxableIncome, $grossPay = 0)
@@ -1625,7 +1514,6 @@ class PayrollController extends Controller
             return $this->calculateKenyaPAYE($taxableIncome);
         }
 
-        // Default to Kenya if country not recognized
         Log::warning("Unknown country: {$country}, defaulting to Kenya PAYE calculation");
         return $this->calculateKenyaPAYE($taxableIncome);
     }
@@ -1635,16 +1523,16 @@ class PayrollController extends Controller
         $tax = 0;
 
         if ($taxableIncome <= 235000) {
-            // First bracket: 0% tax
+
             $tax = 0;
         } elseif ($taxableIncome <= 335000) {
-            // Second bracket: 10% on amount above 235,000
+
             $tax = ($taxableIncome - 235000) * 0.10;
         } elseif ($taxableIncome <= 410000) {
-            // Third bracket: Fixed 10,000 + 20% on amount above 335,000
+
             $tax = 10000 + (($taxableIncome - 335000) * 0.20);
         } else {
-            // Fourth bracket: Fixed 25,000 + 30% on amount above 410,000
+
             $tax = 25000 + (($taxableIncome - 410000) * 0.30);
         }
 
@@ -1661,9 +1549,9 @@ class PayrollController extends Controller
     } elseif ($taxableIncome <= 500000) {
         $tax = 4483.25 + (($taxableIncome - 32333) * 0.30);
     } elseif ($taxableIncome <= 800000) {
-        $tax = 144783.35 + (($taxableIncome - 500000) * 0.325); // ← FIXED
+        $tax = 144783.35 + (($taxableIncome - 500000) * 0.325);
     } else {
-        $tax = 242283.35 + (($taxableIncome - 800000) * 0.35);  // ← FIXED
+        $tax = 242283.35 + (($taxableIncome - 800000) * 0.35);
     }
     return round($tax, 2);
 }
@@ -1678,7 +1566,6 @@ class PayrollController extends Controller
             return $this->getKenyaStatutoryDeductions($businessId, $grossPay, $basicPay, $employeeId, $payrollId);
         }
 
-        // Default to Kenya
         Log::warning("Unknown country: {$country}, defaulting to Kenya statutory deductions");
         return $this->getKenyaStatutoryDeductions($businessId, $grossPay, $basicPay, $employeeId, $payrollId);
     }
@@ -1687,7 +1574,6 @@ class PayrollController extends Controller
     {
         $deductions = [];
 
-        // NSSF: 5% employee + 5% employer = 10% total
         $nssfEmployee = round($grossPay * 0.05, 2);
         $nssfTotal = round($nssfEmployee);
 
@@ -1696,12 +1582,11 @@ class PayrollController extends Controller
             'total' => $nssfTotal,
         ];
 
-        // Uganda does not have these deductions
         $deductions['shif'] = 0;
         $deductions['housing-levy'] = 0;
         $deductions['nhif'] = 0;
         $deductions['helb'] = 0;
-        $deductions['paye'] = 0; // Calculated separately
+        $deductions['paye'] = 0;
 
         Log::debug("Uganda statutory deductions calculated", [
             'employee_id' => $employeeId,
@@ -1712,10 +1597,6 @@ class PayrollController extends Controller
         return $deductions;
     }
 
-    /**
-     * Kenya statutory deductions
-     * This contains all your existing Kenya NSSF/SHIF/Housing Levy logic
-     */
     protected function getKenyaStatutoryDeductions($businessId, $grossPay, $basicPay, $employeeId, $payrollId)
     {
         $deductions = [];
@@ -1725,7 +1606,6 @@ class PayrollController extends Controller
             $deductions[$slug] = $this->calculateStatutoryDeduction($businessId, $slug, $grossPay, $basicPay, $grossPay, $employeeId, $payrollId);
         }
 
-        // NSSF split into employee and employer contributions
         $nssfTotal = $this->calculateNSSFContribution($businessId, $grossPay, $employeeId, $payrollId);
         $nssfEmployee = $nssfTotal / 2;
         $nssfEmployer = $nssfTotal / 2;
@@ -1768,7 +1648,7 @@ class PayrollController extends Controller
                 if ($type === 'allowances') {
                     $baseForCalc = match ($modelItem->calculation_basis) {
                         'basic_pay' => $baseAmount,
-                        'gross_pay' => $grossPay ?? $baseAmount, // Gross pay may not be set yet, use base as proxy
+                        'gross_pay' => $grossPay ?? $baseAmount,
                         default => $baseAmount,
                     };
                     $computedAmount = $modelItem->type === 'fixed'
@@ -1778,12 +1658,12 @@ class PayrollController extends Controller
                         'name' => $modelItem->name,
                         'amount' => $computedAmount,
                         'is_taxable' => $modelItem->is_taxable,
-                        'tax_application' => 'before_tax', // Default for allowances
+                        'tax_application' => 'before_tax',
                     ];
                 } elseif ($type === 'reliefs') {
                     $baseForPercentage = match ($modelItem->percentage_of ?? 'total_salary') {
                         'basic_salary' => $baseAmount,
-                        'net_salary' => $grossPay - $totalDeductions ?? $baseAmount, // Approximate
+                        'net_salary' => $grossPay - $totalDeductions ?? $baseAmount,
                         'total_salary' => $grossPay ?? $baseAmount,
                         default => $grossPay ?? $baseAmount,
                     };
@@ -1801,7 +1681,7 @@ class PayrollController extends Controller
                         'basic_pay' => $baseAmount,
                         'gross_pay' => $grossPay ?? $baseAmount,
                         'taxable_pay' => $taxableIncome,
-                        'cash_pay' => $grossPay - $nssfEmployee ?? $baseAmount, // Approximate
+                        'cash_pay' => $grossPay - $nssfEmployee ?? $baseAmount,
                         default => $grossPay ?? $baseAmount,
                     };
                     switch ($modelItem->computation_method) {
@@ -1812,8 +1692,8 @@ class PayrollController extends Controller
                             $computedAmount = number_format($baseForCalc * ($rate / 100), 3, '.', '');
                             break;
                         case 'formula':
-                            // Simplified formula handling (extend as needed)
-                            $computedAmount = $modelItem->actual_amount ? $amount : number_format($baseForCalc * 0.05, 3, '.', ''); // Example for FringeBenefit(5%)
+
+                            $computedAmount = $modelItem->actual_amount ? $amount : number_format($baseForCalc * 0.05, 3, '.', '');
                             break;
                         default:
                             $computedAmount = $amount;
@@ -1911,7 +1791,6 @@ class PayrollController extends Controller
                 }
             }
 
-            // Ensure mandatory Kenyan reliefs if not overridden
             if ($type === 'reliefs' && !$hasSettings) {
                 $mandatoryReliefs = [
                     'personal-relief' => ['name' => 'Personal Relief', 'amount' => 2400],
@@ -2021,7 +1900,6 @@ class PayrollController extends Controller
             $payroll = Payroll::where('business_id', $business->id)->where('id', $id)->firstOrFail();
             $payroll->delete();
 
-            // Calculate updated totals after deletion
             $payrolls = Payroll::where('business_id', $business->id)
                 ->with('employeePayrolls')
                 ->get();
@@ -2035,7 +1913,6 @@ class PayrollController extends Controller
         });
     }
 
-
     public function closeMonth(Request $request, $payrollId)
     {
         return $this->handleTransaction(function () use ($payrollId) {
@@ -2045,12 +1922,10 @@ class PayrollController extends Controller
                 return RequestResponse::badRequest('Payroll not found.');
             }
 
-
             $business = Business::find($payroll->business_id);
             if (!$business) {
                 return RequestResponse::badRequest('Business not found.');
             }
-
 
             $payrolls = Payroll::where('business_id', $business->id)
                 ->where('payrun_month', $payroll->payrun_month)
@@ -2083,7 +1958,6 @@ class PayrollController extends Controller
             );
         });
     }
-
 
     public function emailP9(Request $request, $id)
     {
@@ -2141,7 +2015,6 @@ class PayrollController extends Controller
                     $user->email = 'no-email-' . $employeePayroll->employee_id . '@example.com';
                 }
 
-                // Fetch all payroll data for the employee for the year
                 $allEmployeePayrolls = EmployeePayroll::where('employee_id', $employeePayroll->employee_id)
                     ->whereHas('payroll', function ($query) use ($business, $year) {
                         $query->where('business_id', $business->id)->where('payrun_year', $year);
@@ -2149,7 +2022,6 @@ class PayrollController extends Controller
                     ->with('payroll')
                     ->get();
 
-                // Initialize 12-month data with defaults
                 $monthlyData = array_fill(1, 12, [
                     'basic_salary' => 0.00,
                     'benefits_non_cash' => 0.00,
@@ -2171,7 +2043,6 @@ class PayrollController extends Controller
                     'total_deductions' => 0.00,
                 ]);
 
-                // Populate monthlyData with actual data from all payrolls
                 foreach ($allEmployeePayrolls as $payrollEntry) {
                     $payrollMonth = $payrollEntry->payroll->payrun_month;
                     $deductions = json_decode($payrollEntry->deductions, true) ?: [];
@@ -2185,37 +2056,27 @@ class PayrollController extends Controller
                     $insuranceRelief = (float) ($payrollEntry->insurance_relief ?? 0.00);
                     $paye = (float) ($payrollEntry->paye ?? 0.00);
 
-                    // Calculate actual NSSF contribution (from deductions or specific field)
                     $nssfContribution = (float) ($deductions['nssf'] ?? $payrollEntry->nssf ?? 0.00);
 
-                    // Calculate other pension contribution (from deductions)
                     $pensionContribution = (float) ($deductions['pension'] ?? 0.00);
 
-                    // retirement_e2: Defined Contribution (Actual) = NSSF + other pension contribution
                     $retirementE2 = ($basicSalary > 0 || $grossPay > 0) ? ($nssfContribution + $pensionContribution) : 0.00;
 
-                    // Calculate allowable retirement contribution
-                    $actualRetirement = $retirementE2; // Total actual contribution
+                    $actualRetirement = $retirementE2;
                     $maxRetirement = min($actualRetirement, $basicSalary * 0.3, 30000.00);
                     $retirementContribution = $maxRetirement;
 
-                    // Post-Retirement Medical Fund (assume from deductions if available, capped at 15,000)
                     $postRetirementMedical = min((float) ($deductions['post_retirement_medical'] ?? 0.00), 15000.00);
 
-                    // Mortgage Interest (assume from deductions if available, capped at 30,000)
                     $mortgageInterest = min((float) ($deductions['mortgage_interest'] ?? 0.00), 30000.00);
 
-                    // Insurance Relief (override with stored value if available, else calculate)
                     $insurancePremium = (float) ($deductions['insurance_premium'] ?? 0.00);
                     $insuranceRelief = ($insuranceRelief > 0) ? $insuranceRelief : min($insurancePremium * 0.15, 60000.00 / 12);
 
-                    // Total deductions (using stored values where available)
                     $totalDeductions = $retirementContribution + $housingLevy + $shif + $postRetirementMedical + $mortgageInterest;
 
-                    // Taxable income (use stored value if available)
                     $chargeablePay = ($taxableIncome > 0) ? $taxableIncome : max(0, $grossPay - $totalDeductions);
 
-                    // Tax charged (use stored value if available)
                     $taxCharged = ($payeBeforeReliefs > 0) ? $payeBeforeReliefs : 0;
                     if ($chargeablePay > 0 && $taxCharged == 0) {
                         if ($chargeablePay <= 24000) {
@@ -2231,11 +2092,9 @@ class PayrollController extends Controller
                         }
                     }
 
-                    // Apply personal relief (use stored value if available)
                     $personalRelief = ($personalRelief > 0) ? $personalRelief : (($basicSalary > 0 || $grossPay > 0) ? 2400.00 : 0.00);
                     $paye = ($paye > 0) ? $paye : max(0, $taxCharged - $personalRelief);
 
-                    // Apply retirement_e3 only if data exists
                     $retirement_e3 = ($basicSalary > 0 || $grossPay > 0) ? 30000.00 : 0.00;
 
                     $monthlyData[$payrollMonth] = [
@@ -2243,8 +2102,8 @@ class PayrollController extends Controller
                         'benefits_non_cash' => 0.00,
                         'value_of_quarters' => 0.00,
                         'total_gross_pay' => $grossPay,
-                        'retirement_e1' => $basicSalary * 0.3, // For reference
-                        'retirement_e2' => $retirementE2, // Defined Contribution (Actual)
+                        'retirement_e1' => $basicSalary * 0.3,
+                        'retirement_e2' => $retirementE2,
                         'retirement_e3' => $retirement_e3,
                         'housing_levy' => $housingLevy,
                         'shif' => $shif,
@@ -2340,263 +2199,6 @@ class PayrollController extends Controller
         });
     }
 
-
-    // public function emailP9(Request $request, $id)
-    // {
-    //     return $this->handleTransaction(function () use ($id, $request) {
-    //         $business = Business::findBySlug(session('active_business_slug'));
-    //         if (!$business) {
-    //             Log::error('Business not found.', ['slug' => session('active_business_slug')]);
-    //             return RequestResponse::badRequest('Business not found.');
-    //         }
-
-    //         try {
-    //             $payroll = Payroll::where('business_id', $business->id)
-    //                 ->where('id', $id)
-    //                 ->with(['employeePayrolls.employee.user'])
-    //                 ->firstOrFail();
-    //         } catch (\Exception $e) {
-    //             Log::error('Failed to load payroll', ['id' => $id, 'business_id' => $business->id, 'error' => $e->getMessage()]);
-    //             return RequestResponse::badRequest('Failed to load payroll data.', ['error' => $e->getMessage()]);
-    //         }
-
-    //         $year = $payroll->payrun_year;
-    //         $month = $payroll->payrun_month;
-    //         Log::info('Parsed payrun_month', ['year' => $year, 'month' => $month, 'payroll_id' => $payroll->id]);
-    //         Log::info('Payroll record', ['id' => $payroll->id, 'business_id' => $payroll->business_id, 'payrun_month' => $payroll->payrun_month]);
-    //         Log::info('EmployeePayrolls raw', ['count' => $payroll->employeePayrolls->count(), 'ids' => $payroll->employeePayrolls->pluck('id')->toArray()]);
-
-    //         $p9Dir = storage_path('app/public/p9/');
-    //         if (!File::exists($p9Dir)) {
-    //             File::makeDirectory($p9Dir, 0777, true);
-    //             Log::info('Created p9 storage directory', ['path' => $p9Dir]);
-    //         }
-
-    //         $successCount = 0;
-    //         Log::info('Before manual fetch', ['payroll_id' => $payroll->id, 'employeePayrolls_count' => $payroll->employeePayrolls->count()]);
-    //         $employeePayrolls = EmployeePayroll::where('payroll_id', $payroll->id)->with(['employee.user'])->get();
-    //         Log::info('Fetched EmployeePayrolls', ['count' => $employeePayrolls->count(), 'ids' => $employeePayrolls->pluck('id')->toArray(), 'employee_ids' => $employeePayrolls->pluck('employee_id')->toArray()]);
-    //         if ($employeePayrolls->isEmpty()) {
-    //             Log::error('Manual fetch returned no records', ['payroll_id' => $payroll->id]);
-    //             return RequestResponse::badRequest('No payroll records found for the given ID.');
-    //         }
-
-    //         foreach ($employeePayrolls as $employeePayroll) {
-    //             Log::info('Processing employeePayroll', ['id' => $employeePayroll->id, 'employee_id' => $employeePayroll->employee_id, 'employee' => $employeePayroll->employee ? 'exists' : 'null']);
-    //             $employee = $employeePayroll->employee;
-    //             if (!$employee) {
-    //                 Log::warning('Skipping employeePayroll with null employee', ['employeePayroll_id' => $employeePayroll->id, 'employee_id' => $employeePayroll->employee_id]);
-    //                 continue;
-    //             }
-
-    //             $user = $employee->user;
-    //             Log::info('Employee user', ['employee_id' => $employeePayroll->employee_id, 'user' => $user ? 'exists' : 'null', 'user_id' => $employee->user_id, 'email' => $user->email ?? 'null']);
-    //             if (!$user) {
-    //                 Log::warning('No user found for employee, using fallback', ['employee_id' => $employeePayroll->employee_id, 'user_id' => $employee->user_id]);
-    //                 $user = new \stdClass();
-    //                 $user->email = 'no-email-' . $employeePayroll->employee_id . '@example.com';
-    //             }
-
-    //             // Fetch all payroll data for the employee for the year
-    //             $allEmployeePayrolls = EmployeePayroll::where('employee_id', $employeePayroll->employee_id)
-    //                 ->whereHas('payroll', function ($query) use ($business, $year) {
-    //                     $query->where('business_id', $business->id)->where('payrun_year', $year);
-    //                 })
-    //                 ->with('payroll')
-    //                 ->get();
-
-    //             // Initialize 12-month data with defaults
-    //             $monthlyData = array_fill(1, 12, [
-    //                 'basic_salary' => 0.00, 'benefits_non_cash' => 0.00, 'value_of_quarters' => 0.00,
-    //                 'total_gross_pay' => 0.00, 'retirement_e1' => 0.00, 'retirement_e2' => 0.00,
-    //                 'retirement_e3' => 0.00, 'housing_levy' => 0.00, 'shif' => 0.00, 'prmf' => 0.00,
-    //                 'owner_occupied_interest' => 0.00, 'retirement_contribution' => 0.00,
-    //                 'chargeable_pay' => 0.00, 'tax_charged' => 0.00, 'personal_relief' => 0.00,
-    //                 'insurance_relief' => 0.00, 'paye' => 0.00, 'total_deductions' => 0.00,
-    //             ]);
-
-    //             // Populate monthlyData with actual data from all payrolls
-    //             foreach ($allEmployeePayrolls as $payrollEntry) {
-    //                 $payrollMonth = $payrollEntry->payroll->payrun_month;
-    //                 $deductions = json_decode($payrollEntry->deductions, true) ?: [];
-    //                 $basicSalary = (float) ($payrollEntry->basic_salary ?? 0.00);
-    //                 $grossPay = (float) ($payrollEntry->gross_pay ?? 0.00);
-
-    //                 // Calculate NSSF (approximate employee portion, e.g., 3,000 KES as per example, adjust if specific data exists)
-    //                 $nssfContribution = min(3000.00, $grossPay * 0.06); // Assuming 6% up to a cap, adjust if needed
-
-    //                 // Calculate other pension contribution (from deductions)
-    //                 $pensionContribution = (float) ($deductions['pension'] ?? 0.00);
-
-    //                 // retirement_e2: Defined Contribution (Actual) = NSSF + other pension contribution
-    //                 $retirementE2 = ($basicSalary > 0 || $grossPay > 0) ? ($nssfContribution + $pensionContribution) : 0.00;
-
-    //                 // Calculate allowable retirement contribution
-    //                 $actualRetirement = $retirementE2; // Total actual contribution
-    //                 $maxRetirement = min($actualRetirement, $basicSalary * 0.3, 30000.00);
-    //                 $retirementContribution = $maxRetirement;
-
-    //                 // SHIF: 2.75% of gross salary
-    //                 $shif = $grossPay * 0.0275;
-
-    //                 // Affordable Housing Levy: 1.5% of gross salary
-    //                 $housingLevy = $grossPay * 0.015;
-
-    //                 // Post-Retirement Medical Fund (assume from deductions if available, capped at 15,000)
-    //                 $postRetirementMedical = min((float) ($deductions['post_retirement_medical'] ?? 0.00), 15000.00);
-
-    //                 // Mortgage Interest (assume from deductions if available, capped at 30,000)
-    //                 $mortgageInterest = min((float) ($deductions['mortgage_interest'] ?? 0.00), 30000.00);
-
-    //                 // Insurance Relief (assume from deductions if available, 15% capped at 60,000 annually)
-    //                 $insurancePremium = (float) ($deductions['insurance_premium'] ?? 0.00);
-    //                 $insuranceRelief = min($insurancePremium * 0.15, 60000.00 / 12); // Monthly cap from annual 60,000
-
-    //                 // Total deductions
-    //                 $totalDeductions = $retirementContribution + $housingLevy + $shif + $postRetirementMedical + $mortgageInterest;
-
-    //                 // Taxable income
-    //                 $chargeablePay = max(0, $grossPay - $totalDeductions);
-
-    //                 // PAYE calculation (2025 Kenya tax bands, assuming no change unless specified)
-    //                 $taxCharged = 0;
-    //                 if ($chargeablePay > 0) {
-    //                     if ($chargeablePay <= 24000) {
-    //                         $taxCharged = $chargeablePay * 0.1;
-    //                     } elseif ($chargeablePay <= 32333) {
-    //                         $taxCharged = 2400 + ($chargeablePay - 24000) * 0.15;
-    //                     } elseif ($chargeablePay <= 500000) {
-    //                         $taxCharged = 3724 + ($chargeablePay - 32333) * 0.2;
-    //                     } elseif ($chargeablePay <= 800000) {
-    //                         $taxCharged = 97224 + ($chargeablePay - 500000) * 0.25;
-    //                     } else {
-    //                         $taxCharged = 172224 + ($chargeablePay - 800000) * 0.3;
-    //                     }
-    //                 }
-
-    //                 // Apply personal relief only if data exists
-    //                 $personalRelief = ($basicSalary > 0 || $grossPay > 0) ? 2400.00 : 0.00;
-    //                 $paye = max(0, $taxCharged - $personalRelief);
-    //                 $retirement_e3=($basicSalary > 0 || $grossPay > 0) ? 30000.00 : 0.00;
-
-    //                 $monthlyData[$payrollMonth] = [
-    //                     'basic_salary' => $basicSalary,
-    //                     'benefits_non_cash' => 0.00,
-    //                     'value_of_quarters' => 0.00,
-    //                     'total_gross_pay' => $grossPay,
-    //                     'retirement_e1' => $basicSalary * 0.3, // For reference
-    //                     'retirement_e2' => $retirementE2, // Defined Contribution (Actual)
-    //                     'retirement_e3' => $retirement_e3,
-    //                     'housing_levy' => $housingLevy,
-    //                     'shif' => $shif,
-    //                     'prmf' => $postRetirementMedical,
-    //                     'owner_occupied_interest' => $mortgageInterest,
-    //                     'retirement_contribution' => $retirementContribution,
-    //                     'chargeable_pay' => $chargeablePay,
-    //                     'tax_charged' => $taxCharged,
-    //                     'personal_relief' => $personalRelief,
-    //                     'insurance_relief' => $insuranceRelief,
-    //                     'paye' => $paye,
-    //                     'total_deductions' => $totalDeductions,
-    //                 ];
-    //             }
-    //             Log::info('Populated monthly data', ['employee_id' => $employeePayroll->employee_id, 'monthly_data' => $monthlyData]);
-
-    //             $totals = [
-    //                 'basic_salary' => 0, 'benefits_non_cash' => 0, 'value_of_quarters' => 0,
-    //                 'total_gross_pay' => 0, 'retirement_e1' => 0, 'retirement_e2' => 0,
-    //                 'retirement_e3' => 0, 'housing_levy' => 0, 'shif' => 0, 'prmf' => 0,
-    //                 'owner_occupied_interest' => 0, 'retirement_contribution' => 0,
-    //                 'chargeable_pay' => 0, 'tax_charged' => 0, 'personal_relief' => 0,
-    //                 'insurance_relief' => 0, 'paye' => 0, 'total_deductions' => 0,
-    //             ];
-    //             foreach ($monthlyData as $monthData) {
-    //                 foreach ($totals as $key => $value) {
-    //                     $totals[$key] += $monthData[$key] ?? 0;
-    //                 }
-    //             }
-
-    //             $employeeDetails = [
-    //                 'main_name' => $user->name ?? 'N/A',
-    //                 'pin' => $employee->tax_no ?? 'N/A',
-    //                 'nssf' => $employee->nssf_no ?? 'N/A',
-    //                 'shif' => $employee->shif_no ?? 'N/A',
-    //                 'company_name' => $business->company_name ?? $business->name,
-    //                 'tax_no' => $business->tax_pin_no ?? 'N/A',
-    //             ];
-
-    //             $data = [
-    //                 [
-    //                     'employee_name' => $employeeDetails['company_name'],
-    //                     'tax_no' => $employeeDetails['tax_no'],
-    //                     'main_name' => $employeeDetails['main_name'],
-    //                     'pin' => $employeeDetails['pin'],
-    //                     'nssf' => $employeeDetails['nssf'],
-    //                     'shif' => $employeeDetails['shif'],
-    //                     'monthly_data' => $monthlyData,
-    //                     'totals' => $totals,
-    //                 ],
-    //             ];
-
-    //             Log::info('Generated P9 data', ['data' => $data]);
-
-    //             if (!view()->exists('payroll.reports.p9')) {
-    //                 Log::error('View payroll.reports.p9 does not exist');
-    //                 return RequestResponse::serverError('P9 view not found.');
-    //             }
-
-    //             try {
-    //                 $pdf = Pdf::loadView('payroll.reports.p9', array_merge(['business' => $business, 'year' => $year], ['data' => $data]))
-    //                     ->setPaper('A4', 'landscape');
-    //                 $pdfPath = storage_path('app/public/p9/' . $employeePayroll->id . '.pdf');
-    //                 $pdf->save($pdfPath);
-
-    //                 Log::info('Attempting to send email', ['email' => $user->email, 'pdfPath' => $pdfPath]);
-    //                 Mail::to($user->email)->send(new \App\Mail\P9Mail($employeePayroll, $pdfPath, $year, $user));
-    //                 $successCount++;
-    //                 Log::info('Email sent successfully', ['email' => $user->email]);
-    //             } catch (\Exception $e) {
-    //                 Log::error('Failed to generate or email P9', ['employee_id' => $employeePayroll->employee_id, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString(), 'email' => $user->email ?? 'null']);
-    //                 return RequestResponse::badRequest('Failed to generate or email P9.', ['error' => $e->getMessage()]);
-    //             }
-    //         }
-
-    //         if ($successCount === 0) {
-    //             return RequestResponse::badRequest('No P9 forms were emailed due to invalid data or missing emails.');
-    //         }
-
-    //         return RequestResponse::ok("Successfully emailed $successCount P9 forms.");
-    //     });
-    // }
-
-    // public function emailP9(Request $request, $id)
-    // {
-    //     return $this->handleTransaction(function () use ($id) {
-    //         $business = Business::findBySlug(session('active_business_slug'));
-    //         if (!$business) {
-    //             return RequestResponse::badRequest('Business not found.');
-    //         }
-
-    //         $payroll = Payroll::where('business_id', $business->id)
-    //             ->where('id', $id)
-    //             ->with(['employeePayrolls.employee.user'])
-    //             ->firstOrFail();
-
-    //         foreach ($payroll->employeePayrolls as $employeePayroll) {
-    //             $employee = $employeePayroll->employee;
-    //             $user = $employee->user;
-
-    //             if ($user && $user->email) {
-    //                 $pdf = Pdf::loadView('payroll.p9', compact('employeePayroll', 'employee', 'user'));
-    //                 $pdfPath = storage_path('app/public/p9/' . $employeePayroll->id . '.pdf');
-    //                 $pdf->save($pdfPath);
-
-    //                 Mail::to($user->email)->send(new \App\Mail\P9Mail($employeePayroll, $pdfPath));
-    //             }
-    //         }
-
-    //         return RequestResponse::ok('P9 forms emailed successfully.');
-    //     });
     // }
 
     public function downloadPayroll(Request $request, $id, $format = 'pdf')
@@ -2616,7 +2218,6 @@ class PayrollController extends Controller
             ->with(['employeePayrolls.employee.user'])
             ->firstOrFail();
 
-        // Determine entity (Business or Location)
         $entity = $business;
         $entityType = 'business';
         if ($payroll->location_id) {
@@ -2629,7 +2230,6 @@ class PayrollController extends Controller
             }
         }
 
-        // Prepare comprehensive payroll data
         $data = $payroll->employeePayrolls->map(function ($ep) {
             $deductions = json_decode($ep->deductions, true) ?? [];
             $overtime = json_decode($ep->overtime, true) ?? ['amount' => 0];
@@ -2676,7 +2276,6 @@ class PayrollController extends Controller
             ];
         })->toArray();
 
-        // Calculate totals
         $totals = [
             'totalBasicSalary' => array_sum(array_column($data, 'basic_salary')),
             'totalGrossPay' => array_sum(array_column($data, 'gross_pay')),
@@ -2749,7 +2348,6 @@ class PayrollController extends Controller
                     }, $row, array_keys($row))) . "\n";
                 }
 
-                // ── TOTALS ROW (Fix: was missing) ──────────────────────────────────
                 $totalsRow = array_map(function ($key) use ($totals, $currency) {
                     return match ($key) {
                         'employee_name'  => '"TOTALS"',
@@ -2782,7 +2380,6 @@ class PayrollController extends Controller
                     };
                 }, array_keys($data[0] ?? []));
                 $csvData .= implode(',', $totalsRow) . "\n";
-                // ── END TOTALS ROW ─────────────────────────────────────────────────
 
                 return Response::make($csvData, 200, [
                     'Content-Type' => 'text/csv',
@@ -2791,7 +2388,7 @@ class PayrollController extends Controller
 
             case 'xlsx':
                 try {
-                    $totalsRef = $totals; // capture for closure
+                    $totalsRef = $totals;
 
                     return Excel::download(new class($data, $currency, $totalsRef) implements
                         \Maatwebsite\Excel\Concerns\FromArray,
@@ -2814,7 +2411,6 @@ class PayrollController extends Controller
                         {
                             $rows = $this->data;
 
-                            // ── TOTALS ROW (Fix: was missing) ───────────────────────
                             $keys = array_keys($this->data[0] ?? []);
                             $totalsRow = array_map(fn($key) => match ($key) {
                                 'employee_name'       => 'TOTALS',
@@ -2847,7 +2443,6 @@ class PayrollController extends Controller
                             }, $keys);
 
                             $rows[] = array_combine($keys, $totalsRow);
-                            // ── END TOTALS ROW ──────────────────────────────────────
 
                             return $rows;
                         }
@@ -2864,11 +2459,11 @@ class PayrollController extends Controller
 
                         public function styles(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $sheet): array
                         {
-                            $lastRow = count($this->data) + 2; // +1 heading +1 totals
+                            $lastRow = count($this->data) + 2;
                             return [
-                                1           => ['font' => ['bold' => true]],           // heading row
+                                1           => ['font' => ['bold' => true]],
                                 $lastRow    => [
-                                    'font' => ['bold' => true],             // totals row bold
+                                    'font' => ['bold' => true],
                                     'fill' => [
                                         'fillType' => 'solid',
                                         'color' => ['rgb' => 'E8E8E8']
@@ -2928,17 +2523,14 @@ class PayrollController extends Controller
             'employee_payroll' => $employeePayroll->toArray()
         ]);
 
-        // Currency Conversion Logic
         $targetCurrency = strtoupper($employeePayroll->employee->user->country ?? 'USD');
         $baseCurrency = $employeePayroll->payroll->currency;
         $exchangeRatesData = $this->getExchangeRates($baseCurrency, $targetCurrency);
 
-        // Extract the rate as a float, with fallback to 1.0
         $exchangeRates = is_array($exchangeRatesData) && isset($exchangeRatesData['rate']) && is_numeric($exchangeRatesData['rate'])
             ? floatval($exchangeRatesData['rate'])
             : 1.0;
 
-        // Log the exchange rate for debugging
         Log::info('Exchange Rate Used', [
             'base_currency' => $baseCurrency,
             'target_currency' => $targetCurrency,
@@ -2958,7 +2550,7 @@ class PayrollController extends Controller
     private function getExchangeRates($baseCurrency, $targetCurrency)
     {
         try {
-            // Fetch latest exchange rates
+
             $response = Http::get("https://api.frankfurter.dev/v1/latest", [
                 'base' => $baseCurrency,
                 'symbols' => $targetCurrency
@@ -3012,20 +2604,8 @@ class PayrollController extends Controller
             }, 'employeePayrolls.employee.user', 'employeePayrolls.employee.paymentDetails', 'employeePayrolls.employee.payrollDetail'])
             ->firstOrFail();
 
-
-        // $payroll = Payroll::where('business_id', $business->id)
-        //     ->where('id', $payroll_id)
-        //     ->with([
-        //         'employeePayrolls.employee.user',
-        //         'employeePayrolls.employee.paymentDetails',
-        //         'employeePayrolls.employee.payrollDetail'
-        //     ])
-        //     ->firstOrFail();
-
-        // Set default currency
         $payroll->currency = $payroll->currency ?? 'KES';
 
-        // Determine the entity (Business or Location)
         $entity = $business;
         $entityType = 'business';
         $page = $entity->company_name . ' Payroll - ' . $payroll->payrun_month . ' - ' . $payroll->payrun_year;
@@ -3042,7 +2622,6 @@ class PayrollController extends Controller
             }
         }
 
-        // Calculate totals for each column
         $totals = [
             'totalBasicSalary' => 0.00,
             'totalGrossPay' => 0.00,
@@ -3057,9 +2636,9 @@ class PayrollController extends Controller
             'totalAdvances' => 0.00,
             'totalCustomDeductions' => 0.00,
             'totalTaxableIncome' => 0.00,
-            'totalPersonalRelief' => 0.00, // Keep for backward compatibility
-            'totalInsuranceRelief' => 0.00, // Keep for backward compatibility
-            'totalReliefs' => 0.00, // Total for all reliefs
+            'totalPersonalRelief' => 0.00,
+            'totalInsuranceRelief' => 0.00,
+            'totalReliefs' => 0.00,
             'totalPayAfterTax' => 0.00,
             'totalDeductionsAfterTax' => 0.00,
             'totalNetPay' => 0.00,
@@ -3072,7 +2651,7 @@ class PayrollController extends Controller
             $overtime = json_decode($ep->overtime, true) ?? ['amount' => 0.00];
             $allowances = json_decode($ep->allowances, true) ?? [];
             $deductions = json_decode($ep->deductions, true) ?? [];
-            $reliefs = json_decode($ep->reliefs, true) ?? []; // Read from employee_payrolls.reliefs
+            $reliefs = json_decode($ep->reliefs, true) ?? [];
 
             $totals['totalBasicSalary'] += (float) ($ep->basic_salary ?? 0);
             $totals['totalGrossPay'] += (float) ($ep->gross_pay ?? 0);
@@ -3086,15 +2665,14 @@ class PayrollController extends Controller
             $totals['totalLoans'] += (float) ($ep->loan_repayment ?? ($deductions['loan_repayment'] ?? 0));
             $totals['totalAdvances'] += (float) ($ep->advance_recovery ?? ($deductions['advance_recovery'] ?? 0));
             $totals['totalTaxableIncome'] += (float) ($ep->taxable_income ?? 0);
-            $totals['totalPersonalRelief'] += (float) ($ep->personal_relief ?? ($reliefs['personal-relief']['amount'] ?? 0)); // Compatibility
-            $totals['totalInsuranceRelief'] += (float) ($ep->insurance_relief ?? ($reliefs['insurance-relief']['amount'] ?? 0)); // Compatibility
-            $totals['totalReliefs'] += (float) array_sum(array_map(fn($r) => $r['amount'] ?? 0, $reliefs)); // Sum all reliefs
+            $totals['totalPersonalRelief'] += (float) ($ep->personal_relief ?? ($reliefs['personal-relief']['amount'] ?? 0));
+            $totals['totalInsuranceRelief'] += (float) ($ep->insurance_relief ?? ($reliefs['insurance-relief']['amount'] ?? 0));
+            $totals['totalReliefs'] += (float) array_sum(array_map(fn($r) => $r['amount'] ?? 0, $reliefs));
             $totals['totalPayAfterTax'] += (float) ($ep->pay_after_tax ?? 0);
             $totals['totalDeductionsAfterTax'] += (float) ($ep->deductions_after_tax ?? 0);
             $totals['totalNetPay'] += (float) ($ep->net_pay ?? 0);
             $totals['totalPayeBeforeReliefs'] += (float) ($ep->paye_before_reliefs ?? 0);
 
-            // Custom deductions
             $customDeductions = array_filter($deductions, function ($deduction) {
                 if (!is_array($deduction) || !isset($deduction['name'])) {
                     return false;
@@ -3113,438 +2691,14 @@ class PayrollController extends Controller
             });
             $totals['totalCustomDeductions'] += (float) array_sum(array_map(fn($d) => $d['amount'] ?? 0.0, $customDeductions));
 
-            // Absenteeism Charge
             $absenteeism = array_filter($deductions, fn($d) => is_array($d) && stripos($d['name'] ?? '', 'Absenteeism Charge') !== false);
             $totals['totalAbsenteeismCharge'] += (float) array_sum(array_map(fn($d) => $d['amount'] ?? 0.0, $absenteeism));
         }
 
-        // Calculate total statutory deductions
         $totals['totalStatutoryDeductions'] = $totals['totalShif'] + $totals['totalNssf'] + $totals['totalPaye'] + $totals['totalHousingLevy'] + $totals['totalHelb'];
 
         return view('payroll.view', compact('business', 'payroll', 'entity', 'entityType', 'page', 'totals'));
     }
-
-    // public function downloadColumn(Request $request, $payroll_id, $column, $format)
-    // {
-    //     $businessSlug = $request->route('business') ?? session('active_business_slug');
-    //     $business = Business::findBySlug($businessSlug);
-
-    //     $payroll_id = $request->id;
-    //     $column = $request->column;
-    //     $format = $request->format;
-
-    //     if (!$business) {
-    //         Log::error("Business not found for slug: " . ($businessSlug ?? 'Not set'));
-    //         abort(404, 'Business not found.');
-    //     }
-
-    //     $payroll = Payroll::where('business_id', $business->id)
-    //         ->where('id', $payroll_id)
-    //         ->with(['employeePayrolls.employee.user', 'employeePayrolls.employee'])
-    //         ->firstOrFail();
-
-    //     $payrunYear = $payroll->payrun_year;
-    //     $payrunMonth = $payroll->payrun_month;
-
-    //     $validColumns = [
-    //         'basic_salary',
-    //         'gross_pay',
-    //         'net_pay',
-    //         'meal_allowance',
-    //         'tax_no',
-    //         'overtime',
-    //         'shif',
-    //         'nssf',
-    //         'paye',
-    //         'paye_before_reliefs',
-    //         'housing_levy',
-    //         'helb',
-    //         'taxable_income',
-    //         'personal_relief',
-    //         'insurance_relief',
-    //         'pay_after_tax',
-    //         'loan_repayment',
-    //         'advance_recovery',
-    //         'deductions_after_tax',
-    //         'attendance_present',
-    //         'attendance_absent',
-    //         'days_in_month',
-    //         'bank_name',
-    //         'account_number'
-    //     ];
-
-    //     $column = strtolower(trim($column));
-    //     $format = strtolower(trim($format));
-    //     if (!in_array($column, $validColumns)) {
-    //         Log::warning("Invalid column name requested: {$column}");
-    //         abort(400, 'Invalid column name.');
-    //     }
-
-    //     $data = $payroll->employeePayrolls->map(function ($ep) use ($column) {
-    //         $employee = $ep->employee;
-    //         $user = $employee->user;
-    //         $deductions = json_decode($ep->deductions, true) ?? [];
-    //         $allowances = json_decode($ep->allowances, true) ?? [];
-    //         $reliefs = json_decode($ep->reliefs, true) ?? [];
-    //         $overtime = floatval(json_decode($ep->overtime, true)['amount'] ?? 0);
-
-    //         $getAllowance = function ($name) use ($allowances) {
-    //             foreach ($allowances as $allowance) {
-    //                 if (strtolower($allowance['name'] ?? '') === strtolower($name)) return floatval($allowance['amount'] ?? 0);
-    //             }
-    //             return 0.0;
-    //         };
-
-    //         $getRelief = function ($key) use ($reliefs, $ep) {
-    //             return isset($reliefs[$key]['amount']) ? floatval($reliefs[$key]['amount']) : floatval($ep->$key ?? 0);
-    //         };
-
-    //         // Base row with common fields for all columns
-    //         $row = [
-    //             'employee_name' => $user->name ?? 'N/A',
-    //             'employee_code' => $employee->employee_code ?? 'N/A',
-    //             'tax_no' => $employee->tax_no ?? 'N/A',
-    //             'basic_salary' => number_format($ep->basic_salary ?? 0, 2),
-    //             'gross_pay' => number_format($ep->gross_pay ?? 0, 2),
-    //             'net_pay' => number_format($ep->net_pay ?? 0, 2),
-    //         ];
-
-    //         if ($column === 'paye') {
-    //             // Use direct values from employee_payrolls for PAYE and PAYE before reliefs
-    //             $payeValue = floatval($ep->paye ?? 0); // Direct PAYE from table
-    //             $payeBeforeReliefs = floatval($ep->paye_before_reliefs ?? 0); // Direct value from table
-    //             $personalRelief = $getRelief('personal-relief');
-    //             $insuranceRelief = $getRelief('insurance-relief');
-
-    //             // Strict order for PAYE as requested
-    //             $payeRow = [
-    //                 $employee->tax_no ?? 'N/A', // PIN of Employee
-    //                 $user->name ?? 'N/A', // Name of Employee
-    //                 $employee->resident_status ?? 'Resident', // Resident Status
-    //                 $employee->kra_employee_status ?? 'Primary Employee', // Type of Employee
-    //                 number_format($ep->basic_salary ?? 0, 2), // Basic Salary (from table)
-    //                 number_format($getAllowance('Housing Allowance'), 2), // Housing Allowance
-    //                 number_format($getAllowance('Transport Allowance'), 2), // Transport Allowance
-    //                 number_format($getAllowance('Leave Allowance'), 2), // Leave Pay
-    //                 number_format($overtime, 2), // Overtime
-    //                 number_format(0, 2), // Director's Fee
-    //                 number_format(0, 2), // Lump Sum Payment
-    //                 number_format(max(0, ($ep->gross_pay ?? 0) - ($ep->basic_salary ?? 0) - $getAllowance('Housing Allowance') - $getAllowance('Transport Allowance') - $overtime), 2), // Other Allowance
-    //                 '', // Total Cash Pay (leave blank)
-    //                 number_format($getAllowance('Car Allowance'), 2), // Value of Car Benefit
-    //                 number_format(0, 2), // Other Non Cash Benefits
-    //                 '', // Total Non Cash Benefits
-    //                 number_format($getAllowance('Meal Allowance'), 2), // Value of Meals or Meal Allowance
-    //                 'Benefit Not Given', // Type of housing
-    //                 '', // Rent of House/Market Value
-    //                 '', // Computed Rent of House
-    //                 '', // Rent Recovered from Employee
-    //                 '', // Net Value of Housing
-    //                 '', // Total Gross Pay
-    //                 number_format($ep->shif ?? 0, 2), // SHIF
-    //                 number_format($ep->nssf ?? 0, 2), // Actual Pension Contribution
-    //                 number_format(0, 2), // Post Retirement Medical Fund
-    //                 number_format($getRelief('mortgage-interest-relief'), 2), // Mortgage Interest
-    //                 number_format($ep->housing_levy ?? 0, 2), // Housing Levy
-    //                 '', // Amount of Benefit
-    //                 '', // Taxable Pay
-    //                 '', // Taxable Pay * Slab Rate
-    //                 number_format($personalRelief, 2), // Monthly Personal Relief
-    //                 number_format($insuranceRelief, 2), // Insurance Relief
-    //                 '', // PAYE (computed by kra)
-    //                 number_format($payeValue, 2) // Self Assessed PAYE (direct from table)
-    //             ];
-
-    //             return $payeRow;
-    //         } else {
-    //             switch ($column) {
-    //                 case 'shif':
-    //                     $fullName = $user->name ?? 'N/A';
-    //                     $nameParts = explode(' ', $fullName, 2);
-    //                     $firstName = $nameParts[0] ?? 'N/A';
-    //                     $lastName = $nameParts[1] ?? '';
-    //                     $row = [
-    //                         $employee->employee_code ?? 'N/A', // PAYROLL NUMBER
-    //                         $firstName, // FIRSTNAME
-    //                         $lastName, // LASTNAME
-    //                         $employee->national_id ?? 'N/A', // ID NO
-    //                         $employee->tax_no ?? 'N/A', // KRA PIN
-    //                         $employee->nhif_no ?? 'N/A', // SHIF NO
-    //                         number_format($ep->shif ?? 0, 2), // CONTRIBUTION AMOUNT
-    //                         $user->phone ?? 'N/A', // PHONE
-    //                     ];
-    //                     break;
-
-    //                 case 'nssf':
-    //                     $fullName = $user->name ?? 'N/A';
-    //                     $nameParts = explode(' ', $fullName, 2);
-    //                     $surname = $nameParts[1] ?? '';
-    //                     $otherNames = $nameParts[0] ?? $fullName;
-    //                     $row = [
-    //                         $employee->employee_code ?? 'N/A', // PAYROLL NUMBER
-    //                         $surname, // SURNAME
-    //                         $otherNames, // OTHER NAMES
-    //                         $employee->national_id ?? 'N/A', // ID NO
-    //                         $employee->tax_no ?? 'N/A', // KRA PIN
-    //                         $employee->nssf_no ?? 'N/A', // NSSF NO
-    //                         number_format($ep->gross_pay ?? 0, 2), // GROSS PAY
-    //                         '', // VOLUNTARY
-    //                     ];
-    //                     break;
-
-    //                 case 'housing_levy':
-    //                     $row = [
-    //                         $employee->employee_code ?? 'N/A', // EMP NO
-    //                         $user->name ?? 'N/A', // FULL NAME
-    //                         $employee->tax_no ?? 'N/A', // TAX_NO
-    //                         number_format($ep->housing_levy ?? 0, 2), // HOUSE_LEVY AMOUNT
-    //                     ];
-    //                     break;
-
-    //                 default:
-    //                     $value = match ($column) {
-    //                         'basic_salary' => $ep->basic_salary ?? 0,
-    //                         'gross_pay' => $ep->gross_pay ?? 0,
-    //                         'net_pay' => $ep->net_pay ?? 0,
-    //                         'tax_no' => $employee->tax_no ?? 'N/A',
-    //                         'overtime' => $overtime,
-    //                         'helb' => $ep->helb ?? 0,
-    //                         'taxable_income' => $ep->taxable_income ?? 0,
-    //                         'personal_relief' => $getRelief('personal-relief'),
-    //                         'insurance_relief' => $getRelief('insurance-relief'),
-    //                         'pay_after_tax' => $ep->pay_after_tax ?? 0,
-    //                         'loan_repayment' => $ep->loan_repayment ?? 0,
-    //                         'advance_recovery' => $ep->advance_recovery ?? 0,
-    //                         'deductions_after_tax' => $ep->deductions_after_tax ?? 0,
-    //                         'attendance_present' => $ep->attendance_present ?? 0,
-    //                         'attendance_absent' => $ep->attendance_absent ?? 0,
-    //                         'days_in_month' => $ep->days_in_month ?? 0,
-    //                         'bank_name' => $ep->bank_name ?? 'N/A',
-    //                         'account_number' => $employee->account_number ?? 'N/A',
-    //                         'paye_before_reliefs' => $ep->paye_before_reliefs ?? 0,
-    //                         default => 0,
-    //                     };
-    //                     $row[$column] = is_numeric($value) ? number_format($value, 2) : $value;
-    //                     break;
-    //             }
-    //             return array_values($row);
-    //         }
-
-    //         return $row;
-    //     })->toArray();
-
-    //     $monthName = Carbon::createFromFormat('m', $payrunMonth)->format('F');
-    //     $fileName = "payroll-{$payrunYear}-{$monthName}-{$column}.{$format}";
-    //     $currency = $payroll->currency ?? 'KES';
-
-    //     switch ($format) {
-    //         case 'pdf':
-    //             try {
-    //                 $pdf = Pdf::loadView('payroll.download_column', [
-    //                     'business' => $business,
-    //                     'payroll' => $payroll,
-    //                     'column' => $column,
-    //                     'data' => $data,
-    //                     'currency' => $currency,
-    //                     'headers' => ($column === 'paye') ? [
-    //                         'PIN of Employee',
-    //                         'Name of Employee',
-    //                         'Resident Status',
-    //                         'Type of Employee',
-    //                         'Basic Salary',
-    //                         'Housing Allowance',
-    //                         'Transport Allowance',
-    //                         'Leave Pay',
-    //                         'Over Time Allowance',
-    //                         "Director's Fee",
-    //                         'Lump Sum Payment',
-    //                         'Other Allowance',
-    //                         'Total Cash Pay',
-    //                         'Value of Car Benefit',
-    //                         'Other Non Cash Benefits',
-    //                         'Total Non Cash Benefits',
-    //                         'Value of Meals or Meal Allowance',
-    //                         'Type of housing',
-    //                         'Rent of House/Market Value',
-    //                         'Computed Rent of House',
-    //                         'Rent Recovered from Employee',
-    //                         'Net Value of Housing',
-    //                         'Total Gross Pay',
-    //                         'SHIF',
-    //                         'Actual Pension Contribution',
-    //                         'Post Retirement Medical Fund',
-    //                         'Mortgage Interest',
-    //                         'Housing Levy',
-    //                         'Amount of Benefit',
-    //                         'Taxable Pay',
-    //                         'Taxable Pay * Slab Rate',
-    //                         'Monthly Personal Relief',
-    //                         'Insurance Relief',
-    //                         'PAYE',
-    //                         'Self Assessed PAYE'
-    //                     ] : [],
-    //                 ]);
-    //                 return $pdf->download($fileName);
-    //             } catch (\Exception $e) {
-    //                 Log::error("PDF generation failed for payroll {$payroll_id}, column {$column}: " . $e->getMessage());
-    //                 abort(500, 'Failed to generate PDF.');
-    //             }
-
-    //         case 'csv':
-    //             $headers = [];
-    //             if ($column === 'paye') {
-    //                 $headers = [];
-    //             } elseif ($column === 'shif') {
-    //                 $headers = [
-    //                     'PAYROLL NUMBER',
-    //                     'FIRSTNAME',
-    //                     'LASTNAME',
-    //                     'ID NO',
-    //                     'KRA PIN',
-    //                     'SHIF NO',
-    //                     'CONTRIBUTION AMOUNT',
-    //                     'PHONE',
-    //                 ];
-    //             } elseif ($column === 'nssf') {
-    //                 $headers = [
-    //                     'PAYROLL NUMBER',
-    //                     'SURNAME',
-    //                     'OTHER NAMES',
-    //                     'ID NO',
-    //                     'KRA PIN',
-    //                     'NSSF NO',
-    //                     'GROSS PAY',
-    //                     'VOLUNTARY',
-    //                 ];
-    //             } elseif ($column === 'housing_levy') {
-    //                 $headers = [
-    //                     'EMP NO',
-    //                     'FULL NAME',
-    //                     'TAX_NO',
-    //                     'HOUSE_LEVY AMOUNT',
-    //                 ];
-    //             }
-
-    //             $csvData = '';
-    //             if (!empty($headers)) {
-    //                 $csvData .= implode(',', array_map(function ($header) {
-    //                     return '"' . str_replace('"', '""', $header) . '"';
-    //                 }, $headers)) . "\n";
-    //             }
-
-    //             foreach ($data as $row) {
-    //                 $csvData .= implode(',', array_map(function ($value) {
-    //                     return is_numeric($value) ? $value : '"' . str_replace('"', '""', $value) . '"';
-    //                 }, $row)) . "\n";
-    //             }
-
-    //             return Response::make($csvData, 200, [
-    //                 'Content-Type' => 'text/csv',
-    //                 'Content-Disposition' => "attachment; filename=\"{$fileName}\"",
-    //             ]);
-
-    //         case 'xlsx':
-    //             try {
-    //                 return Excel::download(new class($data, $column) implements
-    //                     \Maatwebsite\Excel\Concerns\FromArray,
-    //                     \Maatwebsite\Excel\Concerns\WithHeadings {
-    //                     private $data;
-    //                     private $column;
-
-    //                     public function __construct(array $data, string $column)
-    //                     {
-    //                         $this->data = $data;
-    //                         $this->column = $column;
-    //                     }
-
-    //                     public function array(): array
-    //                     {
-    //                         return $this->data;
-    //                     }
-
-    //                     public function headings(): array
-    //                     {
-    //                         if ($this->column === 'paye') {
-    //                             return [
-    //                                 'PIN of Employee',
-    //                                 'Name of Employee',
-    //                                 'Resident Status',
-    //                                 'Type of Employee',
-    //                                 'Basic Salary',
-    //                                 'Housing Allowance',
-    //                                 'Transport Allowance',
-    //                                 'Leave Pay',
-    //                                 'Over Time Allowance',
-    //                                 "Director's Fee",
-    //                                 'Lump Sum Payment',
-    //                                 'Other Allowance',
-    //                                 'Total Cash Pay',
-    //                                 'Value of Car Benefit',
-    //                                 'Other Non Cash Benefits',
-    //                                 'Total Non Cash Benefits',
-    //                                 'Value of Meals or Meal Allowance',
-    //                                 'Type of housing',
-    //                                 'Rent of House/Market Value',
-    //                                 'Computed Rent of House',
-    //                                 'Rent Recovered from Employee',
-    //                                 'Net Value of Housing',
-    //                                 'Total Gross Pay',
-    //                                 'SHIF',
-    //                                 'Actual Pension Contribution',
-    //                                 'Post Retirement Medical Fund',
-    //                                 'Mortgage Interest',
-    //                                 'Housing Levy',
-    //                                 'Amount of Benefit',
-    //                                 'Taxable Pay',
-    //                                 'Taxable Pay * Slab Rate',
-    //                                 'Monthly Personal Relief',
-    //                                 'Insurance Relief',
-    //                                 'PAYE',
-    //                                 'Self Assessed PAYE'
-    //                             ];
-    //                         } elseif ($this->column === 'shif') {
-    //                             return [
-    //                                 'PAYROLL NUMBER',
-    //                                 'FIRSTNAME',
-    //                                 'LASTNAME',
-    //                                 'ID NO',
-    //                                 'KRA PIN',
-    //                                 'SHIF NO',
-    //                                 'CONTRIBUTION AMOUNT',
-    //                                 'PHONE',
-    //                             ];
-    //                         } elseif ($this->column === 'nssf') {
-    //                             return [
-    //                                 'PAYROLL NUMBER',
-    //                                 'SURNAME',
-    //                                 'OTHER NAMES',
-    //                                 'ID NO',
-    //                                 'KRA PIN',
-    //                                 'NSSF NO',
-    //                                 'GROSS PAY',
-    //                                 'VOLUNTARY',
-    //                             ];
-    //                         } elseif ($this->column === 'housing_levy') {
-    //                             return [
-    //                                 'EMP NO',
-    //                                 'FULL NAME',
-    //                                 'TAX_NO',
-    //                                 'HOUSE_LEVY AMOUNT',
-    //                             ];
-    //                         }
-    //                         return array_map('ucwords', array_keys($this->data[0] ?? []));
-    //                     }
-    //                 }, $fileName);
-    //             } catch (\Maatwebsite\Excel\Exceptions\LaravelExcelException $e) {
-    //                 Log::error("Excel generation failed for payroll {$payroll_id}, column {$column}: " . $e->getMessage());
-    //                 abort(500, 'Failed to generate Excel file.');
-    //             }
-
-    //         default:
-    //             Log::warning("Invalid format requested: {$format}");
-    //             abort(400, 'Invalid format.');
-    //     }
-    // }
 
     //modified to latest paye
     public function downloadColumn(Request $request, $payroll_id, $column, $format)
@@ -3628,36 +2782,36 @@ class PayrollController extends Controller
                 $insuranceRelief = $getRelief('insurance-relief');
 
                 $payeRow = [
-                    $employee->tax_no ?? '', // PIN of Employee (A)
-                    $user->name ?? '', // Name of Employee (B)
-                    in_array($employee->resident_status, ['Resident', 'Non-Resident']) ? $employee->resident_status : 'Resident', // Resident Status (C)
-                    $employee->kra_employee_status ?? 'Primary Employee', // Type of Employee (D)
-                    $employee->disability_status ?? 'No', // Payee With Disability PWD (E)
-                    '', // Exemption Certificate Number (F)
-                    floatval($ep->gross_pay ?? 0), // Total Cash Pay (A) (G)
-                    floatval($getAllowance('Car Allowance')), // Value of Car Benefit (B) (H)
-                    floatval($getAllowance('Meal Allowance')), // Value of Meals (C) (I)
-                    floatval(0), // Other Non Cash Benefits (D) (J)
-                    'Benefit Not Given', // Type of Housing (K)
-                    '', // Housing Benefit (F) (L)
-                    floatval(max(0, ($ep->gross_pay ?? 0) - ($ep->basic_salary ?? 0) - $getAllowance('Housing Allowance') - $getAllowance('Transport Allowance') - $overtime)), // Other Benefits (G) (M)
-                    '', // Total Gross Pay (Ksh) (N)
-                    floatval($ep->shif ?? 0), // Social Health Contribution (J) (O)
-                    floatval($ep->nssf ?? 0), // NSSF Contributions (K) (P)
-                    floatval($ep->other_pension_contribution ?? 0), // Other Pension Contribution (K) (Q)
-                    floatval(0), // Post Retirement Medical Fund/SHIP (L) (R)
-                    floatval($getRelief('mortgage-interest-relief')), // Mortgage Interest (M) (S)
-                    floatval($ep->housing_levy ?? 0), // Affordable Housing Levy (N) (T)
-                    '', // Taxable Pay (Ksh) (U)
-                    $personalRelief, // Monthly Personal Relief (P) (V)
-                    $insuranceRelief, // Amount of Insurance Relief (W)
-                    '', // PAYE Tax (Ksh) (X)
-                    $payeValue // Self Assessed PAYE Tax (Ksh) (Y)
+                    $employee->tax_no ?? '',
+                    $user->name ?? '',
+                    in_array($employee->resident_status, ['Resident', 'Non-Resident']) ? $employee->resident_status : 'Resident',
+                    $employee->kra_employee_status ?? 'Primary Employee',
+                    $employee->disability_status ?? 'No',
+                    '',
+                    floatval($ep->gross_pay ?? 0),
+                    floatval($getAllowance('Car Allowance')),
+                    floatval($getAllowance('Meal Allowance')),
+                    floatval(0),
+                    'Benefit Not Given',
+                    '',
+                    floatval(max(0, ($ep->gross_pay ?? 0) - ($ep->basic_salary ?? 0) - $getAllowance('Housing Allowance') - $getAllowance('Transport Allowance') - $overtime)),
+                    '',
+                    floatval($ep->shif ?? 0),
+                    floatval($ep->nssf ?? 0),
+                    floatval($ep->other_pension_contribution ?? 0),
+                    floatval(0),
+                    floatval($getRelief('mortgage-interest-relief')),
+                    floatval($ep->housing_levy ?? 0),
+                    '',
+                    $personalRelief,
+                    $insuranceRelief,
+                    '',
+                    $payeValue
                 ];
 
                 return $payeRow;
             } else {
-                // Other column logic
+
                 $row = ['employee_name' => $user->name ?? 'N/A', 'employee_code' => $employee->employee_code ?? 'N/A'];
                 switch ($column) {
                     case 'shif':
@@ -3701,7 +2855,7 @@ class PayrollController extends Controller
                         ];
                         break;
                     default:
-                        // For all other columns, create consistent structure
+
                         $value = match ($column) {
                             'basic_salary' => $ep->basic_salary ?? 0,
                             'gross_pay' => $ep->gross_pay ?? 0,
@@ -3725,15 +2879,14 @@ class PayrollController extends Controller
                             default => 0,
                         };
 
-                        // Return consistent array structure: [name, code, tax_no, basic, gross, net, column_value]
                         $row = [
-                            $user->name ?? 'N/A',                    // 0: employee_name
-                            $employee->employee_code ?? 'N/A',       // 1: employee_code
-                            $employee->tax_no ?? 'N/A',              // 2: tax_no
-                            floatval($ep->basic_salary ?? 0),        // 3: basic_salary
-                            floatval($ep->gross_pay ?? 0),           // 4: gross_pay
-                            floatval($ep->net_pay ?? 0),             // 5: net_pay
-                            is_numeric($value) ? floatval($value) : $value  // 6: column_value
+                            $user->name ?? 'N/A',
+                            $employee->employee_code ?? 'N/A',
+                            $employee->tax_no ?? 'N/A',
+                            floatval($ep->basic_salary ?? 0),
+                            floatval($ep->gross_pay ?? 0),
+                            floatval($ep->net_pay ?? 0),
+                            is_numeric($value) ? floatval($value) : $value
                         ];
                         break;
                 }
@@ -3794,31 +2947,7 @@ class PayrollController extends Controller
                 $headers = [];
                 if ($column === 'paye') {
                     $headers = [
-                        // 'PIN of Employee',
-                        // 'Name of Employee',
-                        // 'Resident Status',
-                        // 'Type of Employee',
-                        // 'Payee With Disability PWD',
-                        // 'Exemption Certificate Number',
-                        // 'Total Cash Pay (A)',
-                        // 'Value of Car Benefit (B)',
-                        // 'Value of Meals (C)',
-                        // 'Other Non Cash Benefits (D)',
-                        // 'Type of Housing',
-                        // 'Housing Benefit (F)',
-                        // 'Other Benefits (G)',
-                        // 'Total Gross Pay (Ksh)',
-                        // 'Social Health Contribution (J)',
-                        // 'NSSF Contributions (K)',
-                        // 'Other Pension Contribution (K)',
-                        // 'Post Retirement Medical Fund/SHIP (L)',
-                        // 'Mortgage Interest (M)',
-                        // 'Affordable Housing Levy (N)',
-                        // 'Taxable Pay (Ksh)',
-                        // 'Monthly Personal Relief (P)',
-                        // 'Amount of Insurance Relief',
-                        // 'PAYE Tax (Ksh)',
-                        // 'Self Assessed PAYE Tax (Ksh)'
+
                     ];
                 } elseif ($column === 'shif') {
                     $headers = ['PAYROLL NUMBER', 'FIRSTNAME', 'LASTNAME', 'ID NO', 'KRA PIN', 'SHIF NO', 'CONTRIBUTION AMOUNT', 'PHONE'];
@@ -3848,7 +2977,7 @@ class PayrollController extends Controller
 
             case 'xlsx':
                 try {
-                    // FIX: Store column in a separate variable to avoid shadowing issues
+
                     $columnType = $column;
 
                     return Excel::download(new class($data, $columnType) implements
@@ -3870,7 +2999,7 @@ class PayrollController extends Controller
 
                         public function headings(): array
                         {
-                            // FIX: Use $this->columnType instead of local $column variable
+
                             if ($this->columnType === 'paye') {
                                 return [
                                     'PIN of Employee',
@@ -3939,7 +3068,6 @@ class PayrollController extends Controller
             abort(404, "Invalid report type: {$type}");
         }
 
-        // Prepare comprehensive payroll data
         $data = $payroll->employeePayrolls->map(function ($ep) {
             $deductions = json_decode($ep->deductions, true) ?? [];
             $overtime = json_decode($ep->overtime, true) ?? ['amount' => 0];
@@ -4073,9 +3201,6 @@ class PayrollController extends Controller
         }
     }
 
-    /**
-     * Download NSSF Monthly Summary for a year
-     */
     public function downloadNssfMonthlySummary(Request $request)
     {
         $business = Business::findBySlug(session('active_business_slug'));
@@ -4097,9 +3222,6 @@ class PayrollController extends Controller
         }
     }
 
-    /**
-     * Download SHIF Monthly Summary for a year
-     */
     public function downloadShifMonthlySummary(Request $request)
     {
         $business = Business::findBySlug(session('active_business_slug'));
@@ -4121,9 +3243,6 @@ class PayrollController extends Controller
         }
     }
 
-    /**
-     * Download NHIF Monthly Summary (alias for SHIF for backward compatibility)
-     */
     public function downloadNhifMonthlySummary(Request $request)
     {
         return $this->downloadShifMonthlySummary($request);
@@ -4149,29 +3268,29 @@ class PayrollController extends Controller
 
         $data = $employees->map(function ($employee) use ($payrolls, $year) {
             $monthlyData = array_fill(1, 12, [
-                'basic_salary' => 0,              // A
-                'benefits_non_cash' => 0,         // B
-                'value_of_quarters' => 0,         // C
-                'total_gross_pay' => 0,           // D
-                'retirement_e1' => 0,             // E1 (30% of A)
-                'retirement_e2' => 0,             // E2 (Actual)
-                'retirement_e3' => 30000,         // E3 (Fixed, KRA limit)
-                'owner_occupied_interest' => 0,   // F
-                'retirement_contribution' => 0,   // G (Lowest of E + F)
-                'chargeable_pay' => 0,            // H
-                'tax_charged' => 0,               // J
-                'personal_relief' => 2400,        // K (KRA standard, monthly max)
-                'insurance_relief' => 0,          // K
-                'paye' => 0,                      // J-K
+                'basic_salary' => 0,
+                'benefits_non_cash' => 0,
+                'value_of_quarters' => 0,
+                'total_gross_pay' => 0,
+                'retirement_e1' => 0,
+                'retirement_e2' => 0,
+                'retirement_e3' => 30000,
+                'owner_occupied_interest' => 0,
+                'retirement_contribution' => 0,
+                'chargeable_pay' => 0,
+                'tax_charged' => 0,
+                'personal_relief' => 2400,
+                'insurance_relief' => 0,
+                'paye' => 0,
             ]);
 
             foreach ($payrolls as $payroll) {
                 if (!$employee || !isset($employee->id)) {
-                    continue; // Skip if $employee is null or has no id
+                    continue;
                 }
                 $ep = $payroll->employeePayrolls->where('employee_id', $employee->id)->first();
                 if ($ep) {
-                    $month = (int) date('n', strtotime($payroll->payrun_month)); // 1-12
+                    $month = (int) date('n', strtotime($payroll->payrun_month));
                     $deductions = json_decode($ep->deductions, true) ?? [];
                     $basicSalary = (float) ($ep->basic_salary ?? 0);
                     $grossPay = (float) ($ep->gross_pay ?? 0);
@@ -4191,9 +3310,9 @@ class PayrollController extends Controller
                         'retirement_e2' => $retirementE2,
                         'retirement_e3' => 30000,
                         'owner_occupied_interest' => 0,
-                        'retirement_contribution' => min($retirementE1, $retirementE2, 20000), // Lowest of E1, E2, E3
+                        'retirement_contribution' => min($retirementE1, $retirementE2, 20000),
                         'chargeable_pay' => $taxableIncome,
-                        'tax_charged' => $paye + $personalRelief + $insuranceRelief, // Reverse calculate J
+                        'tax_charged' => $paye + $personalRelief + $insuranceRelief,
                         'personal_relief' => $personalRelief,
                         'insurance_relief' => $insuranceRelief,
                         'paye' => $paye,
@@ -4235,7 +3354,7 @@ class PayrollController extends Controller
                     'business' => $business,
                     'year' => $year,
                     'data' => $data,
-                ])->setPaper('a4', 'landscape'); // Changed to landscape
+                ])->setPaper('a4', 'landscape');
                 return $pdf->download("{$filename}.pdf");
 
             case 'csv':
@@ -4265,7 +3384,6 @@ class PayrollController extends Controller
             abort(404, 'No payroll data found for the year ' . $year);
         }
 
-        // Filter for the specific employee
         $employeePayrolls = $payrolls->flatMap->employeePayrolls->where('employee_id', $employeeId);
         if ($employeePayrolls->isEmpty()) {
             abort(404, 'No payroll data found for employee ID ' . $employeeId . ' in year ' . $year);
@@ -4273,51 +3391,50 @@ class PayrollController extends Controller
 
         $employee = $employeePayrolls->first()->employee;
 
-        // Calculate data for the single employee
         $monthlyData = array_fill(1, 12, [
-            'basic_salary' => 0,              // A
-            'benefits_non_cash' => 0,         // B
-            'value_of_quarters' => 0,         // C
-            'total_gross_pay' => 0,           // D
-            'retirement_e1' => 0,             // E1 (30% of A)
-            'retirement_e2' => 0,             // E2 (Actual)
-            'retirement_e3' => 30000,         // E3 (Fixed, KRA limit)
-            'owner_occupied_interest' => 0,   // F
-            'retirement_contribution' => 0,   // G (Lowest of E + F)
-            'chargeable_pay' => 0,            // H
-            'tax_charged' => 0,               // J
-            'personal_relief' => 2400,        // K (KRA standard, monthly max)
-            'insurance_relief' => 0,          // K
-            'paye' => 0,                      // J-K
+            'basic_salary' => 0,
+            'benefits_non_cash' => 0,
+            'value_of_quarters' => 0,
+            'total_gross_pay' => 0,
+            'retirement_e1' => 0,
+            'retirement_e2' => 0,
+            'retirement_e3' => 30000,
+            'owner_occupied_interest' => 0,
+            'retirement_contribution' => 0,
+            'chargeable_pay' => 0,
+            'tax_charged' => 0,
+            'personal_relief' => 2400,
+            'insurance_relief' => 0,
+            'paye' => 0,
         ]);
 
         foreach ($payrolls as $payroll) {
             $ep = $payroll->employeePayrolls->where('employee_id', $employee->id)->first();
             if ($ep) {
-                $month = (int) date('n', strtotime($payroll->payrun_month)); // 1-12
+                $month = (int) date('n', strtotime($payroll->payrun_month));
                 $deductions = json_decode($ep->deductions, true) ?? [];
-                $reliefs = json_decode($ep->reliefs, true) ?? []; // Use reliefs JSON
+                $reliefs = json_decode($ep->reliefs, true) ?? [];
                 $basicSalary = (float) ($ep->basic_salary ?? 0);
                 $grossPay = (float) ($ep->gross_pay ?? 0);
                 $taxableIncome = (float) ($ep->taxable_income ?? 0);
                 $paye = (float) ($ep->paye ?? ($deductions['paye'] ?? 0));
-                $personalRelief = (float) ($reliefs['personal-relief']['amount'] ?? ($ep->personal_relief ?? 2400)); // Default KRA relief
+                $personalRelief = (float) ($reliefs['personal-relief']['amount'] ?? ($ep->personal_relief ?? 2400));
                 $insuranceRelief = (float) ($reliefs['insurance-relief']['amount'] ?? ($ep->insurance_relief ?? 0));
-                $retirementE1 = $basicSalary * 0.3; // 30% of basic salary
-                $retirementE2 = (float) ($deductions['retirement_contribution'] ?? 0); // Actual contribution
+                $retirementE1 = $basicSalary * 0.3;
+                $retirementE2 = (float) ($deductions['retirement_contribution'] ?? 0);
 
                 $monthlyData[$month] = [
                     'basic_salary' => $basicSalary,
-                    'benefits_non_cash' => 0, // Adjust if your data includes this
-                    'value_of_quarters' => 0, // Adjust if applicable
+                    'benefits_non_cash' => 0,
+                    'value_of_quarters' => 0,
                     'total_gross_pay' => $grossPay,
                     'retirement_e1' => $retirementE1,
                     'retirement_e2' => $retirementE2,
-                    'retirement_e3' => 30000, // KRA fixed limit
-                    'owner_occupied_interest' => 0, // Add logic if available
-                    'retirement_contribution' => min($retirementE1, $retirementE2, 20000), // Lowest of E1, E2, E3
+                    'retirement_e3' => 30000,
+                    'owner_occupied_interest' => 0,
+                    'retirement_contribution' => min($retirementE1, $retirementE2, 20000),
                     'chargeable_pay' => $taxableIncome,
-                    'tax_charged' => $paye + $personalRelief + $insuranceRelief, // Reverse calculate J
+                    'tax_charged' => $paye + $personalRelief + $insuranceRelief,
                     'personal_relief' => $personalRelief,
                     'insurance_relief' => $insuranceRelief,
                     'paye' => $paye,
@@ -4342,7 +3459,6 @@ class PayrollController extends Controller
             'paye' => array_sum(array_column($monthlyData, 'paye')),
         ];
 
-        // Single employee data, no array wrapping needed here
         $data = [
             'employee_name' => $employee->user->name ?? 'N/A',
             'tax_no' => $employee->tax_no ?? 'N/A',
@@ -4351,7 +3467,7 @@ class PayrollController extends Controller
         ];
 
         $format = strtolower($format);
-        $filename = "P9_{$employee->user->name}_{$year}"; // Personalized filename
+        $filename = "P9_{$employee->user->name}_{$year}";
 
         switch ($format) {
             case 'pdf':
@@ -4373,90 +3489,12 @@ class PayrollController extends Controller
         }
     }
 
-    // public function sendPayslips(Request $request)
-    // {
-    //     $payrollId = $request->input('payroll_id');
-    //     $employeePayrollId = $request->input('employee_payroll_id');
-
-    //     if (!$payrollId && !$employeePayrollId) {
-    //         return RequestResponse::badRequest('Either payroll_id or employee_payroll_id is required.');
-    //     }
-
-    //     return $this->handleTransaction(function () use ($request, $payrollId, $employeePayrollId) {
-    //         $business = Business::findBySlug(session('active_business_slug'));
-    //         if (!$business) {
-    //             return RequestResponse::badRequest('Business not found.');
-    //         }
-
-    //         if ($employeePayrollId) {
-    //             $employeePayroll = EmployeePayroll::with(['employee.user', 'payroll.business', 'payroll.location'])
-    //                 ->where('id', $employeePayrollId)
-    //                 ->whereHas('payroll', fn($q) => $q->where('business_id', $business->id))
-    //                 ->firstOrFail();
-
-    //             $employeePayrolls = collect([$employeePayroll]);
-    //             $payroll = $employeePayroll->payroll;
-    //         } else {
-    //             $payroll = Payroll::where('business_id', $business->id)
-    //                 ->where('id', $payrollId)
-    //                 ->with(['employeePayrolls.employee.user'])
-    //                 ->firstOrFail();
-
-    //             $employeePayrolls = $payroll->employeePayrolls;
-    //         }
-
-    //         $sentCount = 0;
-    //         foreach ($employeePayrolls as $employeePayroll) {
-    //             $user = $employeePayroll->employee->user;
-    //             if (!$user || !$user->email) {
-    //                 Log::warning("No email found for employee ID: {$employeePayroll->employee_id}, skipping payslip.");
-    //                 continue;
-    //             }
-
-    //             $entity = $business;
-    //             $entityType = 'business';
-    //             if ($employeePayroll->payroll->location_id) {
-    //                 $location = Location::where('id', $employeePayroll->payroll->location_id)
-    //                     ->where('business_id', $business->id)
-    //                     ->first();
-    //                 if ($location) {
-    //                     $entity = $location;
-    //                     $entityType = 'location';
-    //                 }
-    //             }
-
-    //             $pdf = Pdf::loadView('payroll.reports.payslip', compact('employeePayroll', 'business', 'entity', 'entityType'));
-    //             $fileName = 'payslip_' . $employeePayroll->id . '_' . time() . '.pdf';
-    //             $filePath = storage_path('app/public/payslips/' . $fileName);
-
-    //             if (!file_exists(storage_path('app/public/payslips'))) {
-    //                 mkdir(storage_path('app/public/payslips'), 0755, true);
-    //             }
-    //             $pdf->save($filePath);
-
-    //             Mail::to($user->email)->send(new PayslipMail($employeePayroll, $filePath, $user->name));
-    //             $sentCount++;
-    //         }
-
-    //         if ($payrollId && !$employeePayrollId) {
-    //             $payroll->update(['emailed' => true]);
-    //         }
-
-    //         $message = $employeePayrollId
-    //             ? 'Payslip queued for sending.'
-    //             : "Payslips queued for sending ($sentCount sent).";
-    //         return RequestResponse::ok($message, ['sent_count' => $sentCount]);
-    //     }, function ($e) {
-    //         return RequestResponse::badRequest('Failed to send payslips: ' . $e->getMessage());
-    //     });
     // }
-
-
 
     public function sendPayslips(Request $request)
     {
         try {
-            // Validate input
+
             $request->validate([
                 'payroll_id' => 'required_without:employee_payroll_id|exists:payrolls,id',
                 'employee_payroll_id' => 'required_without:payroll_id|exists:employee_payrolls,id',
@@ -4515,7 +3553,6 @@ class PayrollController extends Controller
                     }
                 }
 
-                // Generate PDF
                 try {
                     $pdf = Pdf::loadView('payroll.reports.payslip', compact('employeePayroll', 'business', 'entity', 'entityType'));
                     $fileName = 'payslip_' . $employeePayroll->id . '_' . time() . '.pdf';
@@ -4527,16 +3564,15 @@ class PayrollController extends Controller
                     $pdf->save($filePath);
                 } catch (\Exception $e) {
                     Log::error("Failed to generate/save PDF for employee payroll ID {$employeePayroll->id}: {$e->getMessage()}");
-                    continue; // Skip this payslip but continue with others
+                    continue;
                 }
 
-                // Send email
                 try {
                     Mail::to($user->email)->send(new PayslipMail($employeePayroll, $filePath, $user->name));
                     $sentCount++;
                 } catch (\Exception $e) {
                     Log::error("Failed to send email for employee ID {$employeePayroll->employee_id}: {$e->getMessage()}");
-                    continue; // Skip this email but continue with others
+                    continue;
                 }
             }
 
@@ -4557,7 +3593,6 @@ class PayrollController extends Controller
             return response()->json(['error' => 'Server error occurred.'], 500);
         }
     }
-
 
     public function close(Request $request)
     {
@@ -4602,10 +3637,8 @@ class PayrollController extends Controller
             return RequestResponse::badRequest('Business not found.');
         }
 
-        // Proper defaults
         $year = $request->filled('year') ? (int) $request->year : now()->year;
         $month = $request->filled('month') ? (int) $request->month : null;
-
 
         $query = Payroll::where('business_id', $business->id)
             ->where('payrun_year', $year)
@@ -4619,7 +3652,6 @@ class PayrollController extends Controller
             }])
             ->latest('updated_at');
 
-        // Parent payroll filters
         if ($request->filled('location')) {
             $query->whereHas('employeePayrolls.employee', fn($q) => $q->where('location_id', $request->location));
         }
@@ -4663,7 +3695,6 @@ class PayrollController extends Controller
         $groupSuffix = $groupBy ? "-by-{$groupBy}" : '';
         $fileName = "master-roll-{$payroll->payrun_year}-{$monthName}-{$type}{$groupSuffix}.{$format}";
 
-        // ── XLSX / CSV ───────────────────────────────────────────────────────
         if (in_array($format, ['xlsx', 'csv'])) {
             return Excel::download(
                 new \App\Exports\Masterrollexport($payroll, $business, $type, $groupBy),
@@ -4671,7 +3702,6 @@ class PayrollController extends Controller
             );
         }
 
-        // ── PDF ──────────────────────────────────────────────────────────────
         if ($format === 'pdf') {
             $employeePayrolls = EmployeePayroll::where('payroll_id', $payroll->id)
                 ->with([
@@ -4683,7 +3713,6 @@ class PayrollController extends Controller
                 ])
                 ->get();
 
-            // Collect dynamic columns — loop over ALL employee payrolls
             $allowanceSlugs = [];
             $deductionSlugs = [];
             $statutoryNames = ['shif', 'nssf', 'paye', 'housing levy', 'absenteeism', 'absenteeism charge'];
@@ -4705,7 +3734,6 @@ class PayrollController extends Controller
                 }
             }
 
-            // Fallback from payroll_settings
             $employeeIds = $employeePayrolls->pluck('employee_id')->filter()->unique()->values();
             if ($employeeIds->isNotEmpty()) {
                 $settings = \Illuminate\Support\Facades\DB::table('payroll_settings')
@@ -4746,16 +3774,6 @@ class PayrollController extends Controller
         return response()->json(['error' => 'Unsupported format.'], 400);
     }
 
-    /**
-     * Main NSSF download dispatcher
-     * Handles: new_remittance | pre_2018 | old_format | grouped | schedule
-     *
-     * Route example:
-     *   GET /business/{business}/payroll/nssf/download
-     *   ?format_type=new_remittance&payroll_id=5&format=xlsx
-     *   ?format_type=grouped&payroll_id=5&format=xlsx&group_by=department
-     *   ?format_type=schedule&payroll_id=5&format=pdf
-     */
     public function downloadNssf(Request $request)
     {
         $business = Business::findBySlug(session('active_business_slug'));
@@ -4773,16 +3791,15 @@ class PayrollController extends Controller
             ])
             ->firstOrFail();
 
-        $formatType = $request->format_type; // new_remittance | pre_2018 | old_format | grouped | schedule
-        $fileFormat = strtolower($request->format ?? 'xlsx'); // xlsx | csv | pdf
-        $groupBy    = $request->group_by ?? 'department';     // department | location | job_category
+        $formatType = $request->format_type;
+        $fileFormat = strtolower($request->format ?? 'xlsx');
+        $groupBy    = $request->group_by ?? 'department';
 
         $monthName  = \Carbon\Carbon::createFromFormat('m', $payroll->payrun_month)->format('F');
         $baseName   = "NSSF_{$payroll->payrun_year}_{$monthName}";
 
         switch ($formatType) {
 
-            // ── New NSSF Return/Remittance Format ──────────────────────────
             case 'new_remittance':
                 $fileName = "{$baseName}_New_Remittance.{$fileFormat}";
                 if ($fileFormat === 'pdf') {
@@ -4790,7 +3807,6 @@ class PayrollController extends Controller
                 }
                 return Excel::download(new \App\Exports\Nssfnewremittanceexport($payroll), $fileName);
 
-                // ── Pre-2018 Format ────────────────────────────────────────────
             case 'pre_2018':
                 $fileName = "{$baseName}_Pre2018.{$fileFormat}";
                 if ($fileFormat === 'pdf') {
@@ -4798,7 +3814,6 @@ class PayrollController extends Controller
                 }
                 return Excel::download(new \App\Exports\Nssfpre2018export($payroll), $fileName);
 
-                // ── Old NSSF Format ────────────────────────────────────────────
             case 'old_format':
                 $fileName = "{$baseName}_Old_Format.{$fileFormat}";
                 if ($fileFormat === 'pdf') {
@@ -4806,7 +3821,6 @@ class PayrollController extends Controller
                 }
                 return Excel::download(new \App\Exports\Nssfoldformatexport($payroll), $fileName);
 
-                // ── Grouped by Department / Location / Job Category ────────────
             case 'grouped':
                 $groupLabel = ucfirst(str_replace('_', ' ', $groupBy));
                 $fileName   = "{$baseName}_Grouped_by_{$groupLabel}.{$fileFormat}";
@@ -4827,7 +3841,6 @@ class PayrollController extends Controller
                     $fileName
                 );
 
-                // ── Schedule PDF ───────────────────────────────────────────────
             case 'schedule':
                 $fileName = "{$baseName}_Schedule.pdf";
                 $data     = $this->buildNssfScheduleData($payroll);
@@ -4843,13 +3856,6 @@ class PayrollController extends Controller
         }
     }
 
-    /**
-     * Download NSSF Monthly Summary (month-by-month for a full year)
-     * Supports XLSX (existing export) and PDF
-     *
-     * Route example:
-     *   GET /business/{business}/payroll/nssf/monthly-summary?year=2025&format=xlsx
-     */
     public function downloadNssfMonthlySummaryWithFormat(Request $request)
     {
         $business = Business::findBySlug(session('active_business_slug'));
@@ -4863,7 +3869,7 @@ class PayrollController extends Controller
 
         try {
             if ($fileFormat === 'pdf') {
-                // Build raw data for the PDF view
+
                 $rows = $this->buildNssfMonthlySummaryRows($business, $year);
                 $pdf  = \Barryvdh\DomPDF\Facade\Pdf::loadView('payroll.reports.nssf_monthly_summary_pdf', [
                     'business' => $business,
@@ -4873,7 +3879,6 @@ class PayrollController extends Controller
                 return $pdf->download($fileName);
             }
 
-            // Default: XLSX via existing export class
             return Excel::download(
                 new \App\Exports\NssfMonthlySummaryExport($business, $year),
                 $fileName
@@ -4884,13 +3889,6 @@ class PayrollController extends Controller
         }
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // PRIVATE HELPERS
-    // ──────────────────────────────────────────────────────────────────────────
-
-    /**
-     * Build flat array of NSSF data for the Schedule PDF view.
-     */
     private function buildNssfScheduleData(Payroll $payroll): array
     {
         return EmployeePayroll::where('payroll_id', $payroll->id)
@@ -4915,9 +3913,6 @@ class PayrollController extends Controller
             })->toArray();
     }
 
-    /**
-     * Build grouped data array for the NSSF Grouped PDF view.
-     */
     private function buildNssfGroupedPdfData(Payroll $payroll, string $groupBy): array
     {
         $employeePayrolls = EmployeePayroll::where('payroll_id', $payroll->id)
@@ -4972,22 +3967,16 @@ class PayrollController extends Controller
         return $result;
     }
 
-    /**
-     * Build raw month-by-month NSSF rows for PDF rendering.
-     * Returns array of ['name' => ..., 'months' => [1..12 => amount], 'total' => ...]
-     */
     protected function buildNssfMonthlySummaryRows(Business $business, int $year): array
     {
         $months = range(1, 12);
 
-        // Fetch ALL payrolls for this business/year in one query
         $payrolls = \App\Models\Payroll::where('business_id', $business->id)
             ->where('payrun_year', $year)
             ->whereIn('payrun_month', $months)
             ->get()
-            ->keyBy('payrun_month');   // keyed by month number 1–12
+            ->keyBy('payrun_month');
 
-        // Collect every unique employee who appears in any of those payrolls
         $allEmployeeIds = \App\Models\EmployeePayroll::whereIn(
             'payroll_id',
             $payrolls->pluck('id')
@@ -4998,7 +3987,6 @@ class PayrollController extends Controller
             ->get()
             ->keyBy('id');
 
-        // Build a lookup: [employee_id][month] => nssf_amount
         $nssfByEmployeeMonth = [];
         foreach ($payrolls as $month => $payroll) {
             $eps = \App\Models\EmployeePayroll::where('payroll_id', $payroll->id)
@@ -5014,9 +4002,8 @@ class PayrollController extends Controller
             }
         }
 
-        // ── Build rows ────────────────────────────────────────────────────────
         $rows         = [];
-        $monthTotals  = array_fill(1, 12, 0.0);  // per-month running totals
+        $monthTotals  = array_fill(1, 12, 0.0);
 
         foreach ($employees as $empId => $employee) {
             $name       = $employee->user->name ?? 'N/A';
@@ -5028,13 +4015,11 @@ class PayrollController extends Controller
                 $rowMonths[$m] = $amount;
                 $rowTotal     += $amount;
 
-                // Accumulate into the per-month column total
                 if ($amount > 0) {
                     $monthTotals[$m] += $amount;
                 }
             }
 
-            // Only include employees who have NSSF in at least one month
             if ($rowTotal == 0) {
                 continue;
             }
@@ -5046,7 +4031,6 @@ class PayrollController extends Controller
             );
         }
 
-        // ── Totals row — each cell = sum of that month column ─────────────────
         $grandTotal = array_sum($monthTotals);
 
         $totalsRow = array_merge(
@@ -5055,14 +4039,10 @@ class PayrollController extends Controller
             ['total' => $grandTotal]
         );
 
-        $rows[] = $totalsRow;   // append as the last row
+        $rows[] = $totalsRow;
 
         return $rows;
     }
-    /**
-     * Show the variance report selection page
-     * GET /business/{business}/payroll/variance
-     */
 
     public function variancePage(Request $request)
     {
@@ -5076,9 +4056,6 @@ class PayrollController extends Controller
         return view('payroll.variance', compact('business', 'years'));
     }
 
-    /**
-     * Download variance report — now accepts optional ?reasons={"Gross Pay":"..."} JSON
-     */
     public function downloadVarianceReport(Request $request)
     {
         $business = Business::findBySlug(session('active_business_slug'));
@@ -5087,7 +4064,6 @@ class PayrollController extends Controller
         $mode   = $request->get('mode', 'year');
         $format = strtolower($request->get('format', 'xlsx'));
 
-        // Decode AI reasons if passed from the frontend
         $reasons = [];
         if ($request->has('reasons')) {
             $decoded = json_decode($request->get('reasons'), true);

@@ -41,7 +41,6 @@ class LoanController extends Controller
         return $this->handleTransaction(function () use ($validatedData, $request) {
             $business = Business::findBySlug(session('active_business_slug'));
 
-            // Verify employee belongs to the business
             $employee = Employee::where('id', $validatedData['employee_id'])
                 ->where('business_id', $business->id)
                 ->firstOrFail();
@@ -93,7 +92,6 @@ class LoanController extends Controller
         return $this->handleTransaction(function () use ($validatedData) {
             $business = Business::findBySlug(session('active_business_slug'));
 
-            // Verify loan and employee belong to the business
             $loan = Loan::join('employees', 'loans.employee_id', '=', 'employees.id')
                 ->where('employees.business_id', $business->id)
                 ->where('loans.id', $validatedData['loan_id'])

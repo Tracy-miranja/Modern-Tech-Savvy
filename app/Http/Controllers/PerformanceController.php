@@ -16,31 +16,16 @@ class PerformanceController extends Controller
 {
     use HandleTransactions;
 
-    /* ----------------
-       Cycles (HR-defined: timeline + weighting)
-    -----------------*/
-
     public function cyclesIndex(Business $business)
     {
         return view('performance.cycles', ['business' => $business]);
     }
 
-    /**
-     * Cycle creation (timeline + KPI/OKR/competency weighting) - split out
-     * of the Cycles list page so Setup is its own nav item. Same backend
-     * (storeCycle()) as before, purely a UI relocation.
-     */
     public function setupIndex(Business $business)
     {
         return view('performance.setup', ['business' => $business]);
     }
 
-    /**
-     * "Employee Objectives" - every employee, their objective count/average
-     * progress/at-risk count, at a glance, with a Manage action straight
-     * into their objectives page - previously this only existed as a
-     * "pick one employee and jump to their page" modal with no overview.
-     */
     public function objectivesOverview(Business $business)
     {
         return view('performance.objectives', [
@@ -63,9 +48,7 @@ class PerformanceController extends Controller
             $query->where('department_id', $request->integer('department_id'));
         }
         if ($request->filled('job_category_id')) {
-            // job_category_id isn't a real column on employees (accessor
-            // only, falls back to employmentDetails) - filter through the
-            // relation directly instead of a raw where().
+
             $jobCategoryId = $request->integer('job_category_id');
             $query->whereHas('employmentDetails', fn ($q) => $q->where('job_category_id', $jobCategoryId));
         }
@@ -108,9 +91,6 @@ class PerformanceController extends Controller
         ]);
     }
 
-    /**
-     * Active cycles only - what employees pick from when setting objectives.
-     */
     public function fetchActiveCycles(Business $business)
     {
         $cycles = PerformanceCycle::where('business_id', $business->id)
@@ -171,8 +151,6 @@ class PerformanceController extends Controller
         $wasClosed = $cycle->status === 'closed';
         $cycle->update(['status' => $validated['status']]);
 
-        // Grade every objective once, the moment the cycle actually closes -
-        // final_score reflects where it landed, not a live-updating number.
         if ($validated['status'] === 'closed' && !$wasClosed) {
             $objectives = PerformanceObjective::where('performance_cycle_id', $cycle->id)
                 ->with('keyResults')
@@ -186,20 +164,10 @@ class PerformanceController extends Controller
         return RequestResponse::ok('Cycle status updated successfully.');
     }
 
-    /* ----------------
-       Objectives & Key Results (OKR side)
-    -----------------*/
-
     public function myPerformance(Business $business)
     {
         $employee = auth()->user()->activeEmployee();
 
-        // No hard 403 on a missing employee record - same graceful
-        // pattern as the rest of the portal (see
-        // OrganogramController::myTeam()). performance.employee itself
-        // isn't null-employee-safe (heavy JS bindings on $employee->id
-        // throughout), so this renders a small dedicated placeholder
-        // instead of trying to force that view to cope with no employee.
         if (!$employee || (int) $employee->business_id !== (int) $business->id) {
             return view('performance.no-employee');
         }
@@ -233,10 +201,6 @@ class PerformanceController extends Controller
         ]);
     }
 
-    /**
-     * Self, their direct line manager, or HR/admin can view/manage an
-     * employee's objectives - anyone else is refused, even with a guessed id.
-     */
     private function canManagePerformanceFor(Employee $target): bool
     {
         $actingEmployee = auth()->user()->activeEmployee();
@@ -269,12 +233,6 @@ class PerformanceController extends Controller
         return RequestResponse::ok('Objectives fetched successfully.', $objectives);
     }
 
-    /**
-     * This employee's individually-assigned KPIs, read-only, for display
-     * alongside their OKRs - the same "employee_id" scope
-     * PerformanceReview::computeKpiScore() already uses as the canonical
-     * definition of "this employee's KPIs".
-     */
     public function fetchKpisForEmployee(Business $business, Employee $employee)
     {
         if (!$this->canManagePerformanceFor($employee)) {
@@ -298,11 +256,6 @@ class PerformanceController extends Controller
         return RequestResponse::ok('KPIs fetched successfully.', $kpis);
     }
 
-    /**
-     * Company pillars and departmental OKRs for a cycle - what the "align
-     * to" picker offers when someone sets an individual key result, and how
-     * anyone in the business browses the cascade above their own goals.
-     */
     public function fetchCascadeObjectives(Request $request, Business $business)
     {
         $validated = $request->validate([
@@ -334,7 +287,7 @@ class PerformanceController extends Controller
             'parent_objective_id' => 'nullable|exists:performance_objectives,id',
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
-            // Every objective always has a weight - no silent fallback.
+
             'weight' => 'required|numeric|min:0.01|max:100',
         ]);
 
@@ -376,10 +329,6 @@ class PerformanceController extends Controller
             }
         }
 
-        // Self-service employees proposing an aligned individual objective
-        // need the parent objective's owner to approve it; everything else
-        // (HR/manager creating on someone's behalf, or no alignment at all)
-        // is approved immediately - there's no one upstream to review it.
         $isSelfServiceAlignment = $scope === 'individual'
             && $parentObjective
             && $actingEmployee && (int) $actingEmployee->id === (int) $employee->id
@@ -405,11 +354,6 @@ class PerformanceController extends Controller
         });
     }
 
-    /**
-     * The parent objective's owner (or HR/admin) approves a proposed
-     * bottom-up alignment - one approval step, per the department-owner
-     * model.
-     */
     public function approveAlignment(Request $request, Business $business, PerformanceObjective $objective)
     {
         if ((int) $objective->business_id !== (int) $business->id) {
@@ -435,10 +379,6 @@ class PerformanceController extends Controller
         return RequestResponse::ok('Alignment approved.', $objective->fresh());
     }
 
-    /**
-     * Declines a proposed alignment - sends it back to draft with the
-     * parent link cleared, rather than deleting the objective outright.
-     */
     public function declineAlignment(Request $request, Business $business, PerformanceObjective $objective)
     {
         if ((int) $objective->business_id !== (int) $business->id) {
@@ -511,11 +451,6 @@ class PerformanceController extends Controller
         return RequestResponse::ok('Progress updated successfully.', $keyResult->fresh());
     }
 
-    /**
-     * Manager feed: objectives that have dropped to critical confidence,
-     * scoped to the acting manager's team (or business-wide for HR/admin) -
-     * so a roadblock gets noticed without hunting through every profile.
-     */
     public function fetchCriticalObjectives(Request $request, Business $business)
     {
         $actingEmployee = auth()->user()->activeEmployee();
@@ -539,11 +474,6 @@ class PerformanceController extends Controller
             $query->where('performance_cycle_id', $cycleId);
         }
 
-        // "Completed" isn't a real persisted state (the status column is
-        // set once at creation and never updated) - the actual signal is
-        // the computed progress accessor: an objective that's since
-        // reached 100% shouldn't show as needing attention even if its
-        // confidence flag hasn't been refreshed down yet.
         $objectives = $query->latest()->get()
             ->filter(fn (PerformanceObjective $o) => $o->progress < 100)
             ->values()
@@ -558,14 +488,6 @@ class PerformanceController extends Controller
         return RequestResponse::ok('Critical objectives fetched successfully.', $objectives);
     }
 
-    /* ----------------
-       Reviews (self-assessment -> manager assessment -> completed)
-    -----------------*/
-
-    /**
-     * Fetch (creating on first access) the review row for an employee+cycle,
-     * auto-assigning the reviewer from the organogram (direct manager).
-     */
     public function fetchReview(Business $business, PerformanceCycle $cycle, Employee $employee)
     {
         if ((int) $cycle->business_id !== (int) $business->id || (int) $employee->business_id !== (int) $business->id) {

@@ -10,13 +10,6 @@ use App\Traits\HandleTransactions;
 use App\Notifications\WelcomeEmployeeNotification;
 use Illuminate\Support\Facades\Password;
 
-/**
- * Lets an existing super-admin grant/revoke super-admin access to other
- * accounts from the UI, instead of requiring shell access to
- * `php artisan make:super-admin` or tinker. Only reachable from the
- * platform business (config('business.main_slug')) - granting
- * platform-operator access is itself a governance action.
- */
 class PlatformAdminController extends Controller
 {
     use HandleTransactions;
@@ -69,11 +62,6 @@ class PlatformAdminController extends Controller
                 ->performedOn($user)
                 ->log('Granted super-admin access');
 
-            // New accounts get a "set your password" email (same pattern as
-            // EmployeeController::store()) - no plaintext password is ever
-            // generated or shown in the browser. An existing user just
-            // keeps their current password; they're notified by role name
-            // only, not sent another password-setup email.
             $message = "{$user->email} now holds the super-admin role.";
             if ($isNewUser) {
                 $token = Password::createToken($user);

@@ -8,18 +8,9 @@ use App\Models\Department;
 use App\Services\Reports\ReportPdfService;
 use Illuminate\Http\Request;
 
-/**
- * Asset reports - the Asset Management module had no reporting at all
- * before this. One report for now: Asset Register, a full listing
- * filterable by status/department, built on the same ReportPdfService
- * shared by every other module's reports (see AttendanceReportController
- * for the canonical preview/download pattern this mirrors).
- */
 class AssetReportController extends Controller
 {
-    /**
-     * Trigger page for the Assets Reports nav item.
-     */
+
     public function index(Business $business)
     {
         $departments = Department::where('business_id', $business->id)->orderBy('name')->get(['id', 'name']);

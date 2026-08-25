@@ -41,7 +41,6 @@
         <small id="remainingDays" class="text-muted d-block mt-1"></small>
     </div>
 
-    {{-- Attachment field (hidden by default) --}}
     <div class="mb-2 d-none" id="attachmentField">
         <label for="attachment" class="form-label">Attachment (Required for this leave type)</label>
         <input type="file" class="form-control" id="attachment" name="attachment" accept=".pdf,.jpg,.png,.doc,.docx">
@@ -51,7 +50,6 @@
         </div>
     </div>
 
-    {{-- Half-day controls (toggle/hidden by default) --}}
     <div class="row d-none" id="halfDayRow">
         <div class="col-md-6 mb-2">
             <div class="form-check mt-2">
@@ -224,7 +222,6 @@ fetch("{{ route('ajax.leave.remaining-days') }}", {
     document.getElementById('remainingDays').innerText =
         "Remaining Days: N/A";
 });
-
 
         }
     });

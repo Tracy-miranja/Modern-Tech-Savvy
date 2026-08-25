@@ -257,7 +257,6 @@
         </div>
     </div>
 
-    {{-- Attendance Settings (toggles + search + paste + use my location + map + add button) --}}
     <card class="mb-3 mt-3">
         <div class="card-body">
             <h5 class="mb-3">Attendance Settings</h5>
@@ -296,7 +295,6 @@
                         </div>
                     </div>
 
-                    {{-- Search + Paste + Add row --}}
                     <div class="row g-2 mb-2">
                         <div class="col-md-5">
                             <input type="text" id="geoSearch" class="form-control" placeholder="Search building/address (e.g. KICC, Nairobi)" autocomplete="off">
@@ -336,8 +334,8 @@
                 width: 3.2rem; height: 1.6rem; cursor: pointer; background-color: #cbd5e1; border: 0; border-radius: 1rem;
                 position: relative; transition: background-color .2s ease-in-out;
             }
-            .form-switch .form-check-input:focus { box-shadow: 0 0 0 .15rem rgba(13,110,253,.15); }
-            .form-switch .form-check-input:checked { background-color: #0d6efd; }
+            .form-switch .form-check-input:focus { box-shadow: 0 0 0 .15rem rgba(241,139,5,.15); }
+            .form-switch .form-check-input:checked { background-color: var(--clr-bg-primary, #f89616); }
             .form-switch .form-check-input::before {
                 content: ''; position: absolute; top: .2rem; left: .2rem; width: 1.2rem; height: 1.2rem; background: #fff; border-radius: 50%;
                 transition: transform .2s ease-in-out; box-shadow: 0 1px 2px rgba(0,0,0,.25);
@@ -353,7 +351,6 @@
     @push('scripts')
         <script src="{{ asset('/js/main/businesses.js') }}" type="module"></script>
 
-        {{-- Product tour (unchanged) --}}
         <script>
             document.addEventListener("DOMContentLoaded", function() {
                 document.getElementById("startTour").addEventListener("click", function() {
@@ -381,7 +378,6 @@
         </script>
         <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
-        {{-- Map + Search + Paste + Add logic --}}
         <script>
 (function() {
   // Elements
@@ -489,8 +485,6 @@ timer = setTimeout(async () => {
     searchResults.style.display = 'none';
   }
 }, 250);
-
-
 
   function renderSearch(items) {
     searchResults.innerHTML = '';

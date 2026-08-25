@@ -26,9 +26,6 @@ class PerformanceKeyResult extends Model
         return $this->belongsTo(PerformanceObjective::class, 'performance_objective_id');
     }
 
-    /**
-     * Progress toward target, clamped to 0-100.
-     */
     public function getProgressAttribute(): float
     {
         $target = (float) $this->target_value;

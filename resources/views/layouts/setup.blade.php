@@ -37,7 +37,6 @@
     <link rel="stylesheet" href="{{ asset('assets/css/main.css') }}">
     <link rel="stylesheet" href="{{ asset('assets/css/custom.css') }}">
 
-
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
@@ -116,7 +115,6 @@
     <script src="{{ asset('js/init.js') }}"></script>
     <script src="{{ asset('js/main/logout.js') }}" type="module"></script>
     <script src="{{ asset('js/main/businesses.js') }}" type="module"></script>
-
 
     <script type="text/javascript">
     document.addEventListener('DOMContentLoaded', function() {

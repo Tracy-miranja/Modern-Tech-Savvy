@@ -5,17 +5,6 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-/**
- * The Figma-style structure canvas (see GUIDE plan org-structure redesign):
- * a drag/connect diagram over the SMALL template graph (departments, roles,
- * job categories - dozens of nodes, never the 1000+-employee organogram).
- * Deliberately decoupled from the functional assignment engine
- * (organogram_positions / pivots) - this is a visual blueprint layer on
- * top, not a replacement for it. The one exception is role-to-role edges,
- * which mirror (and, when drawn/removed on the canvas, actually update)
- * the real organogram_roles.reports_to_role_id - see
- * OrganizationStructureController::storeCanvasEdge()/destroyCanvasEdge().
- */
 return new class extends Migration
 {
     public function up(): void

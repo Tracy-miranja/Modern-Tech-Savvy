@@ -4,12 +4,8 @@ namespace App\Http;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Contracts\Support\Responsable;
-use Symfony\Component\HttpFoundation\BinaryFileResponse; // Import BinaryFileResponse
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
-/**
- * Class RequestResponse
- * @package App\Http\Responses
- */
 class RequestResponse implements Responsable
 {
     protected int $httpCode;
@@ -32,7 +28,7 @@ class RequestResponse implements Responsable
     public function toResponse($request): mixed
     {
         if ($this->isDownload) {
-            return $this->data; // Return the BinaryFileResponse directly
+            return $this->data;
         }
 
         $payload = match (true) {

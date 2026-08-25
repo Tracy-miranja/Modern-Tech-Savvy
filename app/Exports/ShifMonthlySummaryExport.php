@@ -26,13 +26,12 @@ class ShifMonthlySummaryExport implements FromCollection, WithHeadings, WithStyl
 
     public function collection()
     {
-        // Get all payrolls for the year
+
         $payrolls = Payroll::where('business_id', $this->businessId)
             ->where('payrun_year', $this->year)
             ->with(['employeePayrolls.employee.user'])
             ->get();
 
-        // Group by employee
         $employeeData = [];
 
         foreach ($payrolls as $payroll) {
@@ -41,22 +40,19 @@ class ShifMonthlySummaryExport implements FromCollection, WithHeadings, WithStyl
                 $employeeName = $ep->employee->user->name ?? 'N/A';
                 $month = (int) $payroll->payrun_month;
 
-                // Initialize employee array if not exists
                 if (!isset($employeeData[$employeeId])) {
                     $employeeData[$employeeId] = [
                         'name' => $employeeName,
-                        'months' => array_fill(1, 12, 0), // Initialize all 12 months with 0
+                        'months' => array_fill(1, 12, 0),
                         'total' => 0
                     ];
                 }
 
-                // Get SHIF amount
                 $shifAmount = 0;
                 if (isset($ep->shif)) {
                     $shifAmount = floatval($ep->shif);
                 }
 
-                // If shif is 0, check deductions JSON
                 if ($shifAmount == 0) {
                     $deductions = json_decode($ep->deductions, true) ?? [];
                     $shifAmount = floatval($deductions['shif'] ?? $deductions['nhif'] ?? 0);
@@ -67,7 +63,6 @@ class ShifMonthlySummaryExport implements FromCollection, WithHeadings, WithStyl
             }
         }
 
-        // Convert to collection format for Excel
         $rows = collect();
 
         foreach ($employeeData as $data) {
@@ -75,19 +70,16 @@ class ShifMonthlySummaryExport implements FromCollection, WithHeadings, WithStyl
                 'name' => $data['name'],
             ];
 
-            // Add all 12 months
             for ($i = 1; $i <= 12; $i++) {
                 $amount = $data['months'][$i];
                 $row["month_{$i}"] = $amount > 0 ? number_format($amount, 2, '.', ',') : null;
             }
 
-            // Add total
             $row['total'] = number_format($data['total'], 2, '.', ',');
 
             $rows->push($row);
         }
 
-        // Add grand total row
         $grandTotals = ['name' => 'Total'];
         $grandTotalSum = 0;
 
@@ -139,7 +131,7 @@ class ShifMonthlySummaryExport implements FromCollection, WithHeadings, WithStyl
                     'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
                 ]
             ],
-            // Last row (totals) - make it bold
+
             $sheet->getHighestRow() => [
                 'font' => ['bold' => true, 'size' => 11],
                 'fill' => [
@@ -153,20 +145,20 @@ class ShifMonthlySummaryExport implements FromCollection, WithHeadings, WithStyl
     public function columnWidths(): array
     {
         return [
-            'A' => 30, // Name column
-            'B' => 12, // January
-            'C' => 12, // February
-            'D' => 12, // March
-            'E' => 12, // April
-            'F' => 12, // May
-            'G' => 12, // June
-            'H' => 12, // July
-            'I' => 12, // August
-            'J' => 12, // September
-            'K' => 12, // October
-            'L' => 12, // November
-            'M' => 12, // December
-            'N' => 15, // Total
+            'A' => 30,
+            'B' => 12,
+            'C' => 12,
+            'D' => 12,
+            'E' => 12,
+            'F' => 12,
+            'G' => 12,
+            'H' => 12,
+            'I' => 12,
+            'J' => 12,
+            'K' => 12,
+            'L' => 12,
+            'M' => 12,
+            'N' => 15,
         ];
     }
 

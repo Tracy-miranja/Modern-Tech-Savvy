@@ -9,12 +9,6 @@ use App\Models\OffboardingTask;
 use App\Traits\HandleTransactions;
 use Illuminate\Http\Request;
 
-/**
- * Offboarding - GUIDE plan Phase 4. One page: a "who's currently
- * offboarding" list (active + completed tabs), each row's checklist opened
- * in a modal with inline task checkboxes - modals over pages, matching the
- * rest of this suite, since a handful of tasks is never "too large for a modal".
- */
 class OffboardingController extends Controller
 {
     use HandleTransactions;

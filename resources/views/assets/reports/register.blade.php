@@ -27,7 +27,7 @@
                 $assignedDept = $assignment && $assignment->employee
                     ? optional($assignment->employee->department)->name
                     : null;
-            @endphp
+@endphp
             <tr>
                 <td>{{ $row->asset_tag ?? '—' }}</td>
                 <td>{{ $row->name }}</td>

@@ -31,7 +31,6 @@
         </div>
     </div>
 
-    <!-- Add/Edit Task Modal -->
     <div class="modal fade" id="taskModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
@@ -102,7 +101,6 @@
         </div>
     </div>
 
-    <!-- Members Modal -->
     <div class="modal fade" id="membersModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
@@ -150,7 +148,6 @@
         </div>
     </div>
 
-    <!-- Time Log Modal -->
     <div class="modal fade" id="timeLogModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">

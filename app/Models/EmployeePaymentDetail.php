@@ -49,17 +49,12 @@ class EmployeePaymentDetail extends Model
     {
         return $this->belongsTo(Employee::class);
     }
-    /**
-     * Check if the employee is paid hourly
-     */
+
     public function isHourlyPaid(): bool
     {
         return $this->payment_type === 'hourly';
     }
 
-    /**
-     * Check if the employee is paid salary
-     */
     public function isSalaryPaid(): bool
     {
         return $this->payment_type === 'salary';

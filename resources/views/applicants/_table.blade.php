@@ -70,7 +70,6 @@
     </div>
 </div>
 
-<!-- Edit Applicant Modal (Added here for index page) -->
 <div class="modal fade" id="editApplicantModal" tabindex="-1" role="dialog" aria-labelledby="editApplicantModalLabel"
     aria-hidden="true">
     <div class="modal-dialog modal-lg" role="document">
@@ -82,7 +81,7 @@
                 </button>
             </div>
             <div class="modal-body" id="edit-applicant-form">
-                <!-- Populated via AJAX -->
+
             </div>
         </div>
     </div>

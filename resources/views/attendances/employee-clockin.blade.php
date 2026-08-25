@@ -20,7 +20,7 @@
     }
     </style>
     <div class="row g-20">
-        <!-- Page Title with Clock -->
+
         <div class="col-12 d-flex align-items-center justify-content-center mb-5">
             <div id="currentClock" class="clock-display"></div>
         </div>
@@ -31,7 +31,7 @@
                         @php
                         $employee = auth()->user()->employee;
                         $imageUrl = $employee?->getFirstMediaUrl('avatars');
-                        @endphp
+@endphp
 
                         @if ($imageUrl)
                         <img src="{{ $imageUrl }}" alt="User {{ auth()->user()->name }}"
@@ -48,15 +48,22 @@
                             <h4 class="mb-8"><a href="">{{ auth()->user()->name }}</a></h4>
                             <p>{{ formatStatus(session('active_role')) }}</p>
                         </div>
+                        @php $deviceOnly = ($business->check_in_method ?? 'in_system') === 'device';@endphp
+                        @if ($deviceOnly)
+                            <div class="alert alert-warning mb-3">
+                                <i class="bi bi-fingerprint me-1"></i>
+                                This business requires clocking in/out via a registered biometric device.
+                            </div>
+                        @endif
                         <div class="employee__btn">
                             <div class="row g-2">
                                 <div class="col-md-6">
                                     <button type="button" class="btn w-100 btn-primary" onclick="clockIn(this)"
-                                        data-employee="{{ optional($employee)->id }}" @if (!$employee) disabled @endif>Check In</button>
+                                        data-employee="{{ optional($employee)->id }}" @if (!$employee || $deviceOnly) disabled @endif>Check In</button>
                                 </div>
                                 <div class="col-md-6">
                                     <button type="button" class="btn w-100 btn-danger" onclick="clockOut(this)"
-                                        data-employee="{{ optional($employee)->id }}" @if (!$employee) disabled @endif>Check Out</button>
+                                        data-employee="{{ optional($employee)->id }}" @if (!$employee || $deviceOnly) disabled @endif>Check Out</button>
                                 </div>
                             </div>
                         </div>

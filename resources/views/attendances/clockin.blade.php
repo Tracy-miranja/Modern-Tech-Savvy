@@ -20,7 +20,7 @@
     }
     </style>
     <div class="row g-20">
-        <!-- Page Title with Clock -->
+
         <div class="col-12 d-flex align-items-center justify-content-center mb-5">
             <div id="currentClock" class="clock-display"></div>
         </div>

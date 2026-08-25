@@ -8,15 +8,6 @@ use App\Models\CourseEnrollment;
 use App\Models\CourseMandate;
 use Illuminate\Support\Facades\Mail;
 
-/**
- * Daily housekeeping for Learning Management (see learning:sync command):
- * catches employees who now match an active mandate but weren't enrolled
- * when it was created/edited, and sends the two reminder emails exactly
- * once each (guarded by the *_reminder_sent_at timestamps on
- * course_enrollments) - "days before" thresholds are read per-business
- * from Business::learning_session_reminder_days /
- * learning_certificate_expiry_reminder_days.
- */
 class LearningSchedulerService
 {
     public function syncMandateEnrollments(): int

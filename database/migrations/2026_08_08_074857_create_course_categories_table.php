@@ -5,12 +5,6 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-/**
- * Business-configurable replacement for the free-text `courses.category`
- * column (see the sibling migration that swaps it for course_category_id) -
- * same shape as Disciplinary's business-configurable stage types, minus
- * sequence_order (categories have no meaningful order).
- */
 return new class extends Migration
 {
     public function up(): void

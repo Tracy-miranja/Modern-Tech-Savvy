@@ -85,10 +85,6 @@
             @enderror
         </div>
 
-        {{-- ── EMPLOYER RATE FIELD ─────────────────────────────────────────────── --}}
-        {{-- Shown only when fraction_to_consider is employee_and_employer or employer_only --}}
-        {{-- and computation_method is rate.                                                --}}
-        {{-- If left blank, system will use the same rate as the employee (legacy behaviour) --}}
         <div class="col-12" id="employer_rate_field" style="display: {{ (isset($deduction) && in_array($deduction->fraction_to_consider, ['employee_and_employer','employer_only']) && $deduction->computation_method === 'rate') ? 'block' : 'none' }};">
             <label for="employer_rate" class="form-label fw-medium text-dark">
                 Employer Contribution Rate (%)
@@ -119,7 +115,6 @@
             @enderror
         </div>
 
-        {{-- ── EMPLOYER LIMIT FIELD ────────────────────────────────────────────── --}}
         <div class="col-12" id="employer_limit_field" style="display: {{ (isset($deduction) && in_array($deduction->fraction_to_consider, ['employee_and_employer','employer_only'])) ? 'block' : 'none' }};">
             <label for="employer_limit" class="form-label fw-medium text-dark">
                 Employer Contribution Limit (Optional)

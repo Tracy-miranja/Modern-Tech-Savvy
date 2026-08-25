@@ -1,4 +1,4 @@
-<!-- resources/views/employees/warning/_form.blade.php -->
+
 <form id="warningForm" class="needs-validation" novalidate>
     @csrf
     @if(isset($warning))
@@ -78,13 +78,3 @@
         </button>
     </div>
 </form>
-{{--
-    No script here on purpose - this partial is also rendered standalone
-    (WarningController::edit(), see warningService.edit() in warnings.js)
-    outside of any layout that consumes @stack('scripts'), so anything
-    pushed here would silently never render for an AJAX-loaded copy of
-    this form (the stage dropdown would sit on "Loading stages…"
-    forever). See window.initWarningForm() in warnings.js instead, which
-    is called both on initial page load and after every AJAX swap of
-    #warningFormContainer.
---}}

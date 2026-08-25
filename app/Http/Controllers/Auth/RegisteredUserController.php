@@ -40,7 +40,7 @@ class RegisteredUserController extends Controller
 
     public function store(Request $request)
     {
-        // Validate the request data
+
         $validatedData = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
@@ -49,9 +49,8 @@ class RegisteredUserController extends Controller
             'code' => 'required|string|max:15',
             'country' => 'required|string',
             'registration_token' => 'nullable|string:exists:access_requests,registration_token',
-            // 'cf-turnstile-response' => ['required', new Turnstile()],
-        ]);
 
+        ]);
 
         log::info($request);
 
@@ -82,7 +81,7 @@ class RegisteredUserController extends Controller
                 'country' => $validatedData['country'],
             ]);
 
-            $user->assignRole('business-admin'); //business_owner
+            $user->assignRole('business-admin');
             $user->setStatus(Status::SETUP);
 
             $platformBusiness = Business::where('slug', config('business.main_slug'))->first();
@@ -155,7 +154,6 @@ class RegisteredUserController extends Controller
 
         $business = auth()->user()->business;
 
-        // Attach selected modules
         foreach ($validatedData['modules'] as $moduleId) {
             $business->modules()->attach($moduleId, [
                 'is_active' => true,
@@ -178,10 +176,8 @@ class RegisteredUserController extends Controller
 
         $business = auth()->user()->business;
 
-        // Generate invitation token
         $token = Str::random(32);
 
-        // Store invitation
         $invitation = $business->invitations()->create([
             'email' => $validatedData['email'],
             'name' => $validatedData['name'],
@@ -193,7 +189,6 @@ class RegisteredUserController extends Controller
             'expires_at' => now()->addDays(7)
         ]);
 
-        // Send invitation email
         Mail::to($validatedData['email'])->send(new TeamInvitation($invitation));
 
         return back()->with('success', 'Invitation sent successfully.');

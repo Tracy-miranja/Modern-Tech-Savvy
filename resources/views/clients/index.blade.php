@@ -7,7 +7,7 @@
                 <h2 class="mb-0 fw-bold text-dark">Clients Management</h2>
             </div>
             <div class="card-body p-4">
-                <!-- Alerts -->
+
                 @if (session('success'))
                 <div class="alert alert-success alert-dismissible fade show rounded-3 mb-4">
                     {{ session('success') }}
@@ -21,7 +21,6 @@
                 </div>
                 @endif
 
-                <!-- Clients Table -->
                 <div id="clientsContainer">
                     <div class="text-center py-4">
                         <div class="spinner-border text-primary" role="status">

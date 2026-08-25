@@ -14,12 +14,6 @@ class WelcomeEmployeeNotification extends Notification
     protected $token;
     protected $businessName;
 
-    /**
-     * $token is only present for a genuinely new account (set-password
-     * link). An existing account being added as an employee at another
-     * business (same login, no new password needed) passes $token = null,
-     * which sends a plain welcome/notice email with no reset link at all.
-     */
     public function __construct($user, $token = null, $businessName = null)
     {
         $this->user = $user;

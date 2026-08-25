@@ -6,11 +6,7 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * `LeavePeriod` model/controller have always read/written `is_active`,
-     * but no migration ever created the column - every leave period
-     * create/update through the UI throws "Unknown column 'is_active'".
-     */
+
     public function up(): void
     {
         if (Schema::hasColumn('leave_periods', 'is_active')) {

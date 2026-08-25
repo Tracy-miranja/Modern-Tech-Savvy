@@ -8,14 +8,6 @@ use App\Models\LeavePolicy;
 use App\Http\RequestResponse;
 use Illuminate\Http\Request;
 
-/**
- * Read-only consolidated view of the LeavePolicy versions in force for the
- * business's current open leave period - shown on the Leave Settings
- * "Leave Policies" tab so HR can see everything at a glance instead of
- * opening each Leave Type's own edit form individually. Policies are still
- * edited from within LeaveType (LeaveTypeController::store()/update()),
- * never here.
- */
 class LeavePolicyController extends Controller
 {
     public function fetch(Request $request)
@@ -25,13 +17,6 @@ class LeavePolicyController extends Controller
             return RequestResponse::badRequest('Business not found.');
         }
 
-        // Scoped to the current OPEN leave period (the "current year") rather
-        // than just "effective as of today" - LeaveTypeController versions
-        // policies on every edit (closes the old row, opens a new dated one),
-        // so the full history can genuinely run into thousands of rows on a
-        // business with a lot of edits. Falling back to today's date when no
-        // period is configured/open keeps this working for businesses that
-        // haven't set up Leave Periods at all.
         $currentPeriod = LeavePeriod::currentlyOpenFor($business->id);
         $rangeStart = $currentPeriod ? $currentPeriod->start_date->toDateString() : now()->toDateString();
         $rangeEnd   = $currentPeriod ? $currentPeriod->end_date->toDateString() : now()->toDateString();

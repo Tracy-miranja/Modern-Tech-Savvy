@@ -1,7 +1,7 @@
 <x-app-layout>
     @php
         $canEscalate = $warning->status === 'active' && $warning->suggestedNextStage() !== null;
-    @endphp
+@endphp
     <div class="container py-4">
         <div class="row justify-content-center">
             <div class="col-lg-10">
@@ -147,7 +147,6 @@
         </div>
     </div>
 
-    <!-- Escalate Modal -->
     <div class="modal fade" id="escalateModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -176,7 +175,6 @@
         </div>
     </div>
 
-    <!-- Investigation Modal -->
     <div class="modal fade" id="investigationModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -221,7 +219,6 @@
         </div>
     </div>
 
-    <!-- Minutes Modal -->
     <div class="modal fade" id="minutesModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -251,7 +248,6 @@
         </div>
     </div>
 
-    <!-- Resolve Modal -->
     <div class="modal fade" id="resolveModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">

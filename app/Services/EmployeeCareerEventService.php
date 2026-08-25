@@ -6,19 +6,9 @@ use App\Models\Employee;
 use App\Models\EmployeeCareerEvent;
 use Carbon\Carbon;
 
-/**
- * Records promotions/salary increments and decides whether to apply them
- * now or leave them pending for the daily scheduled command - see the
- * employee_career_events migration's docblock for the full rationale.
- */
 class EmployeeCareerEventService
 {
-    /**
-     * Captures the employee's CURRENT job category/department/salary as
-     * old_*, creates the event with the given new_* values, and applies it
-     * immediately if effective_date is today or already in the past -
-     * otherwise it's left 'pending' for applyDuePendingEvents() to pick up.
-     */
+
     public function record(Employee $employee, array $data): EmployeeCareerEvent
     {
         $employmentDetail = $employee->employmentDetails;
@@ -48,10 +38,6 @@ class EmployeeCareerEventService
         return $event->fresh();
     }
 
-    /**
-     * Applies every still-pending event whose effective_date has arrived -
-     * called by the `career-events:apply-pending` scheduled command.
-     */
     public function applyDuePendingEvents(): int
     {
         $due = EmployeeCareerEvent::where('status', 'pending')

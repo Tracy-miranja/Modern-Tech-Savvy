@@ -22,12 +22,10 @@ class PayrollService
             default => 0,
         };
 
-        // Apply limit if set
         if ($relief->limit && $value > $relief->limit) {
             $value = $relief->limit;
         }
 
-        // Apply rounding
         $value = match ($relief->round_off) {
             'round_off_up' => ceil($value * pow(10, $relief->decimal_places)) / pow(10, $relief->decimal_places),
             'round_off_down' => floor($value * pow(10, $relief->decimal_places)) / pow(10, $relief->decimal_places),
@@ -68,7 +66,7 @@ class PayrollService
     {
         preg_match('/FringeBenefit\((\d+\.?\d*)\)/', $formula, $matches);
         $employerRate = $matches[1] ?? 0;
-        $marketRate = 0.13; // Configurable
+        $marketRate = 0.13;
         $loanAmount = $employeeData['loan_amount'] ?? 0;
         return (($marketRate - ($employerRate / 100)) * $loanAmount) / 12;
     }

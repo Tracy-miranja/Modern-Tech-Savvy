@@ -6,9 +6,7 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
+
    public function up()
 {
     Schema::table('employee_payroll_details', function (Blueprint $table) {
@@ -18,13 +16,10 @@ return new class extends Migration
     });
 }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::table('employee_payroll_details', function (Blueprint $table) {
-            //
+
         });
     }
 };

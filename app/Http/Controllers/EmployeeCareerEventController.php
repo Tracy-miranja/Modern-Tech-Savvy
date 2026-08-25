@@ -10,20 +10,10 @@ use App\Services\EmployeeCareerEventService;
 use App\Traits\HandleTransactions;
 use Illuminate\Http\Request;
 
-/**
- * Employee career history - promotions and salary increments. See the
- * employee_career_events migration's docblock for the full design
- * rationale (structured old/new fields, deferred effective-dating).
- */
 class EmployeeCareerEventController extends Controller
 {
     use HandleTransactions;
 
-    /**
-     * "Career Growth" - a business-wide nav item (previously career events
-     * were only ever reachable by drilling into one employee's own detail
-     * page, with no standalone list anywhere).
-     */
     public function index(Business $business)
     {
         $page = 'Career Growth';

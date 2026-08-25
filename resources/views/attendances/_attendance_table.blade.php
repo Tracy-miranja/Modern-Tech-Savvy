@@ -17,7 +17,7 @@
     </thead>
     <tbody>
         @foreach($attendances as $attendance)
-            <tr @if($attendance->is_absent) class="table-warning" @endif>
+            <tr @if($attendance->is_on_leave) class="table-info" @elseif($attendance->is_absent) class="table-warning" @endif>
                 <td>{{ $attendance->employee->user->name ?? 'N/A' }}</td>
                 <td>{{ $attendance->date->format("jS M Y") }}</td>
                 <td>
@@ -42,7 +42,9 @@
                     @endif
                 </td>
                 <td>
-                    @if($attendance->is_absent)
+                    @if($attendance->is_on_leave)
+                        <span class="badge bg-info">On Leave</span>
+                    @elseif($attendance->is_absent)
                         <span class="text-danger">Absent</span>
                     @else
                         {{ $attendance->clock_in ? $attendance->clock_in->format('H:i') : '-' }}
@@ -82,13 +84,13 @@
                     @if($attendance->early_departure_minutes > 0)
                         <span class="badge bg-info">Early: {{ round($attendance->early_departure_minutes) }}m</span>
                     @endif
-                    @if($attendance->late_minutes == 0 && $attendance->early_departure_minutes == 0 && !$attendance->is_absent)
+                    @if($attendance->late_minutes == 0 && $attendance->early_departure_minutes == 0 && !$attendance->is_absent && !$attendance->is_on_leave)
                         <span class="text-success">On Time</span>
                     @endif
                 </td>
                 <td>{{ Str::limit($attendance->remarks, 30) }}</td>
                 <td>
-                    <button onclick="viewAttendanceDetails(this)" data-attendance="{{ $attendance->id }}" 
+                    <button onclick="viewAttendanceDetails(this)" data-attendance="{{ $attendance->id }}"
                         class="btn btn-sm btn-info" title="View Details">
                         <i class="bi bi-eye"></i>
                     </button>
@@ -110,14 +112,16 @@
             $totalRegular = $attendances->sum('regular_hours');
             $totalOTRegular = $attendances->sum('overtime_regular');
             $totalOTHoliday = $attendances->sum('overtime_holiday');
-            $presentDays = $attendances->where('is_absent', false)->count();
-            $absentDays = $attendances->where('is_absent', true)->count();
-        @endphp
+            $onLeaveDays = $attendances->where('is_on_leave', true)->count();
+            $presentDays = $attendances->where('is_absent', false)->where('is_on_leave', false)->count();
+            $absentDays = $attendances->where('is_absent', true)->where('is_on_leave', false)->count();
+@endphp
         <tr class="table-secondary fw-bold">
             <td colspan="2">SUMMARY</td>
             <td>
                 Present: {{ $presentDays }}<br>
-                Absent: {{ $absentDays }}
+                Absent: {{ $absentDays }}<br>
+                On Leave: {{ $onLeaveDays }}
             </td>
             <td colspan="2"></td>
             <td>{{ \App\Support\TimeFmt::hoursToHm($totalRegular) }}</td>

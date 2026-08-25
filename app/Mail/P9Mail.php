@@ -15,14 +15,6 @@ class P9Mail extends Mailable
     public $year;
     public $user;
 
-    /**
-     * Create a new message instance.
-     *
-     * @param \App\Models\EmployeePayroll $employeePayroll
-     * @param string $pdfPath
-     * @param int $year
-     * @param \App\Models\User $user
-     */
     public function __construct($employeePayroll, $pdfPath, $year, $user)
     {
         $this->employeePayroll = $employeePayroll;
@@ -31,11 +23,6 @@ class P9Mail extends Mailable
         $this->user = $user;
     }
 
-    /**
-     * Build the message.
-     *
-     * @return $this
-     */
     public function build()
     {
         return $this->subject('Your P9 Form for ' . $this->year)

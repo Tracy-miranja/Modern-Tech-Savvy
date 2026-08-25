@@ -10,12 +10,6 @@ use App\Http\RequestResponse;
 use App\Traits\HandleTransactions;
 use Illuminate\Http\Request;
 
-/**
- * Asset Management - one of the 3 modules that previously existed only as
- * a name/price entry in ModulesSeeder with no real implementation. One
- * page, modal-CRUD for assets, plus assign/return actions that track a
- * full check-in/check-out history per asset (AssetAssignment).
- */
 class AssetController extends Controller
 {
     use HandleTransactions;
@@ -171,10 +165,6 @@ class AssetController extends Controller
         });
     }
 
-    /**
-     * Currently-assigned assets for one employee - used by the Offboarding
-     * checklist modal so HR is reminded which assets still need collecting.
-     */
     public function employeeAssets(Request $request, Business $business, Employee $employee)
     {
         if ((int) $employee->business_id !== (int) $business->id) {

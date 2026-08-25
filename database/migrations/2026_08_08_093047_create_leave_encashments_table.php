@@ -9,14 +9,6 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-/**
- * On-demand leave encashment (cash out unused leave) - deliberately
- * Leave-side only, no Payroll integration. `daily_rate`/`amount` are
- * computed and stored at request time as a read-only snapshot off the
- * employee's existing payment fields, not a payroll calculation. `status`
- * goes pending -> approved/rejected -> disbursed, where "disbursed" is a
- * manual HR acknowledgement that Payroll paid it outside this flow.
- */
 return new class extends Migration
 {
     public function up(): void
@@ -30,7 +22,7 @@ return new class extends Migration
             $table->decimal('days_requested', 6, 2);
             $table->decimal('daily_rate', 12, 2);
             $table->decimal('amount', 12, 2);
-            $table->string('status')->default('pending'); // pending, approved, rejected, disbursed
+            $table->string('status')->default('pending');
             $table->timestamp('requested_at')->nullable();
             $table->foreignIdFor(User::class, 'approved_by')->nullable()->constrained('users')->nullOnDelete();
             $table->text('rejection_reason')->nullable();

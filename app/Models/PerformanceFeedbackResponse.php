@@ -6,11 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class PerformanceFeedbackResponse extends Model
 {
-    /**
-     * A fixed, behavioral-only question set - 360 feedback never grades
-     * OKRs or produces a numeric score; that stays entirely on the
-     * KPI/OKR side of the review.
-     */
+
     public const QUESTIONS = [
         'strengths' => 'What does this person do well that others should learn from?',
         'growth_areas' => "What's one thing they could improve or do differently?",

@@ -1,4 +1,4 @@
-{{-- resources/views/attendances/index.blade.php --}}
+
 <x-app-layout>
 
     <div class="row g-20">
@@ -14,9 +14,9 @@
                             <div class="d-flex justify-content-end align-items-center gap-2 flex-wrap">
 
                                 <div style="min-width:180px;">
-                                    <input type="date" 
-                                        class="form-control form-control-sm" 
-                                        name="date" 
+                                    <input type="date"
+                                        class="form-control form-control-sm"
+                                        name="date"
                                         id="date"
                                         value="{{ request('date', now()->format('Y-m-d')) }}">
                                 </div>
@@ -45,10 +45,7 @@
                         <label class="form-label small text-muted mb-1">Employee</label>
                         <select class="form-select" id="filter_employee">
                         <option value="">All employees</option>
-                        {{-- populate if you have $employees passed to view --}}
-                        {{-- @foreach($employees as $emp)
-                            <option value="{{ $emp->id }}">{{ $emp->user->name }}</option>
-                        @endforeach --}}
+
                         </select>
                     </div>
 
@@ -92,7 +89,7 @@
             </div>
         </div>
     </div>
-{{-- View Attendance Modal --}}
+
 <div class="modal fade" id="viewAttendanceModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
@@ -101,13 +98,12 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body" id="viewAttendanceContainer">
-        {{-- injected by JS --}}
+
       </div>
     </div>
   </div>
 </div>
 
-{{-- Edit Attendance Modal --}}
 <div class="modal fade" id="editAttendanceModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
@@ -116,7 +112,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body" id="editAttendanceContainer">
-        {{-- injected by JS --}}
+
       </div>
     </div>
   </div>

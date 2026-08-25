@@ -31,9 +31,8 @@
 
     $appCode = $application->id ? 'APP-' . str_pad($application->id, 6, '0', STR_PAD_LEFT) : 'Application';
 
-    // group docs by type for quick display
     $docsByType = collect($documents ?? [])->groupBy('doc_type');
-  @endphp
+@endphp
 
   <div class="apps-page">
     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2 apps-view-actions">
@@ -62,10 +61,9 @@
     </div>
 
     <div class="row g-3">
-      {{-- LEFT --}}
+
       <div class="col-lg-8">
 
-        {{-- PERSONAL INFO --}}
         <div class="apps-section mb-3">
           <div class="title"><i class="bi bi-person"></i> Personal Information</div>
 
@@ -132,7 +130,6 @@
           @endif
         </div>
 
-        {{-- ACADEMICS --}}
         <div class="apps-section mb-3">
           <div class="title"><i class="bi bi-mortarboard"></i> Academic Qualifications</div>
 
@@ -200,7 +197,6 @@
           @endif
         </div>
 
-        {{-- MEMBERSHIPS --}}
         <div class="apps-section mb-3">
           <div class="title"><i class="bi bi-card-checklist"></i> Professional Memberships</div>
 
@@ -264,7 +260,6 @@
           @endif
         </div>
 
-        {{-- WORK EXPERIENCE --}}
         <div class="apps-section mb-3">
           <div class="title"><i class="bi bi-briefcase"></i> Work Experience</div>
 
@@ -275,7 +270,7 @@
               @php
                 $start = $wx->start_date ? \Carbon\Carbon::parse($wx->start_date)->format('M Y') : '—';
                 $end = ($wx->is_current ?? false) ? 'Present' : ($wx->end_date ? \Carbon\Carbon::parse($wx->end_date)->format('M Y') : '—');
-              @endphp
+@endphp
 
               <div class="border rounded-3 p-3 mb-2">
                 <div class="d-flex justify-content-between flex-wrap gap-2">
@@ -305,13 +300,12 @@
           @endif
         </div>
 
-        {{-- DOCUMENTS --}}
         <div class="apps-section">
           <div class="title"><i class="bi bi-folder2-open"></i> Uploaded Documents</div>
 
           @php
             $allDocs = collect($documents ?? []);
-          @endphp
+@endphp
 
           @if($allDocs->isEmpty())
             <p class="text-muted mb-0">No documents available.</p>
@@ -351,7 +345,6 @@
 
       </div>
 
-      {{-- RIGHT --}}
       <div class="col-lg-4">
         <div class="apps-section apps-sticky">
           <div class="title"><i class="bi bi-clipboard-check"></i> Application Status</div>
@@ -374,7 +367,6 @@
               <i class="bi bi-search"></i> Screen Application
             </button>
 
-            {{-- Stage update dropdown (client-side) --}}
             <div class="dropdown">
               <button class="btn btn-dark dropdown-toggle w-100" type="button" data-bs-toggle="dropdown">
                 <i class="bi bi-arrow-repeat"></i> Update Stage

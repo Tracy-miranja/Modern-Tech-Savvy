@@ -42,7 +42,7 @@
                                                     'completed' => 'bg-success-subtle text-success',
                                                     'dropped' => 'bg-secondary-subtle text-secondary',
                                                 ];
-                                            @endphp
+@endphp
                                             <span class="badge {{ $statusColors[$enrollment->status] ?? 'bg-secondary-subtle text-secondary' }}">
                                                 {{ ucwords(str_replace('_', ' ', $enrollment->status)) }}
                                             </span>

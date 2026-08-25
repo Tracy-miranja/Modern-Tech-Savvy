@@ -6,16 +6,7 @@ use Illuminate\Database\Migrations\Migration;
 
 return new class extends Migration
 {
-    /**
-     * A position is "this employee holds this role" - the actual
-     * assignment, as opposed to OrganogramRole which is just the role
-     * catalog (name + reporting edge). Multiple positions can share the
-     * same role (e.g. two different "Manager" positions, each covering a
-     * different set of departments), which is why the role itself isn't
-     * unique per business - the position + its department/team coverage
-     * (see the two pivot tables created alongside this one) is what makes
-     * an assignment specific.
-     */
+
     public function up(): void
     {
         if (Schema::hasTable('organogram_positions')) {

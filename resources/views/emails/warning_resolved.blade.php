@@ -61,13 +61,12 @@
 
 <body>
     <div class="email-container">
-        <!-- Header -->
+
         <div class="email-header">
             <img src="{{ config('app.url') }}/media/krstlogo.png" alt="{{ config('app.name') }} Logo">
             <div>Warning Resolved</div>
         </div>
 
-        <!-- Body -->
         <div class="email-body">
             <p>Hello, <strong>{{ $warning->employee->user->name }}</strong>,</p>
             <p>We are pleased to inform you that your warning has been resolved.</p>
@@ -78,7 +77,6 @@
                 collaboration.</p>
         </div>
 
-        <!-- Footer -->
         <div class="email-footer">
             Best Regards, <br>
             <strong>{{ config('app.name') }} HR Team</strong> <br>

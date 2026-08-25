@@ -8,10 +8,6 @@ use App\Http\RequestResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
-/**
- * Learning Management Settings - business-configurable course categories,
- * replacing the module's original free-text category field.
- */
 class CourseCategoryController extends Controller
 {
     public function fetch(Request $request, Business $business)

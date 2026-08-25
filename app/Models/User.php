@@ -67,35 +67,16 @@ class User extends Authenticatable implements HasMedia, MustVerifyEmail
         return $this->hasOne(Employee::class);
     }
 
-    /**
-     * Every business this user OWNS (business-admin) - business() above
-     * only ever returns the first one, which silently breaks for anyone
-     * who owns more than one (see the Add Business feature).
-     */
     public function businesses()
     {
         return $this->hasMany(Business::class, 'user_id');
     }
 
-    /**
-     * Every Employee record this user holds, one per business they're
-     * actually employed at (HR, department head, etc. can legitimately
-     * work at more than one business under the same account/email).
-     */
     public function employees()
     {
         return $this->hasMany(Employee::class, 'user_id');
     }
 
-    /**
-     * Businesses this user can switch into via the "Switch Business"
-     * dropdown: the union of businesses they own and businesses where
-     * they hold an Employee record, deduplicated. Deliberately distinct
-     * from super-admin's Clients impersonation (ClientController) - that
-     * lets a platform operator step into ANY client business; this only
-     * ever surfaces businesses the user's own account is legitimately
-     * attached to (as owner or as an employee).
-     */
     public function switchableBusinesses()
     {
         $ownedIds = $this->businesses()->pluck('id');
@@ -106,17 +87,6 @@ class User extends Authenticatable implements HasMedia, MustVerifyEmail
             ->get();
     }
 
-    /**
-     * The Employee record scoped to the CURRENTLY ACTIVE business
-     * (session('active_business_slug')), not just whichever one
-     * employee() (a plain hasOne - first match, no ordering) happens to
-     * return. Without this, a user with employee records at two
-     * businesses would see the wrong one's data on every page that reads
-     * auth()->user()->employee directly, regardless of which business
-     * they'd switched into. Falls back to employee() when there's no
-     * active business context or no match (e.g. a platform admin account
-     * with no employee record at all - callers must still handle null).
-     */
     public function activeEmployee(): ?Employee
     {
         $slug = session('active_business_slug');
@@ -181,13 +151,11 @@ class User extends Authenticatable implements HasMedia, MustVerifyEmail
 
     public function generateTwoFactorCode(): void
     {
-        // Delete any existing codes for the user
+
         \DB::table('two_factor_codes')->where('user_id', $this->id)->delete();
 
-        // Generate a 6-digit code
         $code = Str::random(6, '0123456789');
 
-        // Store the code
         \DB::table('two_factor_codes')->insert([
             'user_id' => $this->id,
             'code' => $code,
@@ -195,7 +163,7 @@ class User extends Authenticatable implements HasMedia, MustVerifyEmail
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-        // Log the 2FA code
+
     \Log::info('2FA Code Sent', [
         'user_id' => $this->id,
         'email' => $this->email,
@@ -203,7 +171,6 @@ class User extends Authenticatable implements HasMedia, MustVerifyEmail
 
     ]);
 
-        // Send the code via email
         $this->notify(new TwoFactorCodeNotification($code));
     }
 

@@ -10,7 +10,7 @@
                 </a>
             </div>
             <div class="card-body p-4">
-                <!-- Alerts -->
+
                 @if (session('success'))
                 <div class="alert alert-success alert-dismissible fade show rounded-3 mb-4">
                     {{ session('success') }}
@@ -25,7 +25,6 @@
                 </div>
                 @endif
 
-                <!-- Quick Stats -->
                 <div class="row g-3 mb-4">
                     <div class="col-6 col-md-3">
                         <div class="card h-100 border-0 rounded-3 bg-light">
@@ -62,7 +61,7 @@
                 </div>
 
                 <div class="row g-4">
-                    <!-- Business Info -->
+
                     <div class="col-lg-6">
                         <div class="card h-100 border-0 rounded-3">
                             <div class="card-body p-4">
@@ -120,7 +119,6 @@
                         </div>
                     </div>
 
-                    <!-- Creator Info & Documents -->
                     <div class="col-lg-6">
                         <div class="card h-100 border-0 rounded-3">
                             <div class="card-body p-4">
@@ -168,7 +166,6 @@
                     </div>
                 </div>
 
-                <!-- Actions Section -->
                 <div class="row g-4 mt-2">
                     <div class="col-12">
                         <div class="card border-0 rounded-3 mt-4">
@@ -200,7 +197,6 @@
                     </div>
                 </div>
 
-                <!-- Modules -->
                 <div class="card border-0 rounded-3 mt-4">
                     <div class="card-body p-4">
                         <h6 class="card-title fw-bold mb-1 text-primary">Modules</h6>
@@ -226,7 +222,7 @@
                                         $isActive = in_array($module->id, $activeModuleIds);
                                         $isExpired = $isAssigned && $pivot->is_active && !$isActive;
                                         $expiry = $pivot?->subscription_ends_at;
-                                    @endphp
+@endphp
                                     <tr>
                                         <td>{{ $module->name }}</td>
                                         <td>
@@ -255,7 +251,6 @@
                     </div>
                 </div>
 
-                <!-- Recent Activity -->
                 <div class="card border-0 rounded-3 mt-4">
                     <div class="card-body p-4">
                         <h6 class="card-title fw-bold mb-3 text-primary">Recent Activity</h6>
@@ -278,7 +273,6 @@
                     </div>
                 </div>
 
-                <!-- Payments -->
                 <div class="card border-0 rounded-3 mt-4">
                     <div class="card-body p-4">
                         <div class="d-flex justify-content-between align-items-center mb-3">
@@ -310,7 +304,6 @@
         </div>
     </div>
 
-    <!-- Module Status Modal -->
     <div class="modal fade" id="moduleStatusModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content shadow border-0 rounded-3">
@@ -340,7 +333,6 @@
         </div>
     </div>
 
-    <!-- Record Payment Modal -->
     <div class="modal fade" id="recordPaymentModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content shadow border-0 rounded-3">
@@ -412,7 +404,6 @@
         </div>
     </div>
 
-    <!-- Modal -->
     <div class="modal fade" id="remarksModal-{{ $clientBusiness->slug }}" tabindex="-1" role="dialog">
         <div class="modal-dialog modal-dialog-centered" role="document">
             <div class="modal-content shadow border-0 rounded-3">

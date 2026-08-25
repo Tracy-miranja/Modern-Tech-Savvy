@@ -9,9 +9,8 @@ return new class extends Migration
     public function up(): void
     {
     Schema::create('organogram_positions', function (Blueprint $table) {
-    $table->id(); // BIGINT UNSIGNED
+    $table->id();
     $table->string('name');
-
 
     $table->foreignId('business_id')
           ->constrained('businesses')
@@ -26,11 +25,10 @@ return new class extends Migration
           ->on('organogram_positions')
           ->nullOnDelete();
 
-    // FIXED: match type with personnel_position.id
     $table->unsignedBigInteger('personnel_position_id')->nullable();
     $table->foreign('personnel_position_id')
           ->references('id')
-          ->on('personnel_positions') // make sure table name is correct
+          ->on('personnel_positions')
           ->nullOnDelete();
 
     $table->unsignedTinyInteger('level')->default(1);
@@ -42,7 +40,6 @@ return new class extends Migration
 
     $table->index(['business_id', 'parent_id']);
 });
-
 
     }
 

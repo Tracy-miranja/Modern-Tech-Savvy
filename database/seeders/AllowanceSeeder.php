@@ -8,26 +8,17 @@ use Illuminate\Support\Str;
 
 class AllowanceSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     *
-     * @return void
-     */
+
     public function run()
     {
-        // Disable foreign key checks to allow truncation of allowances table
+
         DB::statement('SET FOREIGN_KEY_CHECKS=0;');
 
-        // Truncate only the allowances table to start fresh
         DB::table('allowances')->truncate();
 
-        // Resolve the platform business dynamically - hardcoding an id here
-        // silently seeds orphaned rows if that id doesn't exist in this
-        // database (FK checks are disabled above for the truncate).
         $businessId = \App\Models\Business::where('slug', config('business.main_slug'))->value('id')
             ?? \App\Models\Business::query()->value('id');
 
-        // Define popular allowances
         $allowances = [
             [
                 'business_id' => $businessId,
@@ -71,7 +62,7 @@ class AllowanceSeeder extends Seeder
                 'type' => 'rate',
                 'calculation_basis' => 'basic_pay',
                 'amount' => null,
-                'rate' => 10.00, // 10% of basic pay
+                'rate' => 10.00,
                 'is_taxable' => true,
                 'applies_to' => 'specific',
                 'created_at' => now(),
@@ -83,7 +74,7 @@ class AllowanceSeeder extends Seeder
                 'type' => 'rate',
                 'calculation_basis' => 'gross_pay',
                 'amount' => null,
-                'rate' => 15.00, // 15% of gross pay
+                'rate' => 15.00,
                 'is_taxable' => true,
                 'applies_to' => 'specific',
                 'created_at' => now(),
@@ -103,7 +94,6 @@ class AllowanceSeeder extends Seeder
             ],
         ];
 
-        // Insert allowances with slugs
         foreach ($allowances as $allowance) {
             DB::table('allowances')->insert([
                 'business_id' => $allowance['business_id'],
@@ -120,7 +110,6 @@ class AllowanceSeeder extends Seeder
             ]);
         }
 
-        // Re-enable foreign key checks
         DB::statement('SET FOREIGN_KEY_CHECKS=1;');
     }
 }

@@ -8,19 +8,9 @@ use App\Services\Reports\ReportFilters;
 use App\Services\Reports\ReportPdfService;
 use Illuminate\Http\Request;
 
-/**
- * Learning report - Training Reports from the module's feature list, built
- * on the same shared report engine as Attendance/Leave/Disciplinary/
- * Performance. One report: every enrollment in the filtered period/course/
- * department/employee, with status, score, and certification fields.
- */
 class LearningReportController extends Controller
 {
-    /**
-     * Trigger page for the Learning Reports nav item - previously this
-     * button lived inline on learning/index.blade.php; promoted to its own
-     * page/route so Reports is directly reachable from the sidebar.
-     */
+
     public function index(Business $business)
     {
         $departments = \App\Models\Department::where('business_id', $business->id)->orderBy('name')->get(['id', 'name']);

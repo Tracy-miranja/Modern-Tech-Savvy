@@ -10,19 +10,6 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-/**
- * Guards the employee-portal (myaccount) Projects routes - reuses the exact
- * same controllers/views as the business-admin Kanban board (see
- * ProjectController/ProjectTaskController/ProjectMemberController/
- * ProjectTimeLogController), which have no per-user authorization of their
- * own beyond business_id match (fine on the admin side, where the outer
- * role_or_permission_or_impersonation gate already restricts to elevated
- * roles). This middleware is what makes reuse safe for a plain
- * business-employee: whichever model the route binds ({project}, {task},
- * {member}, {timeLog}) is walked back to its Project, and the request is
- * rejected unless the current employee is that project's manager or an
- * active (not left_at) member.
- */
 class EnsureProjectMember
 {
     public function handle(Request $request, Closure $next): Response

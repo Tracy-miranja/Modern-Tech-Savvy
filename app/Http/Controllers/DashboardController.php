@@ -41,18 +41,18 @@ class DashboardController extends Controller
         $cards = [
             [
                 'title' => 'Business Employees',
-                'icon' => 'fa-solid fa-users', // or fa-solid fa-user-tie
+                'icon' => 'fa-solid fa-users',
                 'value' => number_format($business_employees),
-                'trend_class' => 'text-success', // Green
+                'trend_class' => 'text-success',
                 'trend_icon' => 'fa-solid fa-arrow-up',
                 'trend_value' => '+10%',
                 'time_period' => 'Year',
             ],
             [
                 'title' => 'On Leave Employees',
-                'icon' => 'fa-solid fa-user-slash', // or fa-solid fa-bed
+                'icon' => 'fa-solid fa-user-slash',
                 'value' => number_format($on_leave_employees),
-                'trend_class' => 'text-danger', // Red
+                'trend_class' => 'text-danger',
                 'trend_icon' => 'fa-solid fa-arrow-up',
                 'trend_value' => '+2.15%',
                 'time_period' => 'Month',
@@ -68,16 +68,10 @@ class DashboardController extends Controller
             ],
         ];
 
-        // "Total Clients" is the platform business's own platform-operator
-        // metric (managedBusinesses() - how many client tenants this
-        // business manages) - meaningless (always 0) for every client
-        // business, so it only belongs on the platform business's own
-        // dashboard, not personalized by role alone (a super-admin
-        // impersonating a client would otherwise still see it).
         if ($business->slug === config('business.main_slug')) {
             $cards[] = [
                 'title' => 'Total Clients',
-                'icon' => 'fa-solid fa-users-gear', // or fa-solid fa-user-group
+                'icon' => 'fa-solid fa-users-gear',
                 'value' => number_format($business->managedBusinesses()->count()),
                 'trend_class' => 'text-success',
                 'trend_icon' => 'fa-solid fa-arrow-up',
@@ -86,14 +80,10 @@ class DashboardController extends Controller
             ];
         }
 
-        // Loans/advances are a Payroll Management feature - showing them
-        // to a business that hasn't subscribed to that module means
-        // showing a permanently-zero card for something they can't
-        // actually use.
         if ($business->hasModule('payroll-management')) {
             $cards[] = [
                 'title' => 'Active Loans',
-                'icon' => 'fa-solid fa-hand-holding-dollar', // or fa-solid fa-money-bill-transfer
+                'icon' => 'fa-solid fa-hand-holding-dollar',
                 'value' => number_format($business->activeLoanCount()),
                 'trend_class' => 'text-danger',
                 'trend_icon' => 'fa-solid fa-arrow-down',
@@ -102,7 +92,7 @@ class DashboardController extends Controller
             ];
             $cards[] = [
                 'title' => 'Active Advances',
-                'icon' => 'fa-solid fa-arrow-trend-up', // or fa-solid fa-coins
+                'icon' => 'fa-solid fa-arrow-trend-up',
                 'value' => number_format($business->advancesByStatus('approved')->count()),
                 'trend_class' => 'text-success',
                 'trend_icon' => 'fa-solid fa-arrow-up',
@@ -113,7 +103,7 @@ class DashboardController extends Controller
 
         $cards[] = [
             'title' => 'Leave Requests',
-            'icon' => 'fa-solid fa-calendar-plus', // or fa-solid fa-file-pen
+            'icon' => 'fa-solid fa-calendar-plus',
             'value' => number_format($pending_leave_requests),
             'trend_class' => 'text-success',
             'trend_icon' => 'fa-solid fa-arrow-up',
@@ -122,7 +112,7 @@ class DashboardController extends Controller
         ];
         $cards[] = [
             'title' => 'Employee Turnover',
-            'icon' => 'fa-solid fa-right-left', // or fa-solid fa-user-minus
+            'icon' => 'fa-solid fa-right-left',
             'value' => number_format($employee_turnover),
             'trend_class' => 'text-danger',
             'trend_icon' => 'fa-solid fa-arrow-down',
@@ -133,10 +123,6 @@ class DashboardController extends Controller
         return view('business.index', compact('cards', 'page', 'business'));
     }
 
-    /**
-     * "Getting Started" checklist data for the dashboard panel - see
-     * GUIDE.md and App\Services\BusinessSetupProgressService.
-     */
     public function fetchSetupProgress(Request $request, Business $business)
     {
         $service = app(\App\Services\BusinessSetupProgressService::class);
@@ -398,7 +384,6 @@ class DashboardController extends Controller
         $description = '';
         $business = Business::findBySlug(session('active_business_slug'));
 
-        // Fetch system-wide deductions
         $deductions = Deduction::all();
         $employees = $business->employees;
         $locations = $business->locations;
@@ -465,8 +450,6 @@ class DashboardController extends Controller
         $page        = 'Leave - #' . $reference_number;
         $description = '';
 
-        // Remove: $leave->statuses()->...
-        // The show view renders status timeline from approval_history / approved_* / rejection_reason
         return view('leave.show', ['page' => $page, 'description' => $description, 'leave' => $leave, 'business' => $business]);
     }
 
@@ -485,7 +468,6 @@ class DashboardController extends Controller
 
         return view('leave.index', compact('page', 'description', 'departments', 'locations', 'leaveTypes', 'leavePeriods', 'jobCategories'));
     }
-
 
     public function leaveTypes(Request $request)
     {
@@ -513,9 +495,7 @@ class DashboardController extends Controller
     $description = '';
     $currentBusiness = $request->route('business');
     $business = Business::findBySlug(session('active_business_slug'));
-    // Active period first (then most recent) so both the default tab and
-    // the export modal's default selection land on the CURRENT period,
-    // not whichever one happens to have the lowest id.
+
     $leave_periods = $business->leavePeriods()
         ->orderByDesc('is_active')
         ->orderByDesc('start_date')
@@ -528,8 +508,6 @@ class DashboardController extends Controller
     return view('leave.entitlements', compact('page', 'description', 'leave_periods', 'initialLeavePeriodSlug', 'departments', 'leaveTypes', 'jobCategories', 'employees'));
     }
 
-
-    
     public function setLeaveEntitlements(Request $request)
     {
     $page = 'Set Leave Entitlements';
@@ -554,7 +532,6 @@ class DashboardController extends Controller
         return view('attendances.holidays_index', compact('page', 'business', 'locations'));
     }
 
-
     public function workSchedules(Business $business)
     {
         $page = "Work Schedules";
@@ -562,18 +539,6 @@ class DashboardController extends Controller
             ->with('currentBusiness', $business);
     }
 
-    // public function setLeaveEntitlements(Request $request)
-    // {
-    //     $page = 'Set Leave Entitlements';
-    //     $business = Business::findBySlug(session('active_business_slug'));
-    //     $description = '';
-    //     $employees = $business->employees;
-    //     $leaveTypes = $business->leaveTypes;
-    //     $leavePeriods = $business->leavePeriods;
-    //     $departments = $business->departments;
-    //     $jobCategories = $business->job_categories;
-    //     $locations = $business->locations;
-    //     return view('leave.entitlement', compact('page', 'description', 'employees', 'leaveTypes', 'leavePeriods', 'departments', 'jobCategories', 'locations'));
     // }
 
     public function leaveSettings(Request $request)
@@ -585,10 +550,6 @@ class DashboardController extends Controller
         return view('leave.settings', compact('page', 'description', 'business', 'leaveTypes'));
     }
 
-    /**
-     * The business-wide weekly rest days (e.g. Saturday/Sunday) - shown on
-     * the leave calendar and excluded from every leave-day calculation.
-     */
     public function updateLeaveSettings(Request $request)
     {
         $business = Business::findBySlug(session('active_business_slug'));
@@ -782,12 +743,12 @@ public function roster(Request $request)
     $page = 'Roster';
     $description = 'Manage your staff rota and attendance schedule.';
 
-    $employees = Employee::with('user')->get(); // Load related user name for each employee
+    $employees = Employee::with('user')->get();
     $departments = Department::all();
-    $jobCategories = JobCategory::all(); // ✅ Include this
-    $locations = Location::all(); // ✅ Include this
-    $shifts = Shift::all(); // ✅ Include this
-    $leaveTypes = LeaveType::all(); // ✅ Include this
+    $jobCategories = JobCategory::all();
+    $locations = Location::all();
+    $shifts = Shift::all();
+    $leaveTypes = LeaveType::all();
 
     return view('roster.index', compact(
         'page',
@@ -800,7 +761,6 @@ public function roster(Request $request)
         'leaveTypes'
     ));
 }
-
 
     public function contracts()
     {

@@ -11,12 +11,10 @@
         </select>
     </div>
 
-    {{-- NEW: punch meta (populated by JS) --}}
     <input type="hidden" name="latitude" id="clockout_latitude">
     <input type="hidden" name="longitude" id="clockout_longitude">
     <input type="hidden" name="device_mac" id="clockout_device_mac">
 
-    {{-- Optional MAC input (only shown if enforced; JS toggles visibility) --}}
     <div id="clockout_mac_wrapper" class="mb-3 d-none">
         <label for="clockout_device_mac_input" class="form-label fw-semibold text-dark">
             Device MAC (e.g. 10:9A:DD:01:23:45)

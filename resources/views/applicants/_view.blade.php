@@ -11,7 +11,7 @@
                         </a>
                     </div>
                     <div class="card-body">
-                        <!-- Applicant Personal Information -->
+
                         <div class="row">
                             <div class="col-md-6">
                                 <h6 class="text-muted">Personal Information</h6>
@@ -75,7 +75,6 @@
                             </div>
                         </div>
 
-                        <!-- Applicant Applications -->
                         <hr class="my-4">
                         <h6 class="text-muted">Job Applications</h6>
                         @if($applications->isEmpty())

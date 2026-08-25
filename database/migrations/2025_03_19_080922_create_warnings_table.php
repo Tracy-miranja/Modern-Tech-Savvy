@@ -15,7 +15,7 @@ return new class extends Migration
             $table->date('issue_date');
             $table->string('reason');
             $table->text('description')->nullable();
-            $table->string('status')->default('active'); // e.g., 'active', 'resolved'
+            $table->string('status')->default('active');
             $table->foreignId('issued_by')->constrained('users')->onDelete('cascade');
             $table->timestamps();
         });

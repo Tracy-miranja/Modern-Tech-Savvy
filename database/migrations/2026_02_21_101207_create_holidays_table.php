@@ -14,11 +14,11 @@ return new class extends Migration
             $table->foreignId('business_id')->constrained()->onDelete('cascade');
             $table->string('name');
             $table->date('date');
-            $table->boolean('is_recurring')->default(false); // repeats annually
-            $table->boolean('is_working_day')->default(false); // if true, working this day = overtime
+            $table->boolean('is_recurring')->default(false);
+            $table->boolean('is_working_day')->default(false);
             $table->text('description')->nullable();
             $table->timestamps();
-            
+
             $table->index(['business_id', 'date']);
         });
     }

@@ -18,7 +18,6 @@ return new class extends Migration {
             $table->timestamps();
         });
 
-        // Pivot table for many-to-many relationship
         Schema::create('employee_task', function (Blueprint $table) {
             $table->id();
             $table->foreignId('task_id')->constrained()->onDelete('cascade');

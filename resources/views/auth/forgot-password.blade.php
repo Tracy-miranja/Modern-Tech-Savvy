@@ -25,7 +25,6 @@
                 <form method="POST" action="{{ route('password.email') }}" id="forgot-password-form">
                     @csrf
 
-                    <!-- Email Address -->
                     <div class="from__input-box mb-4">
                         <div class="form__input-title">
                             <label for="email">{{ __('Email') }}</label>

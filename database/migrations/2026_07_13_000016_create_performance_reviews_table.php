@@ -15,7 +15,7 @@ return new class extends Migration
             $table->foreignIdFor(Business::class);
             $table->foreignId('performance_cycle_id')->constrained()->cascadeOnDelete();
             $table->foreignIdFor(Employee::class)->constrained();
-            $table->unsignedBigInteger('reviewer_id')->nullable(); // employees.id of the line manager
+            $table->unsignedBigInteger('reviewer_id')->nullable();
             $table->decimal('kpi_score', 5, 2)->nullable();
             $table->decimal('okr_score', 5, 2)->nullable();
             $table->decimal('competency_score', 5, 2)->nullable();

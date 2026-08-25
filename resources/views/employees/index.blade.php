@@ -8,7 +8,6 @@
                         class="badge bg-primary-soft text-primary px-3 py-2">{{ $employees->count() }} Employees</span>
                 </div>
 
-                <!-- Filters -->
                 <div class="card shadow-sm mb-4 border-0 rounded-3">
                     <div class="card-body p-4">
                         <div class="row g-3">
@@ -54,7 +53,6 @@
                     </div>
                 </div>
 
-                <!-- Table -->
                 <div id="employeesContainer" class="card shadow-sm border-0 rounded-3">
                     <div class="card-body p-4">
                         @include('employees._table')
@@ -64,7 +62,6 @@
         </div>
     </div>
 
-    <!-- Employee Modal -->
     <div class="modal fade" id="employeeModal" tabindex="-1" aria-labelledby="employeeModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-xl">
             <div class="modal-content">
@@ -73,13 +70,12 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body" id="employeeFormContainer">
-                    <!-- Form will be loaded dynamically -->
+
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- View Modal -->
     <div class="modal fade" id="viewEmployeeModal" tabindex="-1" aria-labelledby="viewEmployeeModalLabel"
         aria-hidden="true">
         <div class="modal-dialog modal-xl">
@@ -203,6 +199,5 @@ function togglePwdFields(checkbox) {
 }
 </script>
     @endpush
-
 
 </x-app-layout>

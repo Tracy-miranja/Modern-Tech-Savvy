@@ -68,7 +68,7 @@ class Kpi extends Model
     public function calculate($modelInstance)
     {
         if ($this->model_type === 'manual') {
-            return null; // Manual KPIs are reviewed, not calculated
+            return null;
         }
 
         $method = ucfirst($this->calculation_method);
@@ -267,9 +267,7 @@ class Kpi extends Model
         if ($this->comparison_operator === '>=') {
             return min(100, ($result / $target) * 100);
         } elseif ($this->comparison_operator === '<=') {
-            // "Stay at or below target" - fully met (100%) anywhere at or
-            // under the ceiling, not just when result is exactly 0; then
-            // scales back down the further result overshoots the target.
+
             if ($result <= $target) {
                 return 100.0;
             }

@@ -27,7 +27,7 @@ class LeaveRequest extends Model
         'requires_documentation',
         'is_tentative',
         'current_approval_level',
-        'approval_history', // json
+        'approval_history',
         'half_day',
         'half_day_type',
         'reason',
@@ -58,9 +58,6 @@ class LeaveRequest extends Model
         'cancelled_by'           => 'integer',
     ];
 
-    /* ----------------
-       Relationships
-    -----------------*/
     public function employee()
     {
         return $this->belongsTo(Employee::class);
@@ -91,9 +88,6 @@ class LeaveRequest extends Model
         return $this->belongsTo(User::class, 'cancelled_by');
     }
 
-    /* ----------------
-       Computed status
-    -----------------*/
     public function getStatusAttribute(): string
     {
         if (!is_null($this->cancelled_at))      return 'cancelled';
@@ -102,9 +96,6 @@ class LeaveRequest extends Model
         return 'pending';
     }
 
-    /* -----------------------------------
-       Multi-level approval helper methods
-    ------------------------------------*/
     public function needsMoreApprovals(): bool
     {
         $required = (int) (optional($this->leaveType)->approval_levels ?? 1);
@@ -117,12 +108,10 @@ class LeaveRequest extends Model
         return (int) ($this->current_approval_level ?? 0) + 1;
     }
 
-    // Who can approve - driven by the leave type's configured approval
-    // chain (LeaveType::approverTypeForLevel()), not whichever role a
     // user happens to be wearing.
     public function canUserApprove(User $user): bool
     {
-        // Only pending can be approved
+
         if ($this->status !== 'pending') return false;
 
         $requesterEmployee = $this->employee;
@@ -134,9 +123,6 @@ class LeaveRequest extends Model
 
         $approverType = $this->leaveType?->approverTypeForLevel($this->getNextApprovalLevel()) ?? 'organogram';
 
-        // 'organogram': anyone anywhere in the requester's actual reporting
-        // chain (direct manager, their manager, and so on) can approve -
-        // Employee.manager_id is the source of truth, not a role label.
         if ($approverType === 'organogram'
             && $requesterEmployee && $approverEmployee
             && $requesterEmployee->reportsTo($approverEmployee)
@@ -144,19 +130,6 @@ class LeaveRequest extends Model
             return true;
         }
 
-        // 'department_head': lets a business route a specific leave type
-        // straight to the department's head without also opening it to
-        // the requester's full reporting chain. "Head" is resolved from
-        // the ACTUAL organization structure first (OrganizationOwnershipService -
-        // whichever role/position covering this department sits furthest
-        // from the top of the reports-to chain, see its docblock) when the
-        // business has one configured, so this stays in sync with however
-        // they've actually built out Roles/Positions rather than requiring
-        // everyone to also hold the separate 'head-of-department' Spatie
-        // permission role. Falls back to that role check (same as before)
-        // for a department nobody has assigned org-structure coverage to
-        // yet, so businesses that haven't adopted Roles/Positions keep
-        // working exactly as they did before this fell back automatically.
         if ($approverType === 'department_head'
             && $requesterEmployee && $approverEmployee
             && $requesterEmployee->department_id
@@ -175,12 +148,6 @@ class LeaveRequest extends Model
             }
         }
 
-        // A business-defined custom role (see RoleController's builder)
-        // holding the granular module.leave-management.approve permission
-        // is its own standing override, independent of the fixed
-        // chief-of-staff/business-hr/business-admin roles below - this is
-        // what actually makes "who can approve leave" business-configurable
-        // rather than hardcoded to the platform's fixed role set.
         if ($approverEmployee
             && (int) $approverEmployee->business_id === (int) $this->business_id
             && !$alreadyApprovedByUser
@@ -188,30 +155,15 @@ class LeaveRequest extends Model
             return true;
         }
 
-        // Beyond the configured routing, company-wide admin roles remain a
-        // standing override (see below) - this is also the entire
-        // enforcement mechanism for approverType === 'hr': nothing above
-        // matches for a plain manager, so only an actual HR/admin/head
-        // user can get past this point, which is exactly "route this
-        // leave type straight to HR."
-
-        // Resolve active role (prefer session)
         $activeRole = strtolower((string) (session('active_role') ?? ''));
         if ($activeRole === '' && method_exists($user, 'getRoleNames')) {
             $activeRole = strtolower((string) ($user->getRoleNames()->first() ?? ''));
         }
         if ($activeRole === '') return false;
 
-        // Beyond the organogram chain, only two kinds of standing override
-        // remain: company-wide admin roles (HR/admin), and chief-of-staff -
-        // which unlike "head-of-department" is a genuine HR-curated
-        // cross-departmental assignment (a pivot table, not just a role
-        // label), so it isn't reducible to the single-parent manager_id
-        // tree the way a normal reporting line is.
         $overrideRoles = ['chief-of-staff', 'business-hr', 'business-admin'];
         if (!in_array($activeRole, $overrideRoles, true)) return false;
 
-        // Prevent duplicate approval by the SAME user under the SAME role
         $alreadyApprovedSameRole = collect($history)->contains(function ($entry) use ($user, $activeRole) {
             $sameUser  = (int) ($entry['approver_id'] ?? 0) === (int) $user->id;
             $entryRole = strtolower((string) ($entry['approver_role'] ?? ''));
@@ -219,7 +171,6 @@ class LeaveRequest extends Model
         });
         if ($alreadyApprovedSameRole) return false;
 
-        // SPECIAL CASE: business-admin can approve for the whole business
         if ($activeRole === 'business-admin') {
             $sameBusiness =
                 (int) ($user->business_id ?? 0) === (int) $this->business_id
@@ -228,24 +179,20 @@ class LeaveRequest extends Model
             return $sameBusiness;
         }
 
-        // For other roles, require an employee record in the SAME business
         $userEmployee = $user->activeEmployee();
         if (!$userEmployee || (int) $userEmployee->business_id !== (int) $this->business_id) {
             return false;
         }
 
-        // Chief-of-staff must have the request's department in their assigned pivot departments
         if ($activeRole === 'chief-of-staff') {
             $reqDept = (int) optional($this->employee)->department_id;
             if ($reqDept <= 0) return false;
-            $assigned = $userEmployee->assignedDepartmentIds(); // from Employee model
+            $assigned = $userEmployee->assignedDepartmentIds();
             return in_array($reqDept, $assigned, true);
         }
 
-        // HR / Head pass once same-business employee is confirmed
         return true;
     }
-
 
     // Filter by ACTIVE role
 public function scopeForRole($query, User $user, $businessId)
@@ -256,10 +203,7 @@ public function scopeForRole($query, User $user, $businessId)
     switch ($activeRole) {
         case 'business-employee':
             if ($userEmployee) {
-                // Own requests, plus (if this employee is a line manager)
-                // their direct reports' requests - so a manager logged in
-                // with the plain employee role can still see what's waiting
-                // on them via the organogram, without needing an approver role.
+
                 $reportIds = $userEmployee->directReports()->pluck('id');
 
                 return $query->where('business_id', $businessId)
@@ -285,7 +229,7 @@ public function scopeForRole($query, User $user, $businessId)
             if (!$userEmployee) {
                 return $query->whereRaw('1=0');
             }
-            // Use assigned departments from pivot
+
             $deptIds = $userEmployee->assignedDepartmentIds();
             if (empty($deptIds)) {
                 return $query->whereRaw('1=0');
@@ -303,7 +247,6 @@ public function scopeForRole($query, User $user, $businessId)
             return $query->whereRaw('1=0');
     }
 }
-
 
     // Keep both for legacy code
     public function scopeStatus($query, $statusName)
@@ -328,9 +271,6 @@ public function scopeForRole($query, User $user, $businessId)
         return $this->scopeStatus($query, $statusName);
     }
 
-    /* ----------------
-       Utilities
-    -----------------*/
     public static function generateUniqueReferenceNumber($businessId)
     {
         do {
@@ -347,42 +287,38 @@ public function scopeForRole($query, User $user, $businessId)
     public static function hasOverlap($employeeId, $startDate, $endDate)
     {
         return self::where('employee_id', $employeeId)
-            // Only consider approved or pending (exclude rejected)
+
             ->where(function ($q) {
                 $q->where(function ($q1) {
-                    // Approved
+
                     $q1->whereNotNull('approved_by')
                     ->whereNull('rejection_reason');
                 })
                 ->orWhere(function ($q2) {
-                    // Pending
+
                     $q2->whereNull('approved_by')
                     ->whereNull('rejection_reason');
                 });
             })
-            // Overlap condition
+
             ->where('start_date', '<=', $endDate)
             ->where('end_date', '>=', $startDate)
             ->exists();
     }
 
-    /**
-     * Inclusive days minus excluded weekdays, excluded specific dates,
-     * public holidays (unless the leave type opts out), and half-day adjustment.
-     */
     public static function calculateTotalDays($startDate, $endDate, $halfDay = false, $leaveType = null, ?int $businessId = null, ?int $locationId = null): float
     {
         $start = Carbon::parse($startDate)->startOfDay();
         $end   = Carbon::parse($endDate)->startOfDay();
 
         $excluded = [];
-        // ADDED: collect excluded specific dates (YYYY-MM-DD)
+
         $excludedDates = [];
         $nonWorkingDays = [];
 
         if ($leaveType instanceof LeaveType) {
             $excluded = array_map('strtolower', (array) ($leaveType->excluded_days ?? []));
-            // ADDED: normalize to ISO date strings
+
             $excludedDates = collect((array)($leaveType->excluded_dates ?? []))
                 ->filter()
                 ->map(fn($d) => Carbon::parse($d)->toDateString())
@@ -392,21 +328,13 @@ public function scopeForRole($query, User $user, $businessId)
 
             $excludeHolidays = $leaveType->exclude_public_holidays ?? true;
             if ($excludeHolidays && $businessId) {
-                // Scoped to the requester's location when known, so a
-                // Kenya-based employee's leave excludes Kenyan public
-                // holidays and a Uganda-based employee's excludes Ugandan
-                // ones, on top of whatever business-wide holidays apply to
-                // everyone regardless of location.
+
                 $holidayDates = Holiday::getHolidaysInRange($businessId, $start, $end, $locationId)
                     ->map(fn($h) => Carbon::parse($h->date)->toDateString())
                     ->all();
                 $excludedDates = array_values(array_unique(array_merge($excludedDates, $holidayDates)));
             }
 
-            // Business-defined non-working days (e.g. Saturday/Sunday) -
-            // the day list itself is company-wide, but whether a given
-            // leave type excludes them from its day count is a per-type
-            // opt-in, same pattern as exclude_public_holidays above.
             $excludeNonWorkingDays = $leaveType->exclude_non_working_days ?? true;
             if ($excludeNonWorkingDays && $businessId) {
                 $business = Business::find($businessId);
@@ -419,10 +347,9 @@ public function scopeForRole($query, User $user, $businessId)
         $days = 0;
         foreach ($period as $date) {
             $weekday = strtolower($date->format('l'));
-            $isoDate = $date->toDateString(); // ADDED
+            $isoDate = $date->toDateString();
             $isNonWorkingDay = in_array((int) $date->dayOfWeek, $nonWorkingDays, true);
 
-            // increment only if NOT an excluded weekday AND NOT an excluded specific date AND NOT a non-working day
             if (!in_array($weekday, $excluded, true) && !in_array($isoDate, $excludedDates, true) && !$isNonWorkingDay) {
                 $days++;
             }
@@ -435,19 +362,10 @@ public function scopeForRole($query, User $user, $businessId)
         return max(0, (float) $days);
     }
 
-    /**
-     * Cancellation is deliberately distinct from revoke() (HR-only shortening
-     * of an already-started/approved leave) and destroy() (owner-only hard
-     * delete of a still-pending request): cancel() lets the owner OR the same
-     * HR-tier roles used by canUserRevoke() withdraw a request that hasn't
-     * started yet, tracked (not deleted) via cancelled_at/cancelled_by.
-     */
     public function canUserCancel(User $user): bool
     {
         if (!in_array($this->status, ['pending', 'approved'], true)) return false;
 
-        // Once the leave has actually started, cancellation is no longer
-        // appropriate - HR uses revoke()/shorten instead for that case.
         if ($this->start_date && $this->start_date->copy()->startOfDay()->lte(now()->startOfDay())) {
             return false;
         }
@@ -457,7 +375,6 @@ public function scopeForRole($query, User $user, $businessId)
             $activeRole = strtolower((string) ($user->getRoleNames()->first() ?? ''));
         }
 
-        // Owner (self-service cancellation)
         $emp = $user->activeEmployee();
         if ($emp && (int)$emp->id === (int)$this->employee_id) return true;
 
@@ -488,16 +405,9 @@ public function scopeForRole($query, User $user, $businessId)
             return in_array($reqDept, $assigned, true);
         }
 
-        // business-hr
         return true;
     }
 
-    /**
-     * Withdraw a pending/not-yet-started-approved request. Unlike destroy()
-     * this preserves the record (cancelled_at stamped) so it shows in the
-     * Cancelled tab and audit trail, and unlike revoke() this fully releases
-     * the entitlement usage rather than partially refunding a shortened leave.
-     */
     public function cancel(?string $reason, User $byUser): void
     {
         if (!is_null($this->cancelled_at)) {
@@ -515,10 +425,9 @@ public function scopeForRole($query, User $user, $businessId)
 
     public function canUserRevoke(User $user): bool
     {
-        // Only approved leaves can be revoked/shortened
+
         if ($this->status !== 'approved') return false;
 
-        // Active role
         $activeRole = strtolower((string)(session('active_role') ?? ''));
         if ($activeRole === '' && method_exists($user, 'getRoleNames')) {
             $activeRole = strtolower((string) ($user->getRoleNames()->first() ?? ''));
@@ -528,7 +437,6 @@ public function scopeForRole($query, User $user, $businessId)
         $approverRoles = ['head-of-department','chief-of-staff','business-hr','business-admin'];
         if (!in_array($activeRole, $approverRoles, true)) return false;
 
-        // Admins: anywhere within the business
         if ($activeRole === 'business-admin') {
             $sameBusiness =
                 (int)($user->business_id ?? 0) === (int)$this->business_id
@@ -537,17 +445,14 @@ public function scopeForRole($query, User $user, $businessId)
             return $sameBusiness;
         }
 
-        // Others must be in same business
         $emp = $user->activeEmployee();
         if (!$emp || (int)$emp->business_id !== (int)$this->business_id) return false;
 
-        // HoD: department must match the leave's employee department
         if ($activeRole === 'head-of-department') {
             $reqDept = (int) optional($this->employee)->department_id;
             return $reqDept > 0 && (int)$emp->department_id === $reqDept;
         }
 
-        // Chief-of-staff: department must be in assigned pivot
         if ($activeRole === 'chief-of-staff') {
             $reqDept = (int) optional($this->employee)->department_id;
             if ($reqDept <= 0) return false;
@@ -555,16 +460,9 @@ public function scopeForRole($query, User $user, $businessId)
             return in_array($reqDept, $assigned, true);
         }
 
-        // HR/Head
         return true;
     }
 
-
-
-    /**
-     * Shorten an approved leave to the day before $returnToWorkDate.
-     * Returns the number of days refunded (float).
-     */
     public function revokeToReturnDate(Carbon $returnToWorkDate, ?string $reason, User $byUser): float
     {
         if ($this->status !== 'approved') {
@@ -572,7 +470,7 @@ public function scopeForRole($query, User $user, $businessId)
         }
 
         $oldEnd   = $this->end_date->copy()->startOfDay();
-        $newEnd   = $returnToWorkDate->copy()->startOfDay()->subDay(); // last day off
+        $newEnd   = $returnToWorkDate->copy()->startOfDay()->subDay();
         $start    = $this->start_date->copy()->startOfDay();
 
         if ($newEnd->lt($start)) {
@@ -582,10 +480,6 @@ public function scopeForRole($query, User $user, $businessId)
             throw new \InvalidArgumentException('Return date does not shorten the leave.');
         }
 
-        // Calculate old/new totals with the same rules used everywhere -
-        // business_id/location_id are required for calculateTotalDays() to
-        // exclude holidays/non-working days at all, otherwise the refund
-        // is computed against raw calendar days instead of actual leave days.
         $leaveType = $this->leaveType ?: LeaveType::find($this->leave_type_id);
         $employee  = $this->employee ?: Employee::find($this->employee_id);
         $oldTotal  = static::calculateTotalDays($start, $oldEnd, (bool)$this->half_day, $leaveType, $this->business_id, $employee?->location_id);
@@ -593,7 +487,6 @@ public function scopeForRole($query, User $user, $businessId)
 
         $refund = max(0.0, (float)$oldTotal - (float)$newTotal);
 
-        // Refund entitlement (reverse a portion of the original deduction)
         $entitlement = \App\Models\LeaveEntitlement::where('employee_id', $this->employee_id)
             ->where('leave_type_id', $this->leave_type_id)
             ->first();
@@ -605,12 +498,11 @@ public function scopeForRole($query, User $user, $businessId)
                 $entitlement->used_days = max(0, (float)($entitlement->used_days ?? 0) - $refund);
                 $entitlement->save();
             } else {
-                // Fallback: call getRemainingDays() to ensure recompute path stays consistent
+
                 $entitlement->getRemainingDays();
             }
         }
 
-        // Persist new end date; total_days auto-recalculates in saving()
         $this->end_date = $newEnd;
         $history = is_array($this->revocation_history ?? null) ? $this->revocation_history : [];
         $history[] = [
@@ -629,9 +521,6 @@ public function scopeForRole($query, User $user, $businessId)
         return $refund;
     }
 
-    /* ----------------
-       Auto-calc total_days
-    -----------------*/
     protected static function boot()
     {
         parent::boot();
@@ -654,6 +543,10 @@ public function scopeForRole($query, User $user, $businessId)
             if ($leaveRequest->total_days < 0) {
                 $leaveRequest->total_days = 0;
             }
+        });
+
+        static::saved(function (LeaveRequest $leaveRequest) {
+            app(\App\Services\LeaveAttendanceSyncService::class)->handleLeaveSaved($leaveRequest);
         });
     }
 }

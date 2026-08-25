@@ -9,12 +9,6 @@ use App\Models\ProjectMember;
 use App\Http\RequestResponse;
 use Illuminate\Http\Request;
 
-/**
- * Resource Allocation - who's staffed on a project and at what percentage.
- * "Removing" a member sets left_at rather than deleting the row, so time
- * logs/history stay attributable; re-adding the same employee reuses that
- * row (unique(project_id, employee_id) means a second insert would fail).
- */
 class ProjectMemberController extends Controller
 {
     public function fetch(Request $request, Business $business, Project $project)

@@ -7,10 +7,6 @@ use Illuminate\Notifications\Notification;
 use Illuminate\Notifications\Messages\MailMessage;
 use App\Models\EmployeeContractAction;
 
-/**
- * Sent when a suspension or termination is reversed - the employee should
- * hear that they're active again, not just have the record silently flipped.
- */
 class ReinstatementNotification extends Notification
 {
     use Queueable;

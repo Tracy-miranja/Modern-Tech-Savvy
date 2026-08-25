@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 return new class extends Migration {
     public function up(): void
     {
-        // Step 1: Drop existing foreign key (if any) and make user_id nullable
+
         Schema::table('applicants', function (Blueprint $table) {
             $foreignKey = DB::select("
                 SELECT CONSTRAINT_NAME
@@ -26,9 +26,6 @@ return new class extends Migration {
             $table->unsignedBigInteger('user_id')->nullable()->change();
         });
 
-        // Step 2: Clean up orphaned rows BEFORE adding the constraint.
-        // This is a data statement, run outside the Schema::table closure,
-        // and must happen after dropping the old FK but before adding the new one.
         DB::statement("
             UPDATE applicants
             SET user_id = NULL
@@ -36,7 +33,6 @@ return new class extends Migration {
             AND user_id NOT IN (SELECT id FROM users)
         ");
 
-        // Step 3: Add the new foreign key and any new columns
         Schema::table('applicants', function (Blueprint $table) {
             $existingForeignKey = DB::select("
                 SELECT CONSTRAINT_NAME
@@ -54,7 +50,6 @@ return new class extends Migration {
                     ->nullOnDelete();
             }
 
-            // Personal details (Part 1)
             if (!Schema::hasColumn('applicants', 'full_name')) {
                 $table->string('full_name', 255)->nullable()->after('user_id');
             }
@@ -72,7 +67,7 @@ return new class extends Migration {
             }
 
             if (!Schema::hasColumn('applicants', 'gender')) {
-                $table->string('gender', 20)->nullable()->after('phone'); // male/female/other/prefer_not_say
+                $table->string('gender', 20)->nullable()->after('phone');
             }
 
             if (!Schema::hasColumn('applicants', 'dob')) {
@@ -80,7 +75,7 @@ return new class extends Migration {
             }
 
             if (!Schema::hasColumn('applicants', 'age')) {
-                $table->unsignedTinyInteger('age')->nullable()->after('dob'); // optional snapshot
+                $table->unsignedTinyInteger('age')->nullable()->after('dob');
             }
 
             if (!Schema::hasColumn('applicants', 'nationality')) {
@@ -91,7 +86,6 @@ return new class extends Migration {
                 $table->boolean('plwd')->default(false)->after('nationality');
             }
 
-            // optional: ensure created_by is indexed (helps your filtering)
             $existingIndex = DB::select("
                 SELECT INDEX_NAME
                 FROM information_schema.STATISTICS
@@ -109,18 +103,13 @@ return new class extends Migration {
     public function down(): void
     {
         Schema::table('applicants', function (Blueprint $table) {
-            // Drop columns if they exist
+
             foreach (['plwd', 'nationality', 'age', 'dob', 'gender', 'phone', 'email', 'id_number', 'full_name'] as $col) {
                 if (Schema::hasColumn('applicants', $col)) {
                     $table->dropColumn($col);
                 }
             }
 
-            // Revert user_id to NOT NULL if you want (optional)
-            // Warning: only do this if you are sure no rows have null user_id
-            // try { $table->dropForeign(['user_id']); } catch (\Throwable $e) {}
-            // $table->unsignedBigInteger('user_id')->nullable(false)->change();
-            // $table->foreign('user_id')->references('id')->on('users')->cascadeOnDelete();
         });
     }
 };

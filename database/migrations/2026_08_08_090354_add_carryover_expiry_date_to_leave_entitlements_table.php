@@ -4,12 +4,6 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-/**
- * Computed once when the entitlement is created (new period start +
- * policy's carryover_expiry_months), null if the policy has no expiry
- * configured. leave:run-accruals forfeits unused carryover once this date
- * passes - see LeavePolicyService::calculateCarryover()'s docblock.
- */
 return new class extends Migration
 {
     public function up(): void

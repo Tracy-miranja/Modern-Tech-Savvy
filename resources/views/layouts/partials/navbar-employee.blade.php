@@ -21,7 +21,6 @@
                     </a>
                 </li>
 
-                {{-- Disabled for now - not ready for employees to use yet. --}}
                 <li class="slide">
                     <a href="javascript:void(0)" class="sidebar__menu-item disabled" aria-disabled="true"
                         style="opacity: .5; pointer-events: none; cursor: not-allowed;" tabindex="-1">
@@ -142,7 +141,7 @@
                     <a href="{{ route('myaccount.notifications', $currentBusiness->slug) }}" class="sidebar__menu-item">
                         <div class="side-menu__icon"><i class="fa-solid fa-bell"></i></div>
                         <span class="sidebar__menu-label">Notifications</span>
-                        @php $unreadCount = auth()->user()?->unreadNotifications->count() ?? 0; @endphp
+                        @php $unreadCount = auth()->user()?->unreadNotifications->count() ?? 0;@endphp
                         @if ($unreadCount > 0)
                             <span class="badge bg-danger rounded-pill ms-1">{{ $unreadCount > 99 ? '99+' : $unreadCount }}</span>
                         @endif

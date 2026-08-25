@@ -17,7 +17,6 @@ class EmployeeDeductionController extends Controller
     {
         $business = Business::findBySlug(session('active_business_slug'));
 
-        // Fetch system-wide deductions
         $deductions = Deduction::all();
         $employees = $business->employees;
         $employee_deductions = $business->employeeDeductions;

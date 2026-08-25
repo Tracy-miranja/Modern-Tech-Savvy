@@ -1,5 +1,5 @@
 @php
-  // Convert float hours -> HH:MM (display only)
+  
   $hm = function($hours){
       $mins = (int) round(((float)$hours) * 60);
       $h = intdiv($mins, 60);
@@ -46,7 +46,7 @@
         $otH = (float) $r->total_ot_holiday;
         $otT = $otR + $otH;
         $grand = $reg + $otT;
-      @endphp
+@endphp
       <tr>
         <td>{{ $name }}</td>
         <td><strong>{{ $hm($reg) }}</strong></td>

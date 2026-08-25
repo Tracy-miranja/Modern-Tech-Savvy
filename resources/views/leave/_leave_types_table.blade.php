@@ -32,7 +32,7 @@
                             <td>
                                 <button class="btn btn-sm btn-info" data-leave-type="{{ $leaveType->slug }}" onclick="viewLeaveType(this)">
                                     <i class="bi bi-eye"></i>
-                                </button> 
+                                </button>
                                 <button type="button"
                                         class="btn btn-sm btn-primary"
                                         data-slug="{{ $leaveType->slug }}"

@@ -4,7 +4,6 @@
     <input type="hidden" name="employee_id" value="{{ $employee->id }}">
     @endif
 
-    <!-- Tabs -->
     <ul class="nav nav-pills mb-3 border-bottom" id="employeeTabs" role="tablist">
         <li class="nav-item">
             <button class="nav-link active px-3 py-2" id="personal-tab" data-bs-toggle="tab" data-bs-target="#personal"
@@ -33,9 +32,9 @@
     </ul>
 
     <div class="tab-content">
-        <!-- Personal Tab -->
+
         <div class="tab-pane fade show active" id="personal" role="tabpanel">
-            <!-- Personal Info Group -->
+
             <div class="mb-3">
                 <h6 class="text-muted fw-semibold mb-2">Personal Info</h6>
                 <div class="row g-2">
@@ -96,7 +95,6 @@
                 </div>
             </div>
 
-            <!-- Contact Group -->
             <div class="mb-3">
                 <h6 class="text-muted fw-semibold mb-2">Contact</h6>
                 <div class="row g-2">
@@ -127,7 +125,6 @@
                 </div>
             </div>
 
-            <!-- Identification Group -->
             <div class="mb-3">
                 <h6 class="text-muted fw-semibold mb-2">Identification</h6>
                 <div class="row g-2">
@@ -198,7 +195,6 @@
                 </div>
             </div>
 
-            <!-- Profile Picture -->
             <div class="mb-3">
                 <h6 class="text-muted fw-semibold mb-2">Profile Picture</h6>
                 <input type="file" name="profile_picture" id="profile_picture" class="form-control border-primary"
@@ -210,9 +206,8 @@
             </div>
         </div>
 
-        <!-- Employment Tab -->
         <div class="tab-pane fade" id="employment" role="tabpanel">
-            <!-- Work Info Group -->
+
             <div class="mb-3">
                 <h6 class="text-muted fw-semibold mb-2">Work Info</h6>
                 <div class="row g-2">
@@ -336,7 +331,7 @@
                             value="{{ isset($employee) && optional($employee->employmentDetails)->retirement_date ? \Carbon\Carbon::parse($employee->employmentDetails->retirement_date)->format('Y-m-d') : '' }}"
                             placeholder="Retirement Date">
                     </div>
-                    <!-- New License Fields -->
+
             <div class="col-md-4 position-relative">
                 <label for="license_reg_number" class="form-label position-absolute text-muted"
                     style="top: -10px; left: 10px; background: #f0f4f9; padding: 0 5px;">License Registration Number</label>
@@ -365,7 +360,6 @@
                 </div>
             </div>
 
-            <!-- Payroll Exemption -->
             <div class="mb-3">
                 <h6 class="text-muted fw-semibold mb-2">Payroll Exemption</h6>
                 <div class="form-check">
@@ -376,7 +370,7 @@
     <label class="form-check-label" for="is_exempt_from_payroll">Exempt from Payroll</label>
 </div>
             </div>
-            <!-- PWD Tax Exemption -->
+
 <div class="mb-3">
     <h6 class="text-muted fw-semibold mb-2">
         <i class="fa fa-wheelchair me-1"></i> Persons with Disabilities (PWD) Tax Exemption
@@ -427,9 +421,8 @@
 </div>
         </div>
 
-<!-- Payment Tab -->
 <div class="tab-pane fade" id="payment" role="tabpanel">
-    <!-- Payment Type Selection -->
+
     <div class="mb-3">
         <h6 class="text-muted fw-semibold mb-2">Payment Type</h6>
         <div class="row g-2">
@@ -452,7 +445,6 @@
         </div>
     </div>
 
-    <!-- Currency Selection (Shared for both payment types) -->
     <div class="mb-3">
         <h6 class="text-muted fw-semibold mb-2">Currency</h6>
         <div class="row g-2">
@@ -473,7 +465,6 @@
         </div>
     </div>
 
-    <!-- Salary Group (for salary-based employees) -->
    <div class="mb-3" id="salary_group">
     <h6 class="text-muted fw-semibold mb-2" id="salary_group_title">Monthly Salary</h6>
     <div class="row g-2">
@@ -485,7 +476,6 @@
     </div>
 </div>
 
-    <!-- Hourly Rate Group (for hourly employees) -->
    <div class="mb-3" id="hourly_rate_group" style="display:none;">
     <h6 class="text-muted fw-semibold mb-2" id="hourly_group_title">Hourly Rate</h6>
     <div class="row g-2">
@@ -500,7 +490,6 @@
         </div>
     </div>
 
-        <!-- Hourly Pay Info Card -->
         <div class="alert alert-info mt-3" role="alert">
             <h6 class="alert-heading"><i class="fa fa-clock"></i> How Hourly Pay Works</h6>
             <ul class="mb-0 small">
@@ -513,7 +502,6 @@
         </div>
     </div>
 
-    <!-- Bank Details Group -->
     <div class="mb-3">
         <h6 class="text-muted fw-semibold mb-2">Bank Details</h6>
         <div class="row g-2">
@@ -567,8 +555,7 @@
             </div>
         </div>
     </div>
-    <!-- WHT SECTION — only visible for consultants -->
-<!-- WHT SECTION — only visible for consultants/locums -->
+
 <div class="mb-3 border rounded p-3 bg-light"
      id="wht_section"
      style="display: {{ isset($employee) && in_array(optional($employee->employmentDetails)->employment_term, ['consultant', 'locum']) ? 'block' : 'none' }};">
@@ -587,7 +574,6 @@
 
     <div class="row g-2">
 
-        {{-- WHT Category --}}
         <div class="col-md-4">
             <label class="form-label small fw-semibold">WHT Category</label>
             <select name="wht_payment_type" id="wht_payment_type"
@@ -611,7 +597,6 @@
             </select>
         </div>
 
-        {{-- Residency Status --}}
         <div class="col-md-4">
             <label class="form-label small fw-semibold">Residency Status</label>
             <select name="wht_residency" id="wht_residency"
@@ -627,7 +612,6 @@
             </select>
         </div>
 
-        {{-- Payee KRA PIN --}}
         <div class="col-md-4">
             <label class="form-label small fw-semibold">Payee KRA PIN</label>
             <input type="text" name="wht_pin" id="wht_pin"
@@ -637,7 +621,6 @@
             <small class="text-muted">Required for WHT certificate on iTax</small>
         </div>
 
-        {{-- SHIF toggle --}}
         <div class="col-md-6">
             <div class="card border p-2">
                 <div class="form-check">
@@ -684,7 +667,6 @@
             </div>
         </div>
 
-        {{-- NSSF toggle --}}
         <div class="col-md-6">
             <div class="card border p-2">
                 <div class="form-check">
@@ -731,11 +713,10 @@
             </div>
         </div>
 
-        {{-- Summary box showing what will be deducted --}}
         @if(isset($employee) && optional($employee->paymentDetails)->is_consultant)
         <div class="col-12 mt-2">
             <div class="alert alert-secondary py-2 small mb-0">
-                {{-- <strong><i class="fa fa-calculator me-1"></i> Deduction Summary</strong> --}}
+
                 <div class="row mt-1">
                     @php
                         $grossFee   = floatval(optional($employee->paymentDetails)->basic_salary ?? 0);
@@ -770,14 +751,8 @@
                             }
                         }
                         $netPay = $grossFee - $whtAmt - $shifAmt - $nssfAmt;
-                    @endphp
-                    {{-- <div class="col-6 col-md-3">Gross Fee: <strong>KES {{ number_format($grossFee, 2) }}</strong></div>
-                    <div class="col-6 col-md-3 text-danger">WHT ({{ $whtRate }}%): -KES {{ number_format($whtAmt, 2) }}</div>
-                    <div class="col-6 col-md-3 text-danger">SHIF: -KES {{ number_format($shifAmt, 2) }}</div>
-                    <div class="col-6 col-md-3 text-danger">NSSF: -KES {{ number_format($nssfAmt, 2) }}</div>
-                    <div class="col-12 mt-1 text-success fw-semibold">
-                        Net to Consultant: KES {{ number_format($netPay, 2) }}
-                    </div> --}}
+@endphp
+
                 </div>
             </div>
         </div>
@@ -787,7 +762,6 @@
 </div>
 </div>
 
-        <!-- Documents Tab -->
         <div class="tab-pane fade" id="documents" role="tabpanel">
             <div class="mb-3">
                 <h6 class="text-muted fw-semibold mb-3">Upload Documents (Optional)</h6>
@@ -863,7 +837,6 @@
         </div>
     </div>
 
-    <!-- Submit Button -->
     <div class="mt-3 text-end">
         <button type="button" id="submitButton" class="btn btn-primary btn-modern px-4 py-2"
             onclick="saveEmployee(this)">
@@ -939,7 +912,6 @@
         padding: 0.4rem 0.8rem;
         font-size: 0.85rem;
     }
-
 
 </style>
 
@@ -1048,5 +1020,4 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 </script>
-
 

@@ -9,23 +9,9 @@ use App\Models\OrganogramPosition;
 use App\Models\OrganogramRole;
 use Illuminate\Support\Collection;
 
-/**
- * Derives "who executively owns this department" and "who is its HOD"
- * purely from the existing role reporting chain (OrganogramRole.
- * reports_to_role_id) and position coverage (OrganogramPosition.
- * departments()) - there is no explicit "department owner" field anywhere
- * in the schema, by design (see the Enterprise Organization Designer
- * mockup-replication plan): a department's executive owner is whichever
- * covering role sits CLOSEST to the top of the reporting chain, and its
- * HOD is whichever covering role sits FURTHEST from the top (closest to
- * the department floor). A department covered by only one role has that
- * role as both.
- */
 class OrganizationOwnershipService
 {
-    /**
-     * @return array<int, array{executive: array|null, hod: array|null}> keyed by department_id
-     */
+
     public function computeDepartmentOwnership(Business $business): array
     {
         $roles = OrganogramRole::where('business_id', $business->id)->get(['id', 'reports_to_role_id']);
@@ -63,11 +49,6 @@ class OrganizationOwnershipService
         return $ownership;
     }
 
-    /**
-     * The role(s) with no parent (or a parent outside this business's role
-     * set) - same "roots" rule OrganizationStructureController::
-     * fetchRoleTree() already uses - each with whoever currently holds it.
-     */
     public function rootRoles(Business $business): Collection
     {
         $roles = OrganogramRole::where('business_id', $business->id)->get(['id', 'name', 'reports_to_role_id']);
@@ -90,11 +71,6 @@ class OrganizationOwnershipService
         ])->values();
     }
 
-    /**
-     * One card per role that is the executive owner of at least one
-     * department (Task B's Overview tab grid) - the role name/holders,
-     * plus every department it owns with a live people/position count.
-     */
     public function executiveCards(Business $business): array
     {
         $ownership = $this->computeDepartmentOwnership($business);
@@ -133,17 +109,9 @@ class OrganizationOwnershipService
         return array_values($byRole);
     }
 
-    /**
-     * Employees whose functional (dotted-line) manager sits in a different
-     * department to their own - the "Cross-functional assignments" stat.
-     */
     public function crossFunctionalCount(Business $business): int
     {
-        // Compared in PHP after eager loading rather than a SQL whereHas -
-        // Employee::functionalManager() is a self-join (both sides are the
-        // employees table), so a whereColumn() inside a whereHas() closure
-        // can't unambiguously distinguish the outer row's department_id
-        // from the related row's.
+
         return Employee::where('business_id', $business->id)
             ->whereNotNull('functional_manager_id')
             ->with('functionalManager:id,department_id')
@@ -152,14 +120,6 @@ class OrganizationOwnershipService
             ->count();
     }
 
-    /**
-     * BFS distance-from-root for every role - roles never reached by a
-     * root (shouldn't happen given OrganogramRole::wouldCreateCycle()'s
-     * guard against cyclical reports_to_role_id chains, but guarded here
-     * too) are pushed to the very back rather than crashing sort().
-     *
-     * @return array<int, int> role_id => distance
-     */
     private function roleDistancesFromRoot(Collection $roles): array
     {
         $roleIds = $roles->pluck('id');

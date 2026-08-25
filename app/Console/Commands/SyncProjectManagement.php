@@ -5,11 +5,6 @@ namespace App\Console\Commands;
 use App\Services\Projects\ProjectSchedulerService;
 use Illuminate\Console\Command;
 
-/**
- * Daily Project Management housekeeping - sends due-soon and overdue task
- * reminders. Scheduled daily in routes/console.php, mirroring
- * learning:sync/career-events:apply-pending/leave:run-accruals.
- */
 class SyncProjectManagement extends Command
 {
     protected $signature = 'project:sync';

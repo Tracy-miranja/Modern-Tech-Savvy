@@ -129,9 +129,6 @@
 </head>
 <body>
 
-{{-- ════════════════════════════════════════════════════════════════ --}}
-{{-- HEADER — flat table so DomPDF renders it immediately on page 1  --}}
-{{-- ════════════════════════════════════════════════════════════════ --}}
 <table class="header-table">
     <tr>
         <td width="50%">
@@ -145,7 +142,7 @@
                         $logoBase64 = 'data:image/' . $ext . ';base64,' . base64_encode(file_get_contents($filePath));
                     }
                 } catch (\Exception $e) {}
-            @endphp
+@endphp
 
             @if($logoBase64)
                 <img src="{{ $logoBase64 }}" class="logo" alt="Logo">
@@ -180,9 +177,6 @@
 
 <hr class="divider">
 
-{{-- ════════════════════════════════════════════════════════════════ --}}
-{{-- SUMMARY BAR                                                      --}}
-{{-- ════════════════════════════════════════════════════════════════ --}}
 <table class="summary-bar">
     <tr>
         <td>{{ count($data) }} payslip(s)</td>
@@ -191,10 +185,6 @@
     </tr>
 </table>
 
-{{-- ════════════════════════════════════════════════════════════════ --}}
-{{-- SECTION 1 — EMPLOYEE DETAILS                                     --}}
-{{-- Rendered immediately below the header — no blank page            --}}
-{{-- ════════════════════════════════════════════════════════════════ --}}
 <div class="section-title">Employee Details</div>
 <table class="data-table">
     <thead>
@@ -221,9 +211,6 @@
     </tbody>
 </table>
 
-{{-- ════════════════════════════════════════════════════════════════ --}}
-{{-- SECTION 2 — EARNINGS & TAX                                       --}}
-{{-- ════════════════════════════════════════════════════════════════ --}}
 <div class="section-title">Earnings and Tax</div>
 <table class="data-table">
     <thead>
@@ -277,9 +264,6 @@
     </tfoot>
 </table>
 
-{{-- ════════════════════════════════════════════════════════════════ --}}
-{{-- SECTION 3 — DEDUCTIONS & ATTENDANCE                              --}}
-{{-- ════════════════════════════════════════════════════════════════ --}}
 <div class="section-title">Deductions and Attendance</div>
 <table class="data-table">
     <thead>
@@ -336,15 +320,12 @@
     </tfoot>
 </table>
 
-{{-- ════════════════════════════════════════════════════════════════ --}}
-{{-- SIGNATORIES                                                       --}}
-{{-- ════════════════════════════════════════════════════════════════ --}}
 <div class="section-title">
     Scales Master roll for the month of
     @php
         try { echo \Carbon\Carbon::createFromFormat('m', $payroll->payrun_month)->format('F'); }
         catch(\Exception $e) { echo $payroll->payrun_month; }
-    @endphp
+@endphp
     ({{ str_pad($payroll->payrun_month, 2, '0', STR_PAD_LEFT) }}), {{ $payroll->payrun_year }}
 </div>
 

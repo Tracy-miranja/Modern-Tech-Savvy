@@ -10,6 +10,6 @@ has been **{{ strtoupper($leave->status) }}**.
 Reason: {{ $leave->reason }}
 </x-mail::panel>
 
-Thanks,  
+Thanks,
 {{ config('app.name') }}
 </x-mail::message>

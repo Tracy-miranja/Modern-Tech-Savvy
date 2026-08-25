@@ -63,7 +63,7 @@
     </div>
 @endif
 
-{{--REQUIRED: Modal + Form container (so Add Holiday works) --}}
+
 <div class="modal fade" id="addHolidayModal" tabindex="-1" aria-labelledby="addHolidayModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -73,7 +73,7 @@
             </div>
 
             <div class="modal-body" id="holidayFormContainer">
-                {{-- JS will inject the form here --}}
+                
             </div>
         </div>
     </div>

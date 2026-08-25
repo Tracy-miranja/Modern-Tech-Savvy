@@ -1,4 +1,4 @@
-@php use App\Support\TimeFmt; @endphp
+@php use App\Support\TimeFmt;@endphp
 
 <div class="d-flex justify-content-between align-items-center mb-3">
   <div>
@@ -64,7 +64,7 @@
       $sumOtHol   = collect($rows)->sum('total_ot_holiday');
       $sumOt      = collect($rows)->sum('total_ot');
       $sumTotal   = collect($rows)->sum('total_hours');
-    @endphp
+@endphp
 
     <tfoot>
       <tr class="table-secondary fw-bold">

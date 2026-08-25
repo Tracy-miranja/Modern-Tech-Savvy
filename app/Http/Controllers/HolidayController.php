@@ -25,8 +25,8 @@ class HolidayController extends Controller
         $end = Carbon::create($year, 12, 31);
         $locationId = $request->filled('location_id') ? (int) $request->input('location_id') : null;
 
-        // Without a location filter, show every holiday on file (business-wide
-        // + every location's own) so HR can see the full picture at a glance.
+        
+        
         $holidays = $locationId
             ? Holiday::getHolidaysInRange($business->id, $start, $end, $locationId)
             : Holiday::where('business_id', $business->id)
@@ -135,13 +135,7 @@ class HolidayController extends Controller
         });
     }
 
-    /**
-     * Nager.Date's supported countries - powers the "which country's
-     * calendar" picker on the Set Holidays page. Guesses a match against
-     * the given location's own country when provided (falling back to the
-     * business's country if the location doesn't have one set), or the
-     * business's country directly when importing business-wide.
-     */
+    
     public function availableCountries(Request $request)
     {
         $business = Business::findBySlug(session('active_business_slug'));
@@ -178,20 +172,7 @@ class HolidayController extends Controller
         ]);
     }
 
-    /**
-     * Imports a year's public holidays for the given country from
-     * Nager.Date (a free, no-API-key public holiday service). Safe to
-     * re-run - anything already on file (same business + location + name
-     * + date) is skipped rather than duplicated. Fixed-date holidays are
-     * marked recurring so future years project automatically via
-     * Holiday::getHolidaysInRange() without needing a re-import.
-     *
-     * Pass location_id to scope the import to one branch (e.g. importing
-     * Kenyan holidays only for the Nairobi location) rather than the
-     * whole business - essential once a business has locations in more
-     * than one country, since a single country code can't cover all of
-     * them.
-     */
+    
     public function importFromApi(Request $request)
     {
         $validated = $request->validate([
@@ -269,9 +250,7 @@ class HolidayController extends Controller
         });
     }
 
-    /**
-     * Check if a specific date is a holiday
-     */
+    
     public function checkHoliday(Request $request)
     {
         $validated = $request->validate([

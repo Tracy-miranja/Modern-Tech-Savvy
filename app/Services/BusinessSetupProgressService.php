@@ -21,15 +21,6 @@ use App\Models\PerformanceCycle;
 use App\Models\Project;
 use App\Models\Shift;
 
-/**
- * Powers the "Getting Started" checklist on the business dashboard - see
- * GUIDE.md. Every step's done-state is detected live from real data rather
- * than a manually-ticked flag, so it can never drift out of sync with
- * reality: complete the underlying setup action anywhere in the app (e.g.
- * create a department directly, or via import) and the step flips to done
- * the next time this is computed, with no separate "mark complete" step to
- * remember.
- */
 class BusinessSetupProgressService
 {
     public function hasOrganizationStructure(Business $business): bool
@@ -47,11 +38,6 @@ class BusinessSetupProgressService
         return Employee::where('business_id', $business->id)->exists();
     }
 
-    /**
-     * Leave setup is a compound step per GUIDE.md: types and periods exist,
-     * holidays/non-working-days have been configured one way or the other,
-     * and at least one entitlement has actually been set for an employee.
-     */
     public function hasLeaveSetup(Business $business): bool
     {
         return LeaveType::where('business_id', $business->id)->exists()
@@ -108,19 +94,6 @@ class BusinessSetupProgressService
         return Campaign::where('business_id', $business->id)->exists();
     }
 
-    /**
-     * Steps gated by an optional module the business may or may not have
-     * selected - each entry's 'module' is the Module::slug (the same slug
-     * Business::hasModule() and EnsureBusinessModuleActive check), so a
-     * step only ever appears for a business that actually picked that
-     * module. Order here mirrors the order these modules appear in the
-     * nav. "Core HR Management" and Time & Attendance are deliberately not
-     * represented here - neither is actually gated behind module selection
-     * anywhere in the app (every business can reach Employees/Leave/
-     * Attendance regardless of subscription), so those 5 steps stay
-     * unconditional in progressFor() below rather than being made to
-     * depend on a selection that doesn't actually restrict anything.
-     */
     private function moduleGatedSteps(Business $business): array
     {
         return [
@@ -183,13 +156,6 @@ class BusinessSetupProgressService
         ];
     }
 
-    /**
-     * The ordered checklist for this business - id, label, description,
-     * target route, and current done-state for each relevant step. The
-     * first 5 steps are always shown (see moduleGatedSteps() docblock);
-     * everything after is dynamic, appearing only for a module this
-     * specific business has actually selected (Business::hasModule()).
-     */
     public function progressFor(Business $business): array
     {
         $steps = [

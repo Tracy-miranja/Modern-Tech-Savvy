@@ -18,7 +18,7 @@
         </thead>
         <tbody>
             @foreach($overtimes as $overtime)
-                <tr data-overtime-id="{{ $overtime->id }}" 
+                <tr data-overtime-id="{{ $overtime->id }}"
                     class="{{ $overtime->status === 'rejected' ? 'table-danger' : '' }}">
                     <td>
                         @if($overtime->status === 'pending')
@@ -36,7 +36,7 @@
                         @else
                             <span class="badge bg-secondary">Manual</span>
                         @endif
-                        
+
                         @if($overtime->attendance_id)
                             <i class="bi bi-robot text-muted" title="Auto-calculated from attendance"></i>
                         @endif
@@ -63,30 +63,30 @@
                     </td>
                     <td>
                         @if($overtime->status === 'pending')
-                            <button onclick="approveOvertime(this)" data-overtime="{{ $overtime->id }}" 
+                            <button onclick="approveOvertime(this)" data-overtime="{{ $overtime->id }}"
                                 class="btn btn-sm btn-success" title="Approve">
                                 <i class="bi bi-check-circle"></i>
                             </button>
-                            <button onclick="rejectOvertime(this)" data-overtime="{{ $overtime->id }}" 
+                            <button onclick="rejectOvertime(this)" data-overtime="{{ $overtime->id }}"
                                 class="btn btn-sm btn-warning" title="Reject">
                                 <i class="bi bi-x-circle"></i>
                             </button>
-                            <button onclick="editOvertime(this)" data-overtime="{{ $overtime->id }}" 
+                            <button onclick="editOvertime(this)" data-overtime="{{ $overtime->id }}"
                                 class="btn btn-sm btn-primary" title="Edit">
                                 <i class="bi bi-pencil"></i>
                             </button>
-                            <button onclick="deleteOvertime(this)" data-overtime="{{ $overtime->id }}" 
+                            <button onclick="deleteOvertime(this)" data-overtime="{{ $overtime->id }}"
                                 class="btn btn-sm btn-danger" title="Delete">
                                 <i class="bi bi-trash"></i>
                             </button>
                         @elseif($overtime->status === 'approved')
                             <span class="text-muted">Locked</span>
-                            <button onclick="viewOvertimeDetails(this)" data-overtime="{{ $overtime->id }}" 
+                            <button onclick="viewOvertimeDetails(this)" data-overtime="{{ $overtime->id }}"
                                 class="btn btn-sm btn-info" title="View Details">
                                 <i class="bi bi-eye"></i>
                             </button>
                         @else
-                            <button onclick="deleteOvertime(this)" data-overtime="{{ $overtime->id }}" 
+                            <button onclick="deleteOvertime(this)" data-overtime="{{ $overtime->id }}"
                                 class="btn btn-sm btn-danger" title="Delete">
                                 <i class="bi bi-trash"></i>
                             </button>

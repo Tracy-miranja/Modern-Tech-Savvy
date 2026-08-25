@@ -40,7 +40,7 @@
             }
             return $row->device_mac ?: '—';
         };
-    @endphp
+@endphp
 <table class="table">
     <thead>
         <tr>

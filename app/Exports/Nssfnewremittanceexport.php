@@ -14,10 +14,6 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 
-/**
- * New NSSF Return/Remittance Format (post-2014 NSSF Act)
- * Columns: Payroll No, Surname, Other Names, ID No, KRA PIN, NSSF No, Gross Pay, Tier I Employee, Tier I Employer, Tier II Employee, Tier II Employer, Total
- */
 class NssfNewRemittanceExport implements FromCollection, WithHeadings, WithStyles, WithColumnWidths
 {
     protected $payroll;
@@ -53,19 +49,16 @@ class NssfNewRemittanceExport implements FromCollection, WithHeadings, WithStyle
 
             $grossPay = floatval($ep->gross_pay ?? 0);
 
-            // Tier I: on first KES 7,000 (old pensionable pay limit) — 6% each side, capped at 420
             $tier1Base     = min($grossPay, 7000);
             $tier1Employee = round($tier1Base * 0.06, 2);
             $tier1Employer = round($tier1Base * 0.06, 2);
 
-            // Tier II: on amount above 7,000 up to 36,000 — 6% each side
             $tier2Base     = max(0, min($grossPay, 36000) - 7000);
             $tier2Employee = round($tier2Base * 0.06, 2);
             $tier2Employer = round($tier2Base * 0.06, 2);
 
             $totalContribution = $tier1Employee + $tier1Employer + $tier2Employee + $tier2Employer;
 
-            // Accumulate totals
             $totals['gross_pay']          += $grossPay;
             $totals['tier1_employee']     += $tier1Employee;
             $totals['tier1_employer']     += $tier1Employer;
@@ -90,7 +83,6 @@ class NssfNewRemittanceExport implements FromCollection, WithHeadings, WithStyle
             ]);
         }
 
-        // Totals row
         $rows->push([
             'no'               => '',
             'payroll_no'       => 'TOTAL',

@@ -10,11 +10,6 @@ use App\Models\ProjectTimeLog;
 use App\Http\RequestResponse;
 use Illuminate\Http\Request;
 
-/**
- * Time Tracking - a manual daily hours log against a project, optionally a
- * specific task. See the create_project_time_logs_table migration's
- * docblock for why this is a simple log, not a start/stop timer.
- */
 class ProjectTimeLogController extends Controller
 {
     public function fetch(Request $request, Business $business, Project $project)

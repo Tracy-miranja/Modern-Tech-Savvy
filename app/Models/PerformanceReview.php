@@ -51,10 +51,6 @@ class PerformanceReview extends Model
         return $this->belongsTo(Employee::class, 'reviewer_id');
     }
 
-    /**
-     * Average progress (0-100) across the employee's objectives for this
-     * cycle, weighted by each objective's weight.
-     */
     public function computeOkrScore(): float
     {
         $objectives = PerformanceObjective::where('performance_cycle_id', $this->performance_cycle_id)
@@ -72,10 +68,6 @@ class PerformanceReview extends Model
         return round($weightedProgress / $totalWeight, 2);
     }
 
-    /**
-     * Average KPI progress (0-100) across every KPI assigned to this
-     * employee, using each KPI's latest recorded result against its target.
-     */
     public function computeKpiScore(): float
     {
         $kpis = Kpi::where('employee_id', $this->employee_id)->with('results')->get();
@@ -87,9 +79,6 @@ class PerformanceReview extends Model
         return round($kpis->avg(fn (Kpi $kpi) => $kpi->getProgressPercentage()), 2);
     }
 
-    /**
-     * Blends kpi/okr/competency scores using the parent cycle's weights.
-     */
     public function computeOverallScore(): float
     {
         $cycle = $this->cycle;

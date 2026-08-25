@@ -53,14 +53,14 @@
             </tr>
         </thead>
         <tbody>
-            @php $totalShif = 0; @endphp
+            @php $totalShif = 0;@endphp
             @forelse($payroll->employeePayrolls as $ep)
             <tr>
                 <td>{{ $ep->employee->full_name ?? 'N/A' }}</td>
                 <td>{{ $ep->employee->tax_no ?? 'N/A' }}</td>
                 <td>{{ number_format($ep->gross_pay, 2) }}</td>
                 <td>{{ number_format($ep->shif, 2) }}</td>
-                @php $totalShif += $ep->shif; @endphp
+                @php $totalShif += $ep->shif;@endphp
             </tr>
             @empty
             <tr>

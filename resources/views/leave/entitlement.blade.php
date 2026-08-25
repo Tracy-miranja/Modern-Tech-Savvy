@@ -3,7 +3,6 @@
         @csrf
         <div class="row g-20">
 
-            <!-- Selection Panel -->
             <div class="col-md-7">
                 <div class="card h-100">
                     <div class="card-body">
@@ -78,7 +77,6 @@
                                     </div>
                                 </div>
 
-                                <!-- Search Box -->
                                 <div class="mb-3">
                                     <div class="input-group">
                                         <span class="input-group-text">
@@ -95,9 +93,8 @@
                                     <small class="text-muted" id="searchResultsCount"></small>
                                 </div>
 
-                                <!-- Employee Checkboxes Container -->
                                 <div id="employee-checkboxes" class="form-group" style="max-height: 400px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 0.375rem; padding: 0.75rem;">
-                                    <!-- Dynamic employee checkboxes will be added here -->
+
                                 </div>
                             </div>
                         </div>
@@ -106,7 +103,6 @@
                 </div>
             </div>
 
-            <!-- Leave Type and Entitlements Panel -->
             <div class="col-md-5">
                 <div class="card h-100">
                     <div class="card-header">
@@ -122,7 +118,7 @@
                                 </tr>
                             </thead>
                             <tbody id="dynamicRows">
-                                <!-- Dynamic rows will be appended here -->
+
                             </tbody>
                         </table>
 
@@ -213,7 +209,6 @@
                         checkboxesContainer.innerHTML = "<p class=\"text-danger\">Error fetching employees. Please try again later.</p>";
                     }
                     }
-
 
                 function renderEmployees(employees) {
                     const checkboxesContainer = document.getElementById('employee-checkboxes');

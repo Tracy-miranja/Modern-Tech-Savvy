@@ -70,13 +70,12 @@
 
 <body>
     <div class="email-container">
-        <!-- Header -->
+
         <div class="email-header">
             <img src="{{ config('app.url') }}/media/krstlogo.png" alt="{{ config('app.name') }} Logo">
             <div>Interview Scheduled</div>
         </div>
 
-        <!-- Body -->
         <div class="email-body">
             <p>Hello, <strong>{{ $applicantName }}</strong>,</p>
             <p>We’re excited to inform you that an interview has been scheduled for your application to the
@@ -95,7 +94,6 @@
             <p>Please let us know if you have any questions or need to reschedule by replying to this email.</p>
         </div>
 
-        <!-- Footer -->
         <div class="email-footer">
             Best Regards, <br>
             <strong>{{ config('app.name') }} Recruitment Team</strong> <br>

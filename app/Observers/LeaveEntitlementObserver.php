@@ -1,5 +1,5 @@
 <?php
-// App/Observers/LeaveEntitlementObserver.php
+
 namespace App\Observers;
 
 use App\Models\LeaveEntitlement;
@@ -20,13 +20,13 @@ class LeaveEntitlementObserver
 
     public function updating(LeaveEntitlement $e): void
     {
-        // Only if caller didn’t already set custom numbers
+
         $this->applySnapshot($e);
     }
 
     private function applySnapshot(LeaveEntitlement $e): void
     {
-        // need the related models
+
         $employee = $e->relationLoaded('employee') ? $e->employee : Employee::find($e->employee_id);
         $leaveType= $e->relationLoaded('leaveType') ? $e->leaveType : LeaveType::find($e->leave_type_id);
         $period   = $e->relationLoaded('leavePeriod') ? $e->leavePeriod : LeavePeriod::find($e->leave_period_id);
@@ -38,7 +38,6 @@ class LeaveEntitlementObserver
 
         $snap = $this->policyService->buildEntitlementSnapshot($employee, $leaveType, $period, $policy, now());
 
-        // keep entitled for reference, persist new rule fields
         $e->entitled_days  = $snap['entitled'];
         $e->carryover_days = $snap['carryover'];
         $e->accrued_days   = $snap['accrued'];

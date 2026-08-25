@@ -6,9 +6,7 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
+
     public function up()
     {
         Schema::table('attendances', function (Blueprint $table) {
@@ -18,19 +16,13 @@ return new class extends Migration
             $table->index(['business_id', 'date']);
             $table->index(['employee_id', 'date']);
 
-            // FK constraints:
-            // $table->foreign('work_schedule_id')->references('id')->on('work_schedules')->nullOnDelete();
-            // $table->foreign('shift_id')->references('id')->on('shifts')->nullOnDelete();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::table('attendances', function (Blueprint $table) {
-            //
+
         });
     }
 };

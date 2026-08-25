@@ -20,7 +20,6 @@ class LeaveRequestSubmitted extends Mailable
 
         $this->subject('New Leave Request: '.$leaveRequest->reference_number);
 
-        // Build a URL to view the request inside the app
         $this->showUrl = route('business.leave.show', [
             'business' => $this->leaveRequest->business->slug,
             'leave'    => $this->leaveRequest->reference_number,

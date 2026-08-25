@@ -13,9 +13,6 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 
-/**
- * NSSF Pre-2018 Format (flat rate: employee 200, employer 200 = 400 total)
- */
 class NssfPre2018Export implements FromCollection, WithHeadings, WithStyles, WithColumnWidths
 {
     protected $payroll;
@@ -44,7 +41,6 @@ class NssfPre2018Export implements FromCollection, WithHeadings, WithStyles, Wit
             $surname   = $nameParts[1] ?? '';
             $otherNames= $nameParts[0] ?? $fullName;
 
-            // Pre-2018: Fixed 200 employee + 200 employer
             $employeeContrib = 200.00;
             $employerContrib = 200.00;
             $total           = $employeeContrib + $employerContrib;
@@ -68,7 +64,6 @@ class NssfPre2018Export implements FromCollection, WithHeadings, WithStyles, Wit
             ]);
         }
 
-        // Totals row
         $rows->push([
             'no'               => '',
             'payroll_no'       => 'TOTAL',

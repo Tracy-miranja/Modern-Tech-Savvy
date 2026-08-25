@@ -20,27 +20,22 @@ class BankAdviceExport implements FromArray, WithHeadings
 
         return $this->payroll->employeePayrolls->map(function ($ep) use ($reference) {
             return [
-                // Code (blank)
+
                 '',
 
-                // Amount (Net Pay)
                 number_format($ep->net_pay ?? 0, 2),
 
-                // Debit details (blank, to be filled manually)
                 '',
                 '',
                 '',
 
-                // Employee details
                 $ep->employee->paymentDetails->account_number ?? 'N/A',
                 $ep->employee->paymentDetails->bank_name ?? 'N/A',
                 $ep->employee->paymentDetails->bank_branch ?? 'N/A',
                 $ep->employee->user->name ?? 'N/A',
 
-                // Reference (Payroll Period)
                 $reference,
 
-                // Payment Mode
                 '',
             ];
         })->toArray();

@@ -7,7 +7,6 @@
             </div>
             <div class="modal-body">
 
-
                 <form method="post" id="deleteAccountForm">
                     @csrf
 
@@ -27,7 +26,6 @@
                         <x-danger-button class="ms-3" onclick="deleteAccount(this)"> <i class="fa-solid fa-trash-alt me-2"></i> {{ __('Delete Account') }}</x-danger-button>
                     </div>
                 </form>
-
 
             </div>
         </div>

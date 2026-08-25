@@ -38,7 +38,7 @@
         $overallTotal = 0;
         $overallEmployee = 0;
         $overallEmployer = 0;
-    @endphp
+@endphp
 
     @foreach($data as $group)
     <table>
@@ -87,7 +87,7 @@
         $overallTotal    += $group['subtotal']['total'];
         $overallEmployee += $group['subtotal']['employee'];
         $overallEmployer += $group['subtotal']['employer'];
-    @endphp
+@endphp
     @endforeach
 
     <table>

@@ -7,6 +7,7 @@
             <th>Employee</th>
             <th>Department</th>
             <th>Present Days</th>
+            <th>On Leave</th>
             <th>Late Days</th>
             <th>Absent Days</th>
             <th>Regular Hours</th>
@@ -24,13 +25,14 @@
                 </td>
                 <td>{{ optional($row['employee']->department)->name ?? '—' }}</td>
                 <td class="center">{{ $row['present_days'] }}</td>
+                <td class="center">{{ $row['on_leave_days'] }}</td>
                 <td class="center">{{ $row['late_days'] }}</td>
                 <td class="center">{{ $row['is_flexible'] ? 'N/A' : $row['absent_days'] }}</td>
                 <td class="center">{{ \App\Support\TimeFmt::hoursToTotalLabel($row['regular_hours']) }}</td>
                 <td class="center">{{ \App\Support\TimeFmt::hoursToTotalLabel($row['overtime_hours']) }}</td>
             </tr>
         @empty
-            <tr><td colspan="7" class="no-data center">No employees match the selected filters.</td></tr>
+            <tr><td colspan="8" class="no-data center">No employees match the selected filters.</td></tr>
         @endforelse
     </tbody>
 </table>

@@ -45,7 +45,6 @@
         9 => 'Sep', 10 => 'Oct', 11 => 'Nov', 12 => 'Dec',
     ];
 
-    // Last row is always the Totals row (appended by buildNssfMonthlySummaryRows)
     $totalRow     = !empty($rows) ? end($rows) : [];
     $employeeRows = array_slice($rows, 0, count($rows) - 1);
 @endphp
@@ -61,17 +60,15 @@
         </tr>
     </thead>
     <tbody>
-        {{-- Employee rows --}}
+
         @foreach($employeeRows as $row)
         <tr>
             <td class="name-col">{{ $row['name'] }}</td>
             @foreach(range(1, 12) as $m)
                 @php
-                    // buildNssfMonthlySummaryRows() merges month amounts directly
-                    // into the row array with integer keys 1–12.
-                    // null means no payroll ran that month for this employee.
+
                     $val = $row[$m] ?? null;
-                @endphp
+@endphp
                 @if($val !== null && $val > 0)
                     <td class="num">{{ number_format($val, 2) }}</td>
                 @else
@@ -82,11 +79,10 @@
         </tr>
         @endforeach
 
-        {{-- Grand Totals row --}}
         <tr class="total-row">
             <td class="name-col">TOTAL</td>
             @foreach(range(1, 12) as $m)
-                @php $val = $totalRow[$m] ?? null; @endphp
+                @php $val = $totalRow[$m] ?? null;@endphp
                 @if($val !== null && $val > 0)
                     <td class="num">{{ number_format($val, 2) }}</td>
                 @else

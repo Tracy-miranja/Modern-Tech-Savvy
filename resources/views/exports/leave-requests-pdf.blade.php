@@ -1,4 +1,4 @@
-{{-- resources/views/exports/leave-requests-pdf.blade.php --}}
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -147,7 +147,7 @@
 
     @php
         $filters = $filters ?? [];
-    @endphp
+@endphp
 
     @if(!empty(array_filter($filters)))
     <div class="filters">
@@ -221,7 +221,7 @@
                     } elseif (str_contains($statusText, 'Rejected')) {
                         $badgeClass = 'badge-danger';
                     }
-                @endphp
+@endphp
                 <tr>
                     <td>{{ $ref }}</td>
                     <td>{{ $employee }}</td>

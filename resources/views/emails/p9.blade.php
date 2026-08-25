@@ -1,4 +1,4 @@
-<!-- resources/views/emails/p9.blade.php -->
+
 <!DOCTYPE html>
 <html>
 <head>

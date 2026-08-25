@@ -47,56 +47,23 @@
     $employee = $ep->employee;
     $payroll  = $ep->payroll;
 
-    // ── Tax currency: the currency payroll is computed in (e.g. KES or UGX) ──
     $currency = strtoupper(trim($payroll->currency ?? 'KES'));
-
-    // ── FX column logic ───────────────────────────────────────────────────────
-    //
-    // $exchangeRates  = rate passed from controller
-    //                   meaning: 1 $targetCurrency = X $currency (tax currency)
-    //                   e.g. storedRate=129 means 1 USD = 129 KES
-    //
-    // $targetCurrency = the employee's ORIGINAL pay currency (e.g. 'USD', 'UGX')
-    //                   This is what should appear as the 4th column header.
-    //
-    // The 4th column converts tax-currency amounts BACK to the employee's
-    // original currency by DIVIDING by storedRate:
-    //     foreignAmount = taxAmount / storedRate
-    //     e.g. 578,150 KES / 129 = 5,781.50 USD  ✓
-    //
-    // Show the 4th column ONLY when:
-    //   1. $targetCurrency is different from the tax/payroll currency
-    //   2. The stored rate is meaningfully different from 1.0
-    //   3. The rate is a valid positive number
-    //
-    // Employees paid in the same currency as the business → NO 4th column.
-    // Employees paid in a foreign currency (e.g. USD employee in a KES business)
-    // → 4th column showing their amounts in their original currency.
 
     $storedRate  = floatval($exchangeRates ?? 1.0);
     $fxCurrency  = strtoupper(trim($targetCurrency ?? $currency));
 
-    // The 4th column is shown ONLY for employees whose pay currency differs
-    // from the tax/payroll currency AND the exchange rate is meaningful (not 1:1)
     $showFx = ($fxCurrency !== $currency)
            && ($storedRate > 0)
            && (abs($storedRate - 1.0) > 0.0001);
 
-    // Header label: e.g. "UGX (R: 0.0077)" or "USD (R: 129)"
-    // For rates >= 1 (e.g. 1 USD = 129 KES) → show as whole number
-    // For rates < 1 (e.g. 1 UGX = 0.0077 KES) → show 4 decimal places
     $fxRateLabel = $storedRate >= 1
         ? number_format(round($storedRate), 0)
         : number_format($storedRate, 4);
 
-    // Convert tax-currency amount → original employee currency
-    // Divide because storedRate = "1 foreignUnit = X taxUnits"
-    // So foreignUnits = taxAmount / storedRate
     $fx = fn(float $taxAmt): float => ($storedRate > 0)
         ? round($taxAmt / $storedRate, 2)
         : 0.0;
 
-    // Format foreign value for display; $neg=true shows red brackets
     $fxFmt = function(float $taxAmt, bool $neg = false) use ($storedRate): string {
         if ($storedRate <= 0) return '-';
         $val = round($taxAmt / $storedRate, 2);
@@ -106,7 +73,6 @@
         return $val == 0 ? '-' : number_format($val, 2);
     };
 
-    // ── Logo ──────────────────────────────────────────────────────────────────
     $logoUrl    = $business->getImageUrl();
     $logoBase64 = null;
     $filePath   = public_path(parse_url($logoUrl, PHP_URL_PATH));
@@ -115,19 +81,16 @@
         $logoBase64 = 'data:image/' . $ext . ';base64,' . base64_encode(file_get_contents($filePath));
     }
 
-    // ── Period ────────────────────────────────────────────────────────────────
     $month       = (int) $payroll->payrun_month;
     $year        = $payroll->payrun_year;
     $periodLabel = \Carbon\Carbon::create($year, $month)->format('F')
                    . ' (' . str_pad($month, 2, '0', STR_PAD_LEFT) . '), ' . $year;
 
-    // ── Core figures (all in tax currency, e.g. KES) ──────────────────────────
     $basicSalary  = (float)($ep->basic_salary ?? 0);
     $grossPay     = (float)($ep->gross_pay    ?? 0);
     $overtimeData = json_decode($ep->overtime, true) ?? [];
     $overtimeAmt  = (float)($overtimeData['amount'] ?? 0);
 
-    // Allowances
     $allowancesRaw = json_decode($ep->allowances, true) ?? [];
     $allowanceRows = [];
     foreach ($allowancesRaw as $a) {
@@ -143,28 +106,24 @@
         ];
     }
 
-    // Statutory
     $shif            = (float)($ep->shif         ?? 0);
     $nssf            = (float)($ep->nssf         ?? 0);
     $housingLevy     = (float)($ep->housing_levy  ?? 0);
     $helb            = (float)($ep->helb          ?? 0);
     $deductBeforeTax = $shif + $nssf + $housingLevy + $helb;
 
-    // Employer pension
     $employerPensionTaxable = (float)($ep->employer_pension_taxable ?? 0);
     $employerPensionExempt  = (float)($ep->employer_pension_exempt  ?? 0);
     $employerPensionTotal   = (float)($ep->employer_pension         ?? 0);
     $taxableGross           = (float)($ep->taxable_gross            ?? $grossPay);
     $showEmployerPension    = $employerPensionTotal > 0;
 
-    // PAYE
     $taxableIncome    = (float)($ep->taxable_income      ?? 0);
     $payeBeforeRelief = (float)($ep->paye_before_reliefs ?? 0);
     $personalRelief   = (float)($ep->personal_relief     ?? 0);
     $insuranceRelief  = (float)($ep->insurance_relief    ?? 0);
     $paye             = (float)($ep->paye                ?? 0);
 
-    // Custom deductions
     $deductionsRaw   = json_decode($ep->deductions, true) ?? [];
     $loanRepayment   = (float)($ep->loan_repayment   ?? 0);
     $advanceRecovery = (float)($ep->advance_recovery ?? 0);
@@ -184,13 +143,11 @@
     $netPay             = (float)($ep->net_pay ?? 0);
     $totalAllDeductions = $grossPay - $netPay;
 
-    // NSSF year-to-date
     $nssfToDate = \App\Models\EmployeePayroll::where('employee_id', $employee->id)
         ->whereHas('payroll', fn($q) => $q->where('payrun_year', $year))
         ->sum('nssf');
 @endphp
 
-    {{-- Logo --}}
     <div class="logo-wrap">
         @if($logoBase64)<img src="{{ $logoBase64 }}" alt="Logo">@endif
     </div>
@@ -198,7 +155,6 @@
     <div class="company-name">{{ $entity->company_name ?? $entity->name ?? ($business->company_name ?? 'Company') }}</div>
     <div class="payslip-title">Payslip for the month of {{ $periodLabel }}</div>
 
-    {{-- Employee info --}}
     <table class="emp-info">
         <tr><td class="label">Name:</td><td class="value">{{ $employee->user->name ?? 'N/A' }}</td></tr>
         @if($employee->national_id)
@@ -225,20 +181,12 @@
         @if($entityType === 'location')
         <tr><td class="label">Location:</td><td class="value">{{ $entity->name ?? 'N/A' }}</td></tr>
         @endif
-        {{-- Show pay currency only for converted employees --}}
+
         @if($showFx)
         <tr><td class="label">Pay currency:</td><td class="value">{{ $fxCurrency }}</td></tr>
         @endif
     </table>
 
-    {{-- Pay table --}}
-    {{--
-        Column layout:
-          3 columns  → all employees paid in the business/payroll base currency
-          4 columns  → ONLY employees whose pay currency differs from the base currency
-                       4th column header = their original currency + conversion rate
-                       e.g. "UGX (R: 0.0077)" or "USD (R: 129)"
-    --}}
     <table class="pay-table">
         <thead>
             <tr>
@@ -246,14 +194,13 @@
                 <th>Taxation</th>
                 <th>Pay ({{ $currency }})</th>
                 @if($showFx)
-                {{-- 4th column: employee's original pay currency with the rate used --}}
+
                 <th>{{ $fxCurrency }} (R: {{ $fxRateLabel }})</th>
                 @endif
             </tr>
         </thead>
         <tbody>
 
-            {{-- Basic salary --}}
             <tr>
                 <td>Basic salary</td>
                 <td>{{ number_format($basicSalary, 2) }}</td>
@@ -261,7 +208,6 @@
                 @if($showFx)<td>{{ number_format($fx($basicSalary), 2) }}</td>@endif
             </tr>
 
-            {{-- Overtime --}}
             @if($overtimeAmt > 0)
             <tr>
                 <td>Overtime</td>
@@ -271,20 +217,18 @@
             </tr>
             @endif
 
-            {{-- Allowances --}}
             @foreach($allowanceRows as $row)
             <tr @if($row['non_cash']) class="row-noncash" @endif>
                 <td>{{ $row['name'] }}</td>
                 <td></td>
                 <td>{{ $row['amount'] > 0 ? number_format($row['amount'], 2) : '-' }}</td>
                 @if($showFx)
-                {{-- Non-cash employer contributions don't convert (not real cash flow) --}}
+
                 <td>{{ $row['non_cash'] ? '-' : ($row['amount'] > 0 ? number_format($fx($row['amount']), 2) : '-') }}</td>
                 @endif
             </tr>
             @endforeach
 
-            {{-- Employer pension non-cash --}}
             @if($showEmployerPension)
             <tr class="row-noncash">
                 <td>Employer pension (non cash)</td>
@@ -302,7 +246,6 @@
             @endif
             @endif
 
-            {{-- Gross pay subtotal --}}
             <tr class="row-subtotal">
                 <td>Gross pay</td>
                 <td>{{ number_format($grossPay, 2) }}</td>
@@ -318,7 +261,6 @@
             </tr>
             @endif
 
-            {{-- NSSF --}}
             @if($nssf > 0)
             <tr class="row-gap">
                 <td>NSSF</td>
@@ -328,7 +270,6 @@
             </tr>
             @endif
 
-            {{-- SHIF --}}
             @if($shif > 0)
             <tr @if($nssf == 0) class="row-gap" @endif>
                 <td>SHIF</td>
@@ -338,7 +279,6 @@
             </tr>
             @endif
 
-            {{-- Pension custom deduction (pre-tax) --}}
             @foreach($customDeductions as $cd)
             @if(str_contains(strtolower($cd['name']), 'pension'))
             <tr>
@@ -350,7 +290,6 @@
             @endif
             @endforeach
 
-            {{-- Housing Levy --}}
             @if($housingLevy > 0)
             <tr>
                 <td>Housing Levy</td>
@@ -360,7 +299,6 @@
             </tr>
             @endif
 
-            {{-- Deductions before tax subtotal --}}
             @if($deductBeforeTax > 0)
             <tr class="row-subtotal">
                 <td>Deductions before tax</td>
@@ -370,7 +308,6 @@
             </tr>
             @endif
 
-            {{-- Taxable income & PAYE block --}}
             @if($taxableIncome > 0)
             <tr class="row-gap">
                 <td>Deductible relief</td>
@@ -418,7 +355,6 @@
             </tr>
             @endif
 
-            {{-- After-tax deductions --}}
             @if($helb > 0)
             <tr class="row-gap">
                 <td>HELB</td>
@@ -462,7 +398,6 @@
             @endif
             @endforeach
 
-            {{-- Total deductions --}}
             <tr class="row-subtotal">
                 <td>Total deductions</td>
                 <td></td>
@@ -470,7 +405,6 @@
                 @if($showFx)<td>{!! $fxFmt($totalAllDeductions, true) !!}</td>@endif
             </tr>
 
-            {{-- Net pay --}}
             <tr class="row-netpay">
                 <td>Net pay</td>
                 <td></td>
@@ -481,7 +415,6 @@
         </tbody>
     </table>
 
-    {{-- Exchange rate note (only shown when 4th column is present) --}}
     @if($showFx)
     <p class="fx-note">
         Exchange rate: 1 {{ $fxCurrency }} = {{ $fxRateLabel }} {{ $currency }}
@@ -489,7 +422,6 @@
     </p>
     @endif
 
-    {{-- NSSF contributions to date --}}
     @if($nssfToDate > 0)
     <div class="contributions">
         <p><strong>Contributions to date</strong></p>
@@ -497,10 +429,9 @@
     </div>
     @endif
 
-    {{-- Bank details --}}
     @php
         $paymentDetail = \App\Models\EmployeePaymentDetail::where('employee_id', $employee->id)->first();
-    @endphp
+@endphp
     @if($paymentDetail && ($paymentDetail->bank_name || $paymentDetail->account_number))
     <div class="bank-info">
         <p style="font-weight:bold;margin-bottom:4px;">Salary deposited to:</p>
@@ -519,7 +450,6 @@
     </div>
     @endif
 
-    {{-- Employer pension note --}}
     @if($showEmployerPension)
     <div class="pension-note">
         <strong>Employer Pension Note (KRA — Income Tax Act Cap 470):</strong><br>

@@ -12,14 +12,6 @@ class LeaveType extends Model
 {
     use HasFactory, HasSlug, LogsActivity;
 
-    /**
-     * The only approver types a level can be configured as. 'organogram'
-     * (the requester's manager chain) is the default when a level has no
-     * explicit entry, preserving prior behavior for leave types that
-     * predate this field. Company-wide admin roles (HR/admin/business
-     * head/chief-of-staff) remain a standing override regardless of what's
-     * configured here - see LeaveRequest::canUserApprove().
-     */
     public const APPROVER_TYPES = ['organogram', 'hr', 'department_head'];
 
     protected $fillable = [
@@ -71,17 +63,11 @@ class LeaveType extends Model
         return SlugOptions::create()->generateSlugsFrom('name')->saveSlugsTo('slug')->doNotGenerateSlugsOnUpdate();
     }
 
-    /**
-     * Relationship to the Business model.
-     */
     public function business()
     {
         return $this->belongsTo(Business::class);
     }
 
-    /**
-     * Relationship to the LeavePolicy model.
-     */
     public function leavePolicies()
     {
         return $this->hasMany(LeavePolicy::class);
@@ -92,11 +78,6 @@ class LeaveType extends Model
         return $this->hasMany(\App\Models\LeaveRequest::class, 'leave_type_id');
     }
 
-    /**
-     * Who approves a given level (1-indexed). Falls back to 'organogram'
-     * when the chain isn't configured for that level, matching behavior
-     * from before this field existed.
-     */
     public function approverTypeForLevel(int $level): string
     {
         $chain = (array) ($this->approval_chain ?? []);

@@ -29,7 +29,7 @@
             @forelse($payrollData as $data)
             <tr>
                 <td>{{ $data['employee']->user?->name ?? 'N/A' }}</td>
-                {{-- {{ $data['currency'] ?? 'KES' }} --}}
+
                 <td>{{ number_format($data['basic_salary'] ?? 0, 2) }} </td>
                 <td>{{ collect($data['allowances'])->map(fn($a) => "{$a['name']} (" . number_format($a['amount'] ?? 0, 2) . ")")->implode(', ') ?: 'None' }}
                 </td>

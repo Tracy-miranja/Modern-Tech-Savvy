@@ -17,7 +17,7 @@
                                             @foreach(range(1, 12) as $month)
                                                 @php
                                                     $isDisabled = now()->year == request('payrun_year', now()->year) && $month > now()->month;
-                                                @endphp
+@endphp
                                                 <option value="{{ $month }}" {{ now()->month == $month ? 'selected' : '' }} {{ $isDisabled ? 'disabled' : '' }}>
                                                     {{ \Carbon\Carbon::create()->month($month)->format('F') }}
                                                 </option>

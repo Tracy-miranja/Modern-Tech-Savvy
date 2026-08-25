@@ -11,7 +11,7 @@
 
         @php
         $employeeAttendancesCollection = collect($employeeAttendances);
-        @endphp
+@endphp
         <tr>
             @php
             $employeeModel = $employeeAttendancesCollection->first()?->employee;
@@ -19,7 +19,7 @@
             $imageUrl = $employeeModel?->getFirstMediaUrl('avatars');
             $userName = $user?->name ?? 'Unknown';
             $initial = strtoupper(substr($userName, 0, 1));
-            @endphp
+@endphp
             <td class="align-middle">
                 <div class="d-flex align-items-center">
                     <div class="flex-shrink-0 me-2">
@@ -41,7 +41,9 @@
 
             @for ($day = 1; $day <= $daysInMonth; $day++) <td>
                 @if (isset($employeeAttendances[$day]))
-                @if ($employeeAttendances[$day]->is_absent)
+                @if ($employeeAttendances[$day]->is_on_leave)
+                <i class="fa fa-plane text-info" title="On Leave"></i>
+                @elseif ($employeeAttendances[$day]->is_absent)
                 <i class="fa fa-times text-danger"></i>
                 @else
                 <a href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#attendance_info">

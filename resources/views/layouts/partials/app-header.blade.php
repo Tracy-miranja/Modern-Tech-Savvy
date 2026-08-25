@@ -60,7 +60,7 @@
                             @php
                             $employee = auth()->user()->activeEmployee();
                             $imageUrl = $employee?->getFirstMediaUrl('avatars');
-                            @endphp
+@endphp
 
                             @if ($imageUrl)
                             <img src="{{ $imageUrl }}" alt="User {{ auth()->user()->name }}"
@@ -95,6 +95,5 @@
         </div>
     </div>
 </div>
-
 
 <div class="body__overlay"></div>

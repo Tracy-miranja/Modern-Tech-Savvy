@@ -36,7 +36,6 @@ class ReportController extends Controller
             $itaxDetails['housing-levy'] = $payslip->housing_levy;
         }
 
-        //generate csv
         $csv = "";
 
     }
@@ -45,6 +44,5 @@ class ReportController extends Controller
         $employees = $this->employees($request);
 
     }
-
 
 }

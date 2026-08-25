@@ -7,9 +7,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void
     {
-        /**
-         * Part 2: Academic Experience (multiple)
-         */
+
         if (Schema::hasTable('application_academics')) {
             return;
         }
@@ -21,20 +19,17 @@ return new class extends Migration {
                 ->constrained('applications')
                 ->cascadeOnDelete();
 
-            $table->string('qualification_level', 80);      // e.g. Certificate/Diploma/Bachelors/Masters/PhD
+            $table->string('qualification_level', 80);
             $table->string('institution_name', 255);
             $table->string('institution_country', 100)->nullable();
-            $table->string('qualification_name', 255);      // e.g. BSc Computer Science
+            $table->string('qualification_name', 255);
             $table->string('certificate_number', 100)->nullable();
-            $table->unsignedSmallInteger('year_completed')->nullable(); // 1900-2100
+            $table->unsignedSmallInteger('year_completed')->nullable();
             $table->timestamps();
 
             $table->index(['application_id']);
         });
 
-        /**
-         * Part 3: Work Experience (multiple)
-         */
         Schema::create('application_work_experiences', function (Blueprint $table) {
             $table->id();
 
@@ -43,7 +38,7 @@ return new class extends Migration {
                 ->cascadeOnDelete();
 
             $table->string('employer_name', 255);
-            $table->string('employer_contact', 255)->nullable(); // phone/email
+            $table->string('employer_contact', 255)->nullable();
             $table->string('location', 255)->nullable();
             $table->string('job_title', 255);
 
@@ -51,15 +46,12 @@ return new class extends Migration {
             $table->date('end_date')->nullable();
             $table->boolean('is_current')->default(false);
 
-            $table->longText('achievements')->nullable(); // achievements & responsibilities
+            $table->longText('achievements')->nullable();
             $table->timestamps();
 
             $table->index(['application_id']);
         });
 
-        /**
-         * Part 4: Professional Memberships (multiple)
-         */
         Schema::create('application_memberships', function (Blueprint $table) {
             $table->id();
 
@@ -68,19 +60,14 @@ return new class extends Migration {
                 ->cascadeOnDelete();
 
             $table->string('organization_name', 255);
-            $table->string('membership_number', 120); // required
-            $table->string('membership_type', 100)->nullable(); // select
+            $table->string('membership_number', 120);
+            $table->string('membership_type', 100)->nullable();
             $table->unsignedSmallInteger('year_joined')->nullable();
             $table->timestamps();
 
             $table->index(['application_id']);
         });
 
-        /**
-         * Part 5: Documents (CV, National ID, Academic certs, Membership cert, Others)
-         * This table references Spatie Media (media.id) if you use MediaLibrary.
-         * If you don't want to store media_id, you can store path/file_name instead.
-         */
         Schema::create('application_documents', function (Blueprint $table) {
             $table->id();
 
@@ -88,16 +75,12 @@ return new class extends Migration {
                 ->constrained('applications')
                 ->cascadeOnDelete();
 
-            // cv, national_id, academic_attachment, membership_certificate, other
             $table->string('doc_type', 60);
 
-            // Optional labeling (e.g. "Bachelor Transcript", "KRA Pin", etc.)
             $table->string('label', 255)->nullable();
 
-            // If using Spatie media library:
             $table->unsignedBigInteger('media_id')->nullable();
 
-            // If not using Spatie, you can store these too (optional):
             $table->string('file_name', 255)->nullable();
             $table->string('mime_type', 120)->nullable();
             $table->unsignedBigInteger('file_size')->nullable();

@@ -27,11 +27,6 @@ class LeaveRequestController extends Controller
 {
     use HandleTransactions;
 
-    /**
-     * Fetch leave requests for tabs.
-     * - Employees: only their own (by ACTIVE role)
-     * - Others (HOD/HR/Admin/Head): all in current business
-     */
 public function fetch(Request $request)
 {
     $business = Business::findBySlug(session('active_business_slug'));
@@ -48,12 +43,7 @@ public function fetch(Request $request)
     $activeRole = session('active_role');
 
     if ($activeRole === 'business-employee' && $emp) {
-        // Own requests, plus - if this employee is a line manager per the
-        // organogram (Employee.manager_id chain) - their direct reports'
-        // requests too. canUserApprove()'s 'organogram' branch already lets
-        // a plain-role manager approve via that same chain; without this,
-        // there was no page in the portal where they'd ever see a direct
-        // report's pending request to act on in the first place.
+
         $reportIds = $emp->directReports()->pluck('id');
         $query->where(function ($q) use ($emp, $reportIds) {
             $q->where('employee_id', $emp->id);
@@ -74,9 +64,8 @@ public function fetch(Request $request)
         }
     }
 
-    // NEW: chief-of-staff → requests from assigned departments (pivot)
     if ($activeRole === 'chief-of-staff' && $emp) {
-        $deptIds = $emp->assignedDepartmentIds(); // uses the helper we added on Employee
+        $deptIds = $emp->assignedDepartmentIds();
         if (empty($deptIds)) {
             $query->whereRaw('1=0');
         } else {
@@ -126,30 +115,25 @@ public function fetch(Request $request)
     return RequestResponse::ok('Leave requests fetched successfully.', $html);
 }
 
-
 protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): bool
 {
     $active = session('active_role');
 
     $activeEmployee = $user->activeEmployee();
 
-    // Owner
     if ($active === 'business-employee') {
         return (int)optional($activeEmployee)->id === (int)$leave->employee_id;
     }
 
-    // HR / Admin / Head
     if (in_array($active, ['business-hr','business-admin'], true)) {
         return (int)$activeEmployee?->business_id === (int)$leave->business_id
             || (int)$user->business_id === (int)$leave->business_id;
     }
 
-    // HOD: same department
     if ($active === 'head-of-department') {
         return (int)$activeEmployee?->department_id === (int)optional($leave->employee)->department_id;
     }
 
-    // Chief-of-staff: department in assigned pivot
     if ($active === 'chief-of-staff') {
         $dept = (int)optional($leave->employee)->department_id;
         return $dept > 0 && in_array($dept, $activeEmployee?->assignedDepartmentIds() ?? [], true);
@@ -158,12 +142,6 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
     return false;
 }
 
-
-    /**
-     * Show one leave request.
-     * - Employee: only own request
-     * - Others: any request in the same business
-     */
     public function show(Request $request, $reference = null)
     {
         $ref = $reference ?? $request->get('reference_number');
@@ -188,20 +166,15 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
         return view('leave.show', ['leave' => $leave, 'business' => $business]);
     }
 
-    /**
-     * Store a new leave request (simplified policy: only business membership, dates, entitlement, docs).
-     */
     public function store(Request $request)
     {
-        // 1) Minimal validation to safely fetch LeaveType first
+
         $base = $request->validate([
             'leave_type_id' => 'required|exists:leave_types,id',
         ]);
 
-        /** @var \App\Models\LeaveType $leaveType */
         $leaveType = LeaveType::findOrFail($base['leave_type_id']);
 
-        // 2) Full validation (attachment rules are permissive; business rules enforced in code below)
         $validated = $request->validate([
             'employee_id' => 'nullable|exists:employees,id',
             'leave_type_id' => 'required|exists:leave_types,id',
@@ -210,37 +183,33 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
             'reason' => 'nullable|string',
             'half_day' => 'nullable|boolean',
             'half_day_type' => 'nullable|string|in:morning,afternoon|required_if:half_day,1',
-            // Files
+
             'attachment' => 'nullable|file|mimes:pdf,jpg,png,doc,docx|max:2048',
             'attach_later' => 'nullable|boolean',
-            // Handover
+
             'handover_notes' => 'nullable|string|max:5000',
             'handover_attachment' => 'nullable|file|mimes:pdf,jpg,png,doc,docx|max:2048',
             'reliever_employee_id' => 'nullable|integer|exists:employees,id|different:employee_id',
         ]);
 
         return $this->handleTransaction(function () use ($validated, $leaveType, $request) {
-            // --- Business context ---
+
             $business = Business::findBySlug(session('active_business_slug'));
             if (!$business) {
                 return RequestResponse::badRequest('Active business not found in session.');
             }
 
-            // --- Resolve employee (explicit or current user) ---
             $employeeId = $validated['employee_id'] ?? (auth()->user()->activeEmployee()->id ?? null);
             if (!$employeeId) {
                 return RequestResponse::badRequest('No employee selected for this leave request.');
             }
 
-            /** @var \App\Models\Employee $employee */
             $employee = Employee::with('user')->findOrFail($employeeId);
 
-            // Ensure employee belongs to this business
             if ((int)$employee->business_id !== (int)$business->id) {
                 return RequestResponse::badRequest('Selected employee does not belong to the current business.');
             }
 
-            // --- Reliever (delegate) validation ---
             $relieverId = $validated['reliever_employee_id'] ?? null;
             if ($relieverId) {
                 if ((int)$relieverId === (int)$employeeId) {
@@ -252,14 +221,12 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
                 }
             }
 
-            // (Optional) If LeaveType is business-scoped, enforce it (safe even if column doesn't exist/null)
             if (property_exists($leaveType, 'business_id') && !is_null($leaveType->business_id)) {
                 if ((int)$leaveType->business_id !== (int)$business->id) {
                     return RequestResponse::badRequest('This leave type is not available in the current business.');
                 }
             }
 
-            // --- Dates & guards ---
             $startDate = Carbon::parse($validated['start_date']);
             $endDate = Carbon::parse($validated['end_date']);
 
@@ -271,7 +238,6 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
                 return RequestResponse::badRequest('Half-day is not allowed for this leave type.');
             }
 
-            // Only enforce minimum-notice if the leave type does NOT allow backdating
             if (empty($leaveType->allows_backdating) && is_numeric($leaveType->min_notice_days ?? null)) {
                 $diff = now()->startOfDay()->diffInDays($startDate->copy()->startOfDay(), false);
                 if ($diff < (int)$leaveType->min_notice_days) {
@@ -279,12 +245,6 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
                 }
             }
 
-            // Cooldown between two consecutive requests of the SAME leave
-            // type - configured per LeavePolicy (min_interval_days), not
-            // per LeaveType, since it can vary by department/job category
-            // like every other policy field. Resolves the policy in effect
-            // on the new request's start date, same as everywhere else
-            // policies are looked up.
             $intervalPolicy = LeavePolicy::where('leave_type_id', $leaveType->id)
                 ->whereDate('effective_date', '<=', $startDate)
                 ->where(function ($q) use ($startDate) {
@@ -319,11 +279,6 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
                 }
             }
 
-            // A closed leave period is locked - see
-            // LeavePeriodController::close(). No period covering the date
-            // at all is allowed through unchanged (matches today's
-            // behavior for businesses that haven't adopted period
-            // open/close at all).
             $coveringPeriod = LeavePeriod::where('business_id', $business->id)
                 ->whereDate('start_date', '<=', $startDate)
                 ->whereDate('end_date', '>=', $startDate)
@@ -345,13 +300,10 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
                 return RequestResponse::badRequest("You cannot take more than {$leaveType->max_continuous_days} day(s) for this leave type at once.");
             }
 
-            // --- OVERLAP GUARD ---
             if (LeaveRequest::hasOverlap($employeeId, $startDate, $endDate)) {
                 return RequestResponse::badRequest('You already have a pending/approved leave that overlaps with these dates.');
             }
-            // --- END OVERLAP GUARD ---
 
-            // --- Attachment handling ---
             $attachmentPath = null;
             $requiresDocumentation = false;
             $isTentative = false;
@@ -369,7 +321,7 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
                 } elseif ($attachLater) {
                     $requiresDocumentation = true;
                     if (!empty($leaveType->is_stepwise)) {
-                        $isTentative = true; // UI may show "Upload to complete"
+                        $isTentative = true;
                     }
                 } else {
                     return RequestResponse::badRequest('Attachment is required for this leave type. You may choose to upload later.');
@@ -385,7 +337,6 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
                 }
             }
 
-            // --- Handover attachment (always optional, independent of leave-type documentation rules) ---
             $handoverAttachmentPath = null;
             if ($request->hasFile('handover_attachment')) {
                 try {
@@ -396,19 +347,10 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
                 }
             }
 
-            // --- Entitlement check (scoped to the leave period covering the request's start date) ---
             $entitlementQuery = LeaveEntitlement::where('business_id', $business->id)
                 ->where('employee_id', $employeeId)
                 ->where('leave_type_id', $leaveType->id);
 
-            // A business should really only ever have one period covering a
-            // given date, but if it has more than one (data cleanup issue,
-            // or a transitional overlap), picking an arbitrary "first" one
-            // by business-wide date range alone can point at a period the
-            // employee has no entitlement under at all, at which point
-            // ->first() finding nothing gets misread as "0 days left".
-            // Scoping by every covering period and letting the entitlement
-            // itself disambiguate is deterministic instead.
             $coveringPeriodIds = \App\Models\LeavePeriod::where('business_id', $business->id)
                 ->whereDate('start_date', '<=', $startDate)
                 ->whereDate('end_date', '>=', $startDate)
@@ -420,12 +362,10 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
 
             $remaining = $entitlementQuery->first()?->getRemainingDays() ?? 0;
 
-
             if ($remaining < $totalDays) {
                 return RequestResponse::badRequest("You have {$remaining} remaining day(s) for this leave type, but you requested {$totalDays}.");
             }
 
-            // --- Create request ---
             $leaveRequest = LeaveRequest::create([
                 'reference_number' => LeaveRequest::generateUniqueReferenceNumber($business->id),
                 'employee_id' => $employeeId,
@@ -444,7 +384,6 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
                 'current_approval_level' => 0,
             ]);
 
-            // --- Reliever / delegation ---
             if ($relieverId) {
                 $delegation = \App\Models\LeaveDelegation::create([
                     'business_id' => $business->id,
@@ -463,43 +402,28 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
                 }
             }
 
-            // --- Handle approval process based on leave type settings ---
             $this->handleLeaveApprovalProcess($leaveRequest);
 
             return RequestResponse::ok('Leave request created successfully.');
         });
     }
 
-    /**
-     * Handle the approval process for a newly created leave request
-     */
     protected function handleLeaveApprovalProcess(LeaveRequest $leaveRequest)
     {
         $leaveType = $leaveRequest->leaveType;
         $approvalLevels = (int)($leaveType->approval_levels ?? 1);
 
-        // Check if this leave type requires approval. requires_approval and
-        // approval_levels are set independently in the leave type form - a
-        // type configured with approval_levels > 0 but requires_approval
-        // left at its default/unchecked was silently auto-approving every
-        // request, ignoring the approval levels entirely. A positive level
-        // count is a clear signal approval IS wanted, so it must count too.
         $requiresApproval = ($leaveType->requires_approval ?? true) || $approvalLevels > 0;
 
-        // If leave type doesn't require approval, auto-approve it
         if (!$requiresApproval) {
-            // Only auto-approve if documentation is not required OR documentation is already provided
+
             if (!$leaveRequest->requires_documentation || $leaveRequest->attachment) {
                 $this->autoApproveLeave($leaveRequest);
                 return;
             }
-            // If documentation is required but not provided, leave it pending until document is uploaded
+
         }
 
-        // If approval is required, send notifications to approvers.
-        // Leave will remain in pending status until someone approves it -
-        // recompute now so the entitlement's stored days_pending reflects
-        // this request immediately, not just at the next unrelated event.
         LeaveEntitlement::recomputeUsageFor(
             (int) $leaveRequest->employee_id,
             (int) $leaveRequest->leave_type_id,
@@ -509,19 +433,15 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
         $this->sendApplicationNotifications($leaveRequest);
     }
 
-    /**
-     * Auto-approve a leave request (for leave types that don't require approval)
-     */
     protected function autoApproveLeave(LeaveRequest $leaveRequest)
     {
         try {
-            // Set the system as the approver for auto-approved leaves
-            $leaveRequest->approved_by = auth()->id() ?? 1; // Use current user or system user
+
+            $leaveRequest->approved_by = auth()->id() ?? 1;
             $leaveRequest->approved_at = now();
             $leaveRequest->is_tentative = false;
             $leaveRequest->current_approval_level = 1;
 
-            // Add to approval history
             $history = [];
             $history[] = [
                 'level' => 1,
@@ -533,15 +453,12 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
             $leaveRequest->approval_history = $history;
             $leaveRequest->save();
 
-            // Handle entitlement deduction
             LeaveEntitlement::recomputeUsageFor(
                 (int) $leaveRequest->employee_id,
                 (int) $leaveRequest->leave_type_id,
                 (int) $leaveRequest->business_id
             );
 
-
-            // Send auto-approval notifications
             $this->sendFinalApprovalNotificationsWithDelay($leaveRequest);
 
         } catch (\Exception $e) {
@@ -560,12 +477,11 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
         $leaveTypeQuery = LeaveType::where('slug', $slug)
             ->with(['leavePolicies']);
 
-        // Scope the nested leaveRequests relation
         $leaveTypeQuery->with(['leaveRequests' => function ($q) use ($activeRole, $hodDeptId) {
             $q->with(['employee.user']);
             if ($activeRole === 'head-of-department') {
                 if (empty($hodDeptId)) {
-                    $q->whereRaw('1=0'); // HOD without department sees nothing
+                    $q->whereRaw('1=0');
                 } else {
                     $q->whereHas('employee', function ($qq) use ($hodDeptId) {
                         $qq->where('department_id', (int)$hodDeptId);
@@ -579,10 +495,6 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
         return view('leave.leave_type_requests', compact('leaveType'));
     }
 
-
-    /**
-     * Approve/Reject with level checks.
-     */
     public function status(Request $request)
     {
         $validated = $request->validate([
@@ -626,7 +538,6 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
                     return $this->processApproval($leaveRequest, $validated['comments'] ?? null);
                 }
 
-
                 return $this->processRejection($leaveRequest, $validated['rejection_reason'], $validated['comments'] ?? null);
             } catch (\Exception $e) {
                 Log::error("Error in leave status method: " . $e->getMessage());
@@ -635,10 +546,6 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
         });
     }
 
-
-    /**
-     * Enhanced processApproval with better error handling
-     */
     protected function processApproval(LeaveRequest $leaveRequest, $comments = null)
     {
         try {
@@ -650,19 +557,17 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
                 return RequestResponse::badRequest('Invalid approver session.');
             }
 
-            // NEW: resolve active role and guard per-role
-            $activeRole = $this->resolveActiveRole(); // e.g. "business-hr"
+            $activeRole = $this->resolveActiveRole();
             if (!$activeRole) {
                 return RequestResponse::badRequest('Active role not found in session.');
             }
 
             $history = is_array($leaveRequest->approval_history ?? null) ? $leaveRequest->approval_history : [];
 
-            // NEW: block only if SAME user + SAME role already approved before
             $alreadyApprovedSameRole = collect($history)->contains(function ($entry) use ($approverId, $activeRole) {
                 $sameUser = (int)($entry['approver_id'] ?? 0) === (int)$approverId;
                 $entryRole = strtolower((string)($entry['approver_role'] ?? ''));
-                // If role not recorded in older entries, DO NOT block here
+
                 return $sameUser && ($entryRole !== '' && $entryRole === $activeRole);
             });
 
@@ -670,20 +575,18 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
                 return RequestResponse::badRequest('You have already approved this request with your current role.');
             }
 
-            // Require docs before finalizing as you already do
             if ($nextLevel >= $requiredLevels) {
                 if ($leaveRequest->requires_documentation && !$leaveRequest->attachment) {
                     return RequestResponse::badRequest('Cannot finalize approval: documentation is required.');
                 }
             }
 
-            // Record this approval step (persist the role used)
             $leaveRequest->current_approval_level = $nextLevel;
             $history[] = [
                 'level'         => $nextLevel,
                 'approver_id'   => $approverId,
                 'approver_name' => auth()->user()->name,
-                'approver_role' => $activeRole, // << store the active role from session
+                'approver_role' => $activeRole,
                 'approved_at'   => now()->toDateTimeString(),
                 'comments'      => $comments,
             ];
@@ -713,7 +616,6 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
         }
     }
 
-
     protected function processRejection(LeaveRequest $leaveRequest, $rejectionReason, $comments = null)
     {
         $leaveRequest->approved_by = null;
@@ -724,16 +626,12 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
         $leaveRequest->is_tentative = false;
         $leaveRequest->save();
 
-        // A rejected request stops counting as pending against the
-        // entitlement - without this, days_pending would stay stale until
-        // some unrelated event happened to trigger a recompute.
         LeaveEntitlement::recomputeUsageFor(
             (int) $leaveRequest->employee_id,
             (int) $leaveRequest->leave_type_id,
             (int) $leaveRequest->business_id
         );
 
-        // Notify employee safely
         try {
             $leaveRequest->employee->user->notify(new LeaveStatusNotification($leaveRequest));
         } catch (\Exception $e) {
@@ -745,11 +643,6 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
         ]);
     }
 
-
-    /**
-     * Send application notifications with delays to prevent rate limiting
-     * Modified to NOT auto-approve leaves that require approval
-     */
     protected function sendApplicationNotifications(LeaveRequest $leaveRequest)
     {
         try {
@@ -757,21 +650,12 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
             $leaveType = $leaveRequest->leaveType;
             $business  = $leaveRequest->business;
 
-            // Always notify employee of submission (immediate)
             Mail::to($employee->user->email)->queue(new LeaveRequestSubmitted($leaveRequest));
 
             $approvalLevels = (int)($leaveType->approval_levels ?? 1);
 
-            // Mirrors handleLeaveApprovalProcess()'s requires-approval
-            // decision - a positive approval_levels count on its own means
-            // approvers must be notified, even if requires_approval itself
-            // was left unset, otherwise the request sits pending with
-            // nobody ever told to act on it.
             if ($approvalLevels > 0) {
-                // Notify the actual next approver in the organogram chain,
-                // not everyone who happens to hold an approver-shaped role -
-                // avoids leaking other departments' leave requests to
-                // unrelated HODs and avoids notification spam.
+
                 $recipients = $this->findNextApprovers($leaveRequest, $business)->pluck('email');
 
                 foreach ($recipients as $index => $email) {
@@ -785,25 +669,18 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
         }
     }
 
-
-    /**
-     * Send next level notifications with delays
-     */
     protected function sendNextLevelNotificationsWithDelay(LeaveRequest $leaveRequest)
     {
         try {
-            // Notify whoever is actually next in the organogram chain for
-            // this request's next approval level.
+
             $business   = $leaveRequest->business;
             $recipients = $this->findNextApprovers($leaveRequest, $business)->pluck('email');
 
-            // Send with 5-second delays between each email
             foreach ($recipients->unique() as $index => $email) {
                 $delay = now()->addSeconds(($index + 1) * 5);
                 Mail::to($email)->later($delay, new LeaveRequestSubmitted($leaveRequest));
             }
 
-            // Notify employee of progress (immediate)
             try {
                 $leaveRequest->employee->user->notify(new LeaveStatusNotification($leaveRequest));
             } catch (\Throwable $e) {
@@ -815,25 +692,18 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
         }
     }
 
-
-    /**
-     * Send final approval notifications with delays to prevent rate limiting
-     */
     protected function sendFinalApprovalNotificationsWithDelay(LeaveRequest $leaveRequest)
     {
         try {
             $business = $leaveRequest->business;
 
-            // Employee notification (highest priority - immediate)
             $leaveRequest->employee->user->notify(new LeaveStatusNotification($leaveRequest));
 
-            // Collect all other recipients
             $recipients = collect();
             $recipients = $recipients->merge($this->findBusinessAdmins($business)->pluck('email'));
             $recipients = $recipients->merge($this->approverRecipientsForLeave($leaveRequest));
             $recipients = $recipients->merge($this->findBusinessHR($business)->pluck('email'));
 
-            // Send emails with 10-second delays to avoid rate limiting
             foreach ($recipients->unique() as $index => $email) {
                 $delay = now()->addSeconds(($index + 1) * 10);
                 Mail::to($email)->later($delay, new LeaveRequestSubmitted($leaveRequest));
@@ -843,9 +713,6 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
         }
     }
 
-    /**
-     * Enhanced finalizeApproval with better error handling
-     */
     protected function finalizeApprovalSafely(LeaveRequest $leaveRequest): void
     {
         try {
@@ -860,7 +727,6 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
             $leaveRequest->current_approval_level = max((int)$leaveRequest->current_approval_level, 1);
             $leaveRequest->save();
 
-            // Deterministic entitlement update (source-of-truth = approved leaves)
             LeaveEntitlement::recomputeUsageFor(
                 (int) $leaveRequest->employee_id,
                 (int) $leaveRequest->leave_type_id,
@@ -873,25 +739,12 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
         }
     }
 
-    /**
-     * Safe entitlement deduction with better error handling
-     */
     protected function deductLeaveEntitlementSafely(LeaveRequest $leaveRequest): void
     {
         try {
             $entitlementQuery = LeaveEntitlement::where('employee_id', $leaveRequest->employee_id)
                 ->where('leave_type_id', $leaveRequest->leave_type_id);
 
-            // Scope to the leave period(s) covering this request's start
-            // date - without this, an employee with entitlement rows across
-            // multiple periods for the same leave type can have the wrong
-            // period's row deducted (or double-counted, since
-            // getRemainingDays() below re-sums ALL approved requests inside
-            // whichever period it lands on). Using every covering period
-            // (not just an arbitrary business-wide "first" one) and letting
-            // the entitlement itself disambiguate keeps this deterministic
-            // even if the business has more than one period spanning the
-            // same date.
             $coveringPeriodIds = \App\Models\LeavePeriod::where('business_id', $leaveRequest->business_id)
                 ->whereDate('start_date', '<=', $leaveRequest->start_date)
                 ->whereDate('end_date', '>=', $leaveRequest->start_date)
@@ -914,27 +767,21 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
                 $entitlement->used_days = (float)($entitlement->used_days ?? 0) + (float)$leaveRequest->total_days;
                 $entitlement->save();
             } else {
-                // Use the getRemainingDays method which recalculates and saves
+
                 $entitlement->getRemainingDays();
                 Log::info("Entitlement updated using getRemainingDays for entitlement #{$entitlement->id}.");
             }
         } catch (\Exception $e) {
             Log::error("Error recomputing entitlement for leave {$leaveRequest->id}: " . $e->getMessage());
-            
+
         }
     }
 
-    /**
-     * finalizeApproval method 
-     */
     protected function finalizeApproval(LeaveRequest $leaveRequest): void
     {
         $this->finalizeApprovalSafely($leaveRequest);
     }
 
-    /**
-     *  methods with delay versions
-     */
     protected function sendNextLevelNotifications(LeaveRequest $leaveRequest)
     {
         $this->sendNextLevelNotificationsWithDelay($leaveRequest);
@@ -945,15 +792,6 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
         $this->sendFinalApprovalNotificationsWithDelay($leaveRequest);
     }
 
-    /* =========================
-     * Other existing helpers
-     * =========================
-     */
-
-
-    /**
-     * Upload document (owner only).
-     */
     public function uploadDocument(Request $request)
     {
         $validated = $request->validate([
@@ -963,15 +801,12 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
 
         $leaveRequest = LeaveRequest::where('reference_number', $validated['reference_number'])->firstOrFail();
 
-        // Only owner can upload
         if (!$this->canUploadOnBehalf($leaveRequest)) {
             return RequestResponse::badRequest(
                 'You are not allowed to upload documents for this leave.'
             );
         }
 
-
-        // Upload file
         try {
             $path = $request->file('attachment')->store('attachments', 'public');
         } catch (\Exception $e) {
@@ -979,13 +814,11 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
             return RequestResponse::badRequest('Failed to upload attachment. Please try again.');
         }
 
-        // Persist changes
         $leaveRequest->attachment = $path;
         $leaveRequest->requires_documentation = false;
         $leaveRequest->is_tentative = false;
         $leaveRequest->save();
 
-        // If pending and approvals remain, notify the actual next approver.
         if ($leaveRequest->status === 'pending' && $leaveRequest->needsMoreApprovals()) {
             foreach ($this->findNextApprovers($leaveRequest, $leaveRequest->business) as $approver) {
                 Mail::to($approver->email)->queue(new LeaveRequestSubmitted($leaveRequest));
@@ -1005,20 +838,14 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
             return false;
         }
 
-        // Owner
         if ((int) $employee->id === (int) $leaveRequest->employee_id) {
             return true;
         }
 
-        // Must belong to same business
         if ((int) $employee->business_id !== (int) $leaveRequest->business_id) {
             return false;
         }
 
-        // Allowed roles - $employee has no "role" column, so this must read
-        // the actual active Spatie/session role like every other approval
-        // check in this class, not a nonexistent attribute (which silently
-        // made this always false for everyone but the owner).
         $activeRole = strtolower((string) (session('active_role') ?? $user->getRoleNames()->first() ?? ''));
 
         return in_array($activeRole, [
@@ -1028,8 +855,6 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
             'business-admin',
         ], true);
     }
-
-
 
     public function revoke(Request $request)
     {
@@ -1057,14 +882,12 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
                     auth()->user()
                 );
 
-                // 🔁 Always recompute entitlement usage based on all approved leaves
                 LeaveEntitlement::recomputeUsageFor(
                     (int) $leave->employee_id,
                     (int) $leave->leave_type_id,
                     (int) $leave->business_id
                 );
 
-                // Optional: notify the employee (your class already exists)
                 try {
                     $leave->employee->user->notify(new LeaveStatusNotification($leave));
                 } catch (\Throwable $e) {
@@ -1084,12 +907,7 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
             }
         });
     }
-    /**
-     * Withdraw a pending or not-yet-started-approved leave request, tracked
-     * via cancelled_at (shows in the Cancelled tab) rather than hard-deleted
-     * like destroy(), and available to the owner as well as HR-tier roles -
-     * see LeaveRequest::canUserCancel() for the exact rules.
-     */
+
     public function cancel(Request $request)
     {
         $validated = $request->validate([
@@ -1143,7 +961,6 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
         return $this->handleTransaction(function () use ($validated) {
             $leaveRequest = LeaveRequest::where('reference_number', $validated['reference_number'])->firstOrFail();
 
-            // Only owner can delete, and only while pending
             if ($leaveRequest->status !== 'pending') {
                 return RequestResponse::badRequest('Cannot delete approved or rejected requests.');
             }
@@ -1159,26 +976,12 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
 
             $leaveRequest->delete();
 
-            // Cancelling a pending request frees up the days it was
-            // holding against the entitlement.
             LeaveEntitlement::recomputeUsageFor($employeeId, $leaveTypeId, $businessId);
 
             return RequestResponse::ok('Leave request deleted successfully.');
         });
     }
 
-    /* =========================
-     * Finders
-     * =========================
-     */
-
-    /**
-     * The actual next approver for a leave request's next approval level,
-     * per the organogram: level 1 is the requester's direct manager, level
-     * 2 is that manager's manager, and so on. Falls back to HR once the
-     * chain is exhausted (no manager set up that far, or at all), so a
-     * request is never stuck with nobody able to see it.
-     */
     protected function findNextApprovers(LeaveRequest $leaveRequest, Business $business)
     {
         $employee = $leaveRequest->employee;
@@ -1203,7 +1006,6 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
             return $this->findBusinessHR($business);
         }
 
-        // 'organogram' (default)
         $manager = $employee?->managerChain()->get($level - 1);
         if ($manager && $manager->user) {
             return collect([$manager->user]);
@@ -1212,7 +1014,6 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
         return $this->findBusinessHR($business);
     }
 
-    /** All HODs for employee's department in this business. */
     protected function findHODApprovers(Business $business)
     {
         return User::role('head-of-department')
@@ -1221,7 +1022,6 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
             })->get();
     }
 
-    /** All HR users in this business. */
     protected function findBusinessHR(Business $business)
     {
         return User::role('business-hr')
@@ -1230,7 +1030,6 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
             })->get();
     }
 
-    /** All Business Admins in this business (for final-approval ping). */
     protected function findBusinessAdmins(Business $business)
     {
         return User::role('business-admin')
@@ -1238,11 +1037,11 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
                 $q->whereHas('employee', function ($qq) use ($business) {
                     $qq->where('business_id', $business->id);
                 })
-                // owns this business directly (business() hasOne)
+
                 ->orWhereHas('business', function ($qb) use ($business) {
                     $qb->where('id', $business->id);
                 })
-                // owns this business among possibly several (businesses() hasMany - Add Business)
+
                 ->orWhereHas('businesses', function ($qb) use ($business) {
                     $qb->where('businesses.id', $business->id);
                 });
@@ -1250,15 +1049,6 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
             ->get();
     }
 
-    /** HODs for a specific department in this business */
-    /**
-     * The department's HOD as derived from the actual organization
-     * structure (OrganizationOwnershipService - see
-     * LeaveRequest::canUserApprove()'s 'department_head' branch, which
-     * this mirrors so notifications go to whoever can actually approve)
-     * when one is configured, falling back to whoever holds the
-     * 'head-of-department' Spatie role in that department otherwise.
-     */
     protected function findHODApproversForDepartment(Business $business, int $departmentId)
     {
         $ownership = app(\App\Services\OrganizationOwnershipService::class)->computeDepartmentOwnership($business);
@@ -1277,7 +1067,6 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
             ->get();
     }
 
-    /** Chief-of-staff users assigned to this department (pivot-based) */
     protected function findChiefOfStaffApproversForDepartment(Business $business, int $departmentId)
     {
         return User::role('chief-of-staff')
@@ -1290,12 +1079,6 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
             ->get();
     }
 
-    /**
-     * Approvers for THIS leave request (scoped):
-     * - HODs for employee department only
-     * - Chief-of-staff assigned to employee department only
-     * - Business HR (business-wide)
-     */
     protected function approverRecipientsForLeave(LeaveRequest $leaveRequest)
     {
         $business = $leaveRequest->business ?? Business::find($leaveRequest->business_id);
@@ -1305,16 +1088,13 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
 
         $recipients = collect();
 
-        // HR always business-wide
         $recipients = $recipients->merge($this->findBusinessHR($business)->pluck('email'));
 
-        // HOD only for that department
         if ($deptId > 0) {
             $recipients = $recipients->merge(
                 $this->findHODApproversForDepartment($business, $deptId)->pluck('email')
             );
 
-            // Chief-of-staff only assigned to that department
             $recipients = $recipients->merge(
                 $this->findChiefOfStaffApproversForDepartment($business, $deptId)->pluck('email')
             );
@@ -1334,7 +1114,6 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
             ->where('reference_number', $reference)
             ->firstOrFail();
 
-        // View permission (same as show)
         if (!$this->canUserViewLeaveRequest(auth()->user(), $leave)) {
             abort(403);
         }
@@ -1351,9 +1130,6 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
         return $pdf->download("Leave-{$leave->reference_number}.pdf");
     }
 
- 
-    // --------------------------
-    // Debug helper method
     // --------------------------
     public function debugLeaveIssues($employeeId, $leaveTypeId, $startDate, $endDate)
     {
@@ -1386,17 +1162,15 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
             ]
         ];
 
-        // Check existing leave requests for this employee
         $existingRequests = LeaveRequest::where('employee_id', $employeeId)
             ->where('business_id', $business->id)
             ->get(['id', 'reference_number', 'start_date', 'end_date', 'approved_by', 'rejection_reason', 'current_approval_level']);
 
         $debugInfo['existing_requests'] = $existingRequests->toArray();
 
-        // Check for overlaps with detailed query
         $overlapQuery = LeaveRequest::where('employee_id', $employeeId)
             ->where('business_id', $business->id)
-            ->whereNull('rejection_reason') // Only non-rejected
+            ->whereNull('rejection_reason')
             ->where('start_date', '<=', Carbon::parse($endDate)->toDateString())
             ->where('end_date', '>=', Carbon::parse($startDate)->toDateString());
 
@@ -1405,13 +1179,11 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
         $debugInfo['overlapping_requests'] = $overlappingRequests->toArray();
         $debugInfo['has_overlap'] = $overlappingRequests->count() > 0;
 
-        // Check leave policies
         $empGender = $this->normalizeGender($employee->gender ?? $employee->user->gender ?? null);
 
         $allPolicies = LeavePolicy::where('leave_type_id', $leaveTypeId)->get();
         $debugInfo['all_policies'] = $allPolicies->toArray();
 
-        // Check policy match step by step
         $policyQuery = LeavePolicy::where('leave_type_id', $leaveTypeId);
 
         if ($employee->department_id) {
@@ -1447,11 +1219,6 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
         return response()->json($debugInfo, 200, [], JSON_PRETTY_PRINT);
     }
 
-  
-
-    /**
-     * Helper method to normalize gender values
-     */
     protected function normalizeGender($gender)
     {
         if (!$gender) return 'all';
@@ -1470,7 +1237,7 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
     // Inside LeaveRequestController (private helper)
     protected function resolveActiveRole(): ?string
     {
-        $r = session('active_role'); // e.g. "business-hr" from your EnsureCorrectRole middleware
+        $r = session('active_role');
         if (is_string($r) && $r !== '') {
             return strtolower($r);
         }
@@ -1489,11 +1256,9 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
             $data    = $request->input('data', []);
             $filters = $request->input('filters', []);
 
-            // Ensure arrays
             if (!is_array($data)) $data = [];
             if (!is_array($filters)) $filters = [];
 
-            // Normalize "days" to numeric for totals
             $totalDays = collect($data)->sum(function ($row) {
                 $val = strip_tags((string) ($row['days'] ?? 0));
                 $val = preg_replace('/[^0-9.\-]/', '', $val);
@@ -1516,7 +1281,6 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
                 'trace'   => $e->getTraceAsString(),
             ]);
 
-            // Return JSON so frontend doesn't download HTML
             return response()->json([
                 'message' => 'Export failed: ' . $e->getMessage(),
             ], 500);
@@ -1650,7 +1414,7 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
         $fileName = 'leave_requests_'.$status.'_'.time().'.xlsx';
 
         return response()->streamDownload(function () use ($writer) {
-            // CRITICAL: if any output exists, xlsx becomes corrupt
+
             while (ob_get_level() > 0) { ob_end_clean(); }
             $writer->save('php://output');
         }, $fileName, [
@@ -1683,10 +1447,8 @@ protected function canUserViewLeaveRequest(User $user, LeaveRequest $leave): boo
 
         $fileName = 'leave_requests_'.$status.'_'.time().'.pdf';
 
-        // Get raw bytes
         $output = $pdf->output();
 
-        // CRITICAL: prevent corruption
         while (ob_get_level() > 0) { ob_end_clean(); }
 
         return response($output, 200, [

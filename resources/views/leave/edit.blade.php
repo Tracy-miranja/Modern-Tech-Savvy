@@ -104,7 +104,7 @@
 
             <div class="col-md-4">
                 <label class="form-label">Gender Applicable</label>
-                @php $genderOld = old('gender_applicable', $policy->gender_applicable ?? 'all'); @endphp
+                @php $genderOld = old('gender_applicable', $policy->gender_applicable ?? 'all');@endphp
                 <select class="form-select" name="gender_applicable" required>
                     <option value="all" @selected($genderOld === 'all')>All</option>
                     <option value="male" @selected($genderOld === 'male')>Male</option>
@@ -115,7 +115,7 @@
             <div class="col-md-4">
                 <label class="form-label">Prorated for New Employees</label>
                 <select class="form-select" name="prorated_for_new_employees" required>
-                    @php $prorated = old('prorated_for_new_employees', $policy->prorated_for_new_employees ?? 0); @endphp
+                    @php $prorated = old('prorated_for_new_employees', $policy->prorated_for_new_employees ?? 0);@endphp
                     <option value="1" @selected($prorated)>Yes</option>
                     <option value="0" @selected(!$prorated)>No</option>
                 </select>
@@ -128,7 +128,7 @@
 
             <div class="col-md-4">
                 <label class="form-label">Accrual Frequency</label>
-                @php $freq = old('accrual_frequency', $policy->accrual_frequency ?? 'monthly'); @endphp
+                @php $freq = old('accrual_frequency', $policy->accrual_frequency ?? 'monthly');@endphp
                 <select class="form-select" name="accrual_frequency" required>
                     <option value="monthly" @selected($freq==='monthly')>Monthly</option>
                     <option value="quarterly" @selected($freq==='quarterly')>Quarterly</option>
@@ -148,7 +148,7 @@
 
             <div class="col-md-4">
                 <label class="form-label">Carryover Type</label>
-                @php $carryoverType = old('carryover_type', $policy->carryover_type ?? 'full'); @endphp
+                @php $carryoverType = old('carryover_type', $policy->carryover_type ?? 'full');@endphp
                 <select class="form-select" id="carryover_type" name="carryover_type">
                     <option value="full" @selected($carryoverType === 'full')>Full</option>
                     <option value="fixed" @selected($carryoverType === 'fixed')>Fixed</option>
@@ -176,7 +176,7 @@
 
             <div class="col-md-6">
                 <label class="form-label">Encashable</label>
-                @php $isEncashable = old('is_encashable', $policy->is_encashable ?? 0); @endphp
+                @php $isEncashable = old('is_encashable', $policy->is_encashable ?? 0);@endphp
                 <select class="form-select" name="is_encashable">
                     <option value="0" @selected(!$isEncashable)>No</option>
                     <option value="1" @selected($isEncashable)>Yes</option>
@@ -205,7 +205,7 @@
 
             <div class="col-md-4">
                 <label class="form-label">Allows Backdating</label>
-                @php $allowsBack = old('allows_backdating', $leaveType->allows_backdating ?? 0); @endphp
+                @php $allowsBack = old('allows_backdating', $leaveType->allows_backdating ?? 0);@endphp
                 <select class="form-select" name="allows_backdating" required>
                     <option value="1" @selected($allowsBack)>Yes</option>
                     <option value="0" @selected(!$allowsBack)>No</option>
@@ -224,7 +224,7 @@
 
             <div class="col-md-4">
                 <label class="form-label">Stepwise Approval?</label>
-                @php $isStep = old('is_stepwise', $leaveType->is_stepwise ?? 0); @endphp
+                @php $isStep = old('is_stepwise', $leaveType->is_stepwise ?? 0);@endphp
                 <select class="form-select" name="is_stepwise" required>
                     <option value="1" @selected($isStep)>Yes</option>
                     <option value="0" @selected(!$isStep)>No</option>
@@ -233,7 +233,7 @@
 
             <div class="col-md-4">
                 <label class="form-label">Exclude Public Holidays</label>
-                @php $excludeHolidays = old('exclude_public_holidays', $leaveType->exclude_public_holidays ?? 1); @endphp
+                @php $excludeHolidays = old('exclude_public_holidays', $leaveType->exclude_public_holidays ?? 1);@endphp
                 <select class="form-select" name="exclude_public_holidays">
                     <option value="1" @selected($excludeHolidays)>Yes</option>
                     <option value="0" @selected(!$excludeHolidays)>No</option>
@@ -242,7 +242,7 @@
 
             <div class="col-md-4">
                 <label class="form-label">Exclude Non-Working Days</label>
-                @php $excludeNonWorkingDays = old('exclude_non_working_days', $leaveType->exclude_non_working_days ?? 1); @endphp
+                @php $excludeNonWorkingDays = old('exclude_non_working_days', $leaveType->exclude_non_working_days ?? 1);@endphp
                 <select class="form-select" name="exclude_non_working_days">
                     <option value="1" @selected($excludeNonWorkingDays)>Yes</option>
                     <option value="0" @selected(!$excludeNonWorkingDays)>No</option>

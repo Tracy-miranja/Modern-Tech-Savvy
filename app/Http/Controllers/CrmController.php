@@ -26,7 +26,6 @@ use App\Mail\SurveyConfirmation;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\RateLimiter;
 
-
 use Illuminate\Support\Str;
 
 class CrmController extends Controller
@@ -224,7 +223,6 @@ class CrmController extends Controller
             $business = \App\Models\Business::findBySlug(session('active_business_slug'));
             $campaign = $business->campaigns()->create($validated);
 
-            // Generate short link with slug
             $baseSlug = Str::slug($campaign->name);
             $slug = $baseSlug;
             $counter = 1;
@@ -285,7 +283,6 @@ class CrmController extends Controller
             'fields.min' => 'At least one field is required.',
         ]);
 
-        // Check for duplicate labels server-side
         $labels = array_column($request->fields, 'label');
         if (count($labels) !== count(array_unique($labels))) {
             return response()->json([
@@ -458,7 +455,7 @@ class CrmController extends Controller
             }
 
             return $this->handleTransaction(function () use ($request, $campaign, $surveyResponses, $rateLimitKey) {
-                // Extract email from survey responses (label containing "email")
+
                 $email = null;
                 $name = null;
                 foreach ($surveyResponses as $response) {
@@ -481,7 +478,6 @@ class CrmController extends Controller
                     }
                 }
 
-                // Fallback to request email if no email found in survey responses
                 if (!$email && $request->email) {
                     try {
                         $request->validate(['request_email' => 'email:rfc,dns'], ['request_email' => $request->email]);
@@ -491,7 +487,6 @@ class CrmController extends Controller
                     }
                 }
 
-                // Fallback to request name if no name found in survey responses
                 if (!$name && $request->name) {
                     try {
                         $request->validate(['request_name' => 'string|max:255'], ['request_name' => $request->name]);
@@ -505,7 +500,7 @@ class CrmController extends Controller
                     'business_id' => $campaign->business_id,
                     'campaign_id' => $campaign->id,
                     'name' => $name ?: 'Anonymous',
-                    'email' => $email, // Allow null if no valid email found
+                    'email' => $email,
                     'country' => $request->country ? (string) Str::of($request->country)->trim()->stripTags() : null,
                     'survey_responses' => $surveyResponses,
                     'status' => 'new',

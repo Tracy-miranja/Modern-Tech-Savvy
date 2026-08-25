@@ -5,15 +5,6 @@
     });
 @endphp
 
-{{-- <div class="mb-3">
-    <h5 class="text-muted">
-        <span class="text-danger">{{ $totalPayrollCount ?? $payrolls->count() }} payroll(s) found</span> |
-        Total Payroll: {{ number_format($totalPayrollAmount ?? 0, 2) }} |
-        Total Net Pay: {{ number_format($totalNetPay ?? 0, 2) }}
-    </h5>
-</div> --}}
-
-
 <div class="table-responsive">
     <table class="table table-sm align-middle">
         <thead class="border-bottom">
@@ -31,7 +22,7 @@
         <tbody>
             @forelse($payrolls as $payroll)
     @php
-        // Employee payrolls after filtering
+
         $filteredEmployeePayrolls = $payroll->employeePayrolls;
 
         $payslipCount = $filteredEmployeePayrolls->count();
@@ -40,7 +31,7 @@
             ->pluck('employee.location.name')
             ->unique()
             ->filter();
-    @endphp
+@endphp
     <tr>
         <td><input type="checkbox" class="payrollCheckbox" value="{{ $payroll->id }}" onclick="updateSelectedPayrolls()"></td>
         <td>{{ now()->month($payroll->payrun_month)->monthName }} ({{ str_pad($payroll->payrun_month, 2, '0', STR_PAD_LEFT) }}), {{ $payroll->payrun_year }}</td>

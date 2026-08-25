@@ -10,17 +10,15 @@ class EnsureTwoFactorAuthenticated
 {
     public function handle(Request $request, Closure $next)
     {
-        // Skip middleware for 2FA routes
+
         if ($request->routeIs('2fa.verify') || $request->routeIs('2fa.resend')) {
             return $next($request);
         }
 
-        // If user is in 2FA pending state, redirect to 2FA verification
         if ($request->session()->has('2fa_user_id')) {
             return redirect()->route('2fa.verify');
         }
 
-        // If authenticated and 2FA is required but not verified, log out
         if (Auth::check() && Auth::user()->requiresTwoFactorAuthentication()) {
             if (!session('2fa_verified', false)) {
                 Auth::logout();

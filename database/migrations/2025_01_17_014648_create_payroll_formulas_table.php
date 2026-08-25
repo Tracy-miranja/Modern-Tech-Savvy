@@ -7,9 +7,7 @@ use Illuminate\Database\Migrations\Migration;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
+
     public function up(): void
     {
         Schema::create('payroll_formulas', function (Blueprint $table) {
@@ -17,7 +15,7 @@ return new class extends Migration
             $table->foreignIdFor(Business::class)->nullable();
             $table->string('name');
             $table->string('slug')->unique();
-            $table->string('formula_type')->nullable(); //rate or amount
+            $table->string('formula_type')->nullable();
             $table->enum('calculation_basis', ['basic_pay', 'gross_pay', 'cash_pay', 'taxable_pay']);
             $table->boolean('is_progressive')->default(false);
             $table->decimal('minimum_amount', 15, 2)->nullable();
@@ -25,9 +23,6 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('payroll_formulas');

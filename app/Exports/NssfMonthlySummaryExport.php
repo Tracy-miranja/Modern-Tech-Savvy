@@ -44,7 +44,6 @@ class NssfMonthlySummaryExport implements
             ->get()
             ->keyBy('payrun_month');
 
-        // All employees that appear in any of those payrolls
         $allEmployeeIds = EmployeePayroll::whereIn('payroll_id', $payrolls->pluck('id'))
             ->distinct()
             ->pluck('employee_id');
@@ -54,7 +53,6 @@ class NssfMonthlySummaryExport implements
             ->get()
             ->keyBy('id');
 
-        // Lookup: [employee_id][month] => nssf
         $nssfByEmployeeMonth = [];
         foreach ($payrolls as $month => $payroll) {
             $eps = EmployeePayroll::where('payroll_id', $payroll->id)
@@ -70,9 +68,8 @@ class NssfMonthlySummaryExport implements
             }
         }
 
-        // ── Build data rows ───────────────────────────────────────────────────
         $rows        = collect();
-        $monthTotals = array_fill(1, 12, 0.0);  // column-level totals
+        $monthTotals = array_fill(1, 12, 0.0);
 
         foreach ($employees as $empId => $employee) {
             $name      = $employee->user->name ?? 'N/A';
@@ -89,18 +86,17 @@ class NssfMonthlySummaryExport implements
             }
 
             if ($rowTotal == 0) {
-                continue;   // skip employees with no NSSF in the year
+                continue;
             }
 
             $rows->push(array_merge([$name], $rowValues, [$rowTotal]));
         }
 
-        // ── Totals row ────────────────────────────────────────────────────────
         $grandTotal  = array_sum($monthTotals);
         $totalsValues = array_map(fn($v) => $v > 0 ? $v : null, array_values($monthTotals));
         $rows->push(array_merge(['Total'], $totalsValues, [$grandTotal]));
 
-        $this->totalRows = $rows->count() + 1; // +1 for heading row
+        $this->totalRows = $rows->count() + 1;
         return $rows;
     }
 
@@ -117,7 +113,7 @@ class NssfMonthlySummaryExport implements
 
     public function styles(Worksheet $sheet): array
     {
-        // Heading row
+
         return [
             1 => [
                 'font'      => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
@@ -134,7 +130,6 @@ class NssfMonthlySummaryExport implements
                 $sheet   = $event->sheet->getDelegate();
                 $lastRow = $sheet->getHighestRow();
 
-                // Style the Totals (last) row
                 $sheet->getStyle("A{$lastRow}:N{$lastRow}")->applyFromArray([
                     'font' => ['bold' => true, 'size' => 11],
                     'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'BDD7EE']],
@@ -144,16 +139,13 @@ class NssfMonthlySummaryExport implements
                     ],
                 ]);
 
-                // Right-align all numeric columns (B–N) from row 2 onward
                 $sheet->getStyle("B2:N{$lastRow}")->getAlignment()
                       ->setHorizontal(Alignment::HORIZONTAL_RIGHT);
 
-                // Number format for all cells except the name column
                 $sheet->getStyle("B2:N{$lastRow}")
                       ->getNumberFormat()
                       ->setFormatCode('#,##0.00');
 
-                // Auto-fit column A (names)
                 $sheet->getColumnDimension('A')->setAutoSize(true);
             },
         ];

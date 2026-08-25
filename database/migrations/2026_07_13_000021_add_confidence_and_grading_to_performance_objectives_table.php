@@ -6,11 +6,7 @@ use Illuminate\Database\Migrations\Migration;
 
 return new class extends Migration
 {
-    /**
-     * Phase 02 of the OKR strategy: an auto-flagged confidence indicator
-     * (recomputed on every progress update) and the 0.0-1.0 stretch-goal
-     * grade (computed once, when the cycle closes).
-     */
+
     public function up(): void
     {
         if (Schema::hasColumn('performance_objectives', 'confidence')) {

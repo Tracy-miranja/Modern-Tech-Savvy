@@ -40,10 +40,6 @@ class AttendancePolicy extends Model
         return $this->belongsTo(Employee::class);
     }
 
-    /**
-     * Human-readable description of what this policy applies to, for the
-     * Settings-tab list ("Business default" / "Department: Finance" / ...).
-     */
     public function scopeLabel(): string
     {
         if ($this->employee_id) {

@@ -2,7 +2,7 @@
     <div class="container py-5">
         <div class="row justify-content-center">
             <div class="col-lg-10">
-                <!-- Page Header -->
+
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <div>
                         <h2 class="fw-bold text-dark mb-0">{{ $page }}</h2>
@@ -11,7 +11,6 @@
                     <span id="warningCount" class="badge bg-primary-soft text-primary px-3 py-2">{{ $warnings->count() }} Warnings</span>
                 </div>
 
-                <!-- Tabs -->
                 <ul class="nav nav-tabs mb-4" id="disciplinaryTabs" role="tablist">
                     <li class="nav-item" role="presentation">
                         <button class="nav-link" id="tab-configure-btn" data-bs-toggle="tab" data-bs-target="#tab-configure" type="button" role="tab">
@@ -37,7 +36,6 @@
 
                 <div class="tab-content" id="disciplinaryTabsContent">
 
-                    {{-- Configure: business-configurable disciplinary stages --}}
                     <div class="tab-pane fade" id="tab-configure" role="tabpanel">
                         <div class="card shadow-sm border-0 rounded-3">
                             <div class="card-body p-4">
@@ -94,7 +92,6 @@
                         </div>
                     </div>
 
-                    {{-- Cases: capture a new disciplinary case and manage it through to resolution --}}
                     <div class="tab-pane fade show active" id="tab-cases" role="tabpanel">
                         <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                             <div>
@@ -117,7 +114,6 @@
                         <nav class="mt-3"><ul class="pagination pagination-sm justify-content-center mb-0" id="casesListPagination"></ul></nav>
                     </div>
 
-                    {{-- Warnings: every warning on record, cases or not (a warning can emanate from a recorded case) --}}
                     <div class="tab-pane fade" id="tab-warnings" role="tabpanel">
                         <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                             <div>
@@ -140,7 +136,6 @@
                         <nav class="mt-3"><ul class="pagination pagination-sm justify-content-center mb-0" id="warningsListPagination"></ul></nav>
                     </div>
 
-                    {{-- Reports --}}
                     <div class="tab-pane fade" id="tab-reports" role="tabpanel">
                         <div class="card shadow-sm border-0 rounded-3">
                             <div class="card-body p-4">
@@ -155,7 +150,6 @@
         </div>
     </div>
 
-    {{-- Shared warning form modal - used to capture a new case (Cases tab) or issue a warning (Warnings tab) --}}
     <div class="modal fade" id="warningFormModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content">

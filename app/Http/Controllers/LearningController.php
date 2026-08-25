@@ -14,13 +14,6 @@ use App\Traits\HandleTransactions;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
-/**
- * Learning Management - the last of the 3 modules that previously existed
- * only as a name/price entry in ModulesSeeder with no real implementation
- * (see Asset Management for the sibling precedent this follows). One page,
- * modal-CRUD for courses, a per-course sessions ("Training Schedules") list,
- * and enrollment tracking through to completion + certification fields.
- */
 class LearningController extends Controller
 {
     use HandleTransactions;
@@ -51,11 +44,6 @@ class LearningController extends Controller
         return RequestResponse::ok('Courses fetched.', $courses);
     }
 
-    /**
-     * Lightweight id/title list for the shared report modal's course filter
-     * (App\Services\Reports, mirrors organogram's employee-options and
-     * Performance's cycle fetch).
-     */
     public function courseOptions(Request $request, Business $business)
     {
         $courses = Course::where('business_id', $business->id)->orderBy('title')->get(['id', 'title']);
@@ -265,9 +253,6 @@ class LearningController extends Controller
             ? ($enrollment->completed_at ?? now())
             : null;
 
-        // Certificate defaults (Settings: Certificate Defaults) - only fill
-        // in what HR didn't explicitly provide, never override a manually
-        // entered number/expiry.
         if (!empty($validated['certificate_issued'])) {
             if (empty($validated['certificate_number']) && empty($enrollment->certificate_number)) {
                 $prefix = $business->learning_certificate_number_prefix ?: 'CERT';

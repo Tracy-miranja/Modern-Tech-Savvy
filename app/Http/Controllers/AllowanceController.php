@@ -88,7 +88,7 @@ class AllowanceController extends Controller
             'calculation_basis' => $validatedData['calculation_basis'],
             'amount'            => $amount,
             'rate'              => $rate,
-            // 'is_taxable'        => $validatedData['is_taxable'] ?? true,
+
             'is_taxable'        => $request->boolean('is_taxable'),
             'applies_to'        => $validatedData['applies_to'],
             'business_id'       => $business->id,
@@ -165,14 +165,13 @@ class AllowanceController extends Controller
     'calculation_basis' => $validatedData['calculation_basis'],
     'amount' => $validatedData['type'] === 'fixed' && $validatedData['amount'] !== '' ? $validatedData['amount'] : null,
     'rate' => $validatedData['type'] === 'rate' && $validatedData['rate'] !== '' ? $validatedData['rate'] : null,
-    // 'is_taxable' => $validatedData['is_taxable'] ?? true,
+
     'is_taxable' => $request->boolean('is_taxable'),
     'applies_to' => $validatedData['applies_to'],
 ];
 
             \Log::info('Data to update allowance:', $updateData);
 
-            // Log the model's dirty state before update
             \Log::info('Dirty attributes before update:', $allowance->getDirty());
 
             $updated = $allowance->update($updateData);
@@ -186,7 +185,6 @@ class AllowanceController extends Controller
                 return RequestResponse::badRequest('Failed to persist allowance update.');
             }
 
-            // Fallback: Direct SQL update to confirm persistence
             $rowsAffected = \DB::table('allowances')
                 ->where('id', $allowance->id)
                 ->where('business_id', $business->id)

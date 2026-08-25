@@ -14,17 +14,14 @@ class SetCurrentBusiness
     {
         $business = null;
 
-        // 1️⃣ Use impersonated business if present
         if (session()->has('active_business_slug')) {
             $business = Business::findBySlug(session('active_business_slug'));
         }
 
-        // 2️⃣ Fallback to user's own business
         if (!$business && $request->user()) {
             $business = $request->user()->business;
         }
 
-        // 3️⃣ Share globally
         if ($business) {
             $request->attributes->set('activeBusiness', $business);
             View::share('currentBusiness', $business);

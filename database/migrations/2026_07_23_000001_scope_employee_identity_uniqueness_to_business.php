@@ -4,16 +4,6 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-/**
- * employee_code/national_id/tax_no/nhif_no/nssf_no/passport_no were unique
- * across the WHOLE system, not per business - the same real person (same
- * national ID, same tax PIN) could never legitimately be an employee at a
- * second business under the same account, even though User::employees()/
- * activeEmployee() already support exactly that. Loosening these to
- * per-business composite uniqueness is safe for existing data: anything
- * that already satisfied a global-unique constraint trivially satisfies
- * the same value scoped to one business_id too.
- */
 return new class extends Migration
 {
     public function up(): void

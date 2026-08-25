@@ -81,7 +81,6 @@
     max-width: 250px;
     text-align: left;
     border: 1px solid #e9ecef;
-    border-top: 3px solid var(--org-primary, #315efb);
     border-radius: 0.6rem;
     background: #fff;
     box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03), 0 4px 12px rgba(16, 24, 40, 0.05);
@@ -91,14 +90,14 @@
 .org-node-box:hover { box-shadow: 0 2px 4px rgba(16, 24, 40, 0.05), 0 8px 20px rgba(16, 24, 40, 0.09); transform: translateY(-1px); }
 .org-node-header { display: flex; align-items: center; justify-content: space-between; gap: 0.35rem; margin-bottom: 0.5rem; }
 .org-node-title { font-weight: 600; font-size: 0.86rem; color: #1a2130; }
-.org-node-title .bi-person-circle { color: var(--org-primary, #315efb); }
+.org-node-title .bi-person-circle { color: var(--org-primary, #f89616); }
 
 .org-add-btn {
     border: none; background: transparent; color: #6c757d; line-height: 1;
     padding: 0.15rem 0.35rem; border-radius: 0.35rem; font-size: 0.78rem;
     display: inline-flex; align-items: center; gap: 0.25rem;
 }
-.org-add-btn:hover { background: #e7f1ff; color: #0d6efd; }
+.org-add-btn:hover { background: var(--org-primary-soft, #fff4df); color: var(--org-primary, #f89616); }
 
 .org-position-list { display: flex; flex-direction: column; gap: 0.4rem; }
 
@@ -109,7 +108,7 @@
 }
 .org-position-avatar {
     flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%;
-    background: #0d6efd; color: #fff; font-size: 0.72rem; font-weight: 600;
+    background: var(--org-primary, #f89616); color: #fff; font-size: 0.72rem; font-weight: 600;
     display: flex; align-items: center; justify-content: center; text-transform: uppercase;
 }
 .org-position-meta { flex: 1 1 auto; min-width: 0; line-height: 1.15; }
@@ -127,10 +126,10 @@
     color: #6c757d; font-size: 0.78rem; background: transparent; width: fit-content;
     transition: border-color .15s ease, color .15s ease;
 }
-.org-vacant-slot:hover { border-color: #0d6efd; color: #0d6efd; }
+.org-vacant-slot:hover { border-color: var(--org-primary, #f89616); color: var(--org-primary, #f89616); }
 
 .org-legend-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
-.org-legend-filled { background: #0d6efd; }
+.org-legend-filled { background: var(--org-primary, #f89616); }
 .org-legend-vacant { border: 1.5px dashed #adb5bd; }
 .org-legend-manual { background: #ffc107; }
 
@@ -177,8 +176,8 @@
     background: currentColor;
 }
 .canvas-node .canvas-node-label { font-weight: 600; font-size: 0.86rem; word-wrap: break-word; color: #1a2130; }
-.canvas-node-department { border-top: 3px solid var(--org-primary, #315efb); }
-.canvas-node-department .canvas-node-type { color: var(--org-primary, #315efb); }
+.canvas-node-department { border-top: 3px solid var(--org-primary, #f89616); }
+.canvas-node-department .canvas-node-type { color: var(--org-primary, #f89616); }
 .canvas-node-role { border-top: 3px solid var(--org-purple, #6941c6); }
 .canvas-node-role .canvas-node-type { color: var(--org-purple, #6941c6); }
 .canvas-node-job_category { border-top: 3px solid var(--org-green, #16845b); }
@@ -201,7 +200,9 @@
  * Bootstrap; only these tree/card/panel visuals borrow the mockup's look.
  */
 :root {
-    --org-primary: #315efb; --org-primary-soft: #eef2ff;
+    /* Krestworks brand orange (matches --clr-bg-primary in main.css / the
+       logo's bright amber tone) - was Bootstrap-default blue. */
+    --org-primary: #f89616; --org-primary-soft: #fff4df;
     --org-green: #16845b; --org-green-soft: #eaf8f1;
     --org-orange: #a96500; --org-orange-soft: #fff4df;
     --org-purple: #6941c6; --org-purple-soft: #f4f0ff;
@@ -226,7 +227,7 @@
     flex: 0 0 auto; width: 42px; height: 42px; border-radius: 10px;
     display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
 }
-.org-stat-card:nth-child(1) .org-stat-icon { background: var(--org-primary-soft); color: var(--org-primary); }
+.org-stat-card:nth-child(1) .org-stat-icon { background: transparent; color: var(--org-primary); font-size: 1.4rem; }
 .org-stat-card:nth-child(2) .org-stat-icon { background: var(--org-green-soft); color: var(--org-green); }
 .org-stat-card:nth-child(3) .org-stat-icon { background: var(--org-orange-soft); color: var(--org-orange); }
 .org-stat-card:nth-child(4) .org-stat-icon { background: var(--org-purple-soft); color: var(--org-purple); }
@@ -244,10 +245,10 @@
 .org-overview-roots { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
 .org-overview-node {
     display: flex; align-items: center; gap: 10px;
-    background: linear-gradient(180deg, #f8faff, #f1f5ff);
-    border: 1px solid #c7d4ff; border-radius: 11px;
+    background: linear-gradient(180deg, #fffaf2, #fff4df);
+    border: 1px solid #f5d9a8; border-radius: 11px;
     padding: 12px 18px; min-width: 220px; text-align: left;
-    box-shadow: 0 2px 8px rgba(49,94,251,.08);
+    box-shadow: 0 2px 8px rgba(248,150,22,.12);
 }
 .org-overview-node::before {
     content: '\f4c5'; font-family: 'bootstrap-icons'; font-size: 1.15rem;
@@ -255,7 +256,7 @@
 }
 .org-overview-node strong { display: block; font-size: 13.5px; color: #1a2130; }
 .org-overview-node small { display: block; color: var(--org-muted); margin-top: 2px; }
-.org-overview-vline { height: 28px; width: 1px; background: linear-gradient(#c7d4ff, #adb5c0); margin: 6px 0; }
+.org-overview-vline { height: 28px; width: 1px; background: linear-gradient(#f5d9a8, #adb5c0); margin: 6px 0; }
 .org-exec-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; width: 100%; max-width: 1150px; }
 .org-exec-card {
     border: 1px solid var(--org-border); border-radius: 11px; overflow: hidden;

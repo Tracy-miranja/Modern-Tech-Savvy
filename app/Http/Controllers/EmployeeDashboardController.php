@@ -38,37 +38,26 @@ public function index(Request $request)
     ])->with('error', 'Employee record not found.');
 }
 
-    // Total leaves requested
     $leave_count = LeaveRequest::where('employee_id', $employeeId)->count();
 
- // Pending
 $pending_leaves = LeaveRequest::where('employee_id', $employeeId)
     ->whereNull('approved_by')
     ->whereNull('rejection_reason')
     ->count();
 
-// Approved
 $approved_leaves = LeaveRequest::where('employee_id', $employeeId)
     ->whereNotNull('approved_by')
     ->whereNull('rejection_reason')
     ->count();
 
-// Rejected
 $rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
     ->whereNotNull('rejection_reason')
     ->count();
 
-
     $work_days = Attendance::where('employee_id', $employeeId)->count();
-
 
     $payslips = EmployeePayroll::where('employee_id', $employeeId)->count();
 
-
-    // Scoped to the CURRENT period only - without this, an employee with
-    // entitlement rows across several periods (2025, 2026, 2027, ...) saw
-    // every one of them at once, including the same leave type repeated
-    // with different, confusing numbers per period.
     $business = Business::findBySlug(session('active_business_slug'));
     $currentPeriod = $business
         ? $business->leavePeriods()
@@ -84,12 +73,7 @@ $rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
         ->map(function ($entitlement) {
             return [
                 'leave_type' => $entitlement->leaveType->name ?? 'Unknown',
-                // total_days (grant + carryover + adjustment - the actual
-                // usable pool, per LeaveEntitlement::recalculateTotals())
-                // is what an employee should see as their balance -
-                // entitled_days alone omits carryover/adjustments and
-                // doesn't match what days_remaining is actually measured
-                // against.
+
                 'total_days' => $entitlement->total_days,
                 'days_taken' => $entitlement->days_taken,
                 'days_remaining' => $entitlement->days_remaining,
@@ -106,31 +90,19 @@ $rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
     ));
 }
 
-
-    // public function index(Request $request)
-    // {
-    //     $page = "Dashboard";
-    //     $employee = Auth::user();
-    //     $leave_count = LeaveRequest::where('employee_id', $employee->id)->count();
-    //     $pending_leaves = LeaveRequest::where('employee_id', $employee->id)->where('approved_by', 'pending')->count();
-    //     return view('employee.index', compact('page', 'leave_count', 'pending_leaves'));
-    // }
-
     // Leave Requests
     public function requestLeave()
     {
         $page        = "Request Leave";
         $description = "";
         $business    = Business::findBySlug(session('active_business_slug'));
-        // Retired/deactivated leave types stay visible to the business
-        // admin (they still need to manage/reactivate them) but shouldn't
-        // be a pickable option on an employee's own application form.
+
         $leaveTypes  = $business->leaveTypes()->where('is_active', true)->get();
 
         $employeeId = optional(Auth::user()->activeEmployee())->id;
         $leaveRequests = LeaveRequest::with(['leaveType', 'employee.user'])
             ->where('business_id', $business->id)
-            ->where('employee_id', $employeeId) // ⚠️ employee_id, not user id
+            ->where('employee_id', $employeeId)
             ->latest()
             ->get();
 
@@ -151,17 +123,10 @@ $rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
 
         $leaves = LeaveRequest::with(['leaveType', 'employee.user'])
             ->where('business_id', $business->id)
-            ->where('employee_id', $employeeId) // ⚠️ employee_id, not user id
+            ->where('employee_id', $employeeId)
             ->latest()
             ->get();
 
-        // Deliberately its own view, not the business-side leave.index -
-        // that one expects $departments/$locations/$leaveTypes/$leavePeriods
-        // for its cross-employee filter dropdowns, which don't apply here:
-        // an employee's own leave list needs no filtering by department/
-        // location at all. The underlying fetch() AJAX endpoint already
-        // scopes to the current employee when active_role is
-        // business-employee (see LeaveRequestController::fetch()).
         return view('leave.portal-index', compact('page', 'leaves'));
     }
 
@@ -174,7 +139,6 @@ $rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
             ->where('business_id', $business->id)
             ->firstOrFail();
 
-        // Security: employees can only view their own requests here
         $employeeId = optional(Auth::user()->activeEmployee())->id;
         if ((int)$leave->employee_id !== (int)$employeeId) {
             abort(403, 'You are not allowed to view this request.');
@@ -183,7 +147,6 @@ $rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
         $page        = 'Leave - #' . $reference_number;
         $description = '';
 
-        // No call to $leave->statuses(); show.blade builds the timeline from the model fields
         return view('leave.show', ['page' => $page, 'description' => $description, 'leave' => $leave, 'business' => $business]);
     }
 
@@ -191,15 +154,10 @@ $rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
     {
         $page = 'Clock In';
         $description = '';
-        return view('attendances.employee-clockin', compact('page', 'description'));
+        $business = Business::findBySlug(session('active_business_slug'));
+        return view('attendances.employee-clockin', compact('page', 'description', 'business'));
     }
 
-    /**
-     * "My Attendance" - self-service Daily/Monthly/Summary reports, always
-     * forced to the caller's own employee record (see
-     * AttendanceReportController::my*() - department/job-category/employee
-     * filters are never accepted from an employee-portal request).
-     */
     public function attendances(Request $request, Business $business)
     {
         $page = 'My Attendance';
@@ -231,15 +189,6 @@ $rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
         return view('employees.update-details', compact('page', 'description'));
     }
 
-    /**
-     * P9 form landing page. Originally a blind "pick any of the last 6
-     * years" form - every one of those years usually has no closed
-     * payroll yet, so downloadP9() would silently back()-bounce with
-     * nothing to show for it. Lists only years that actually have a
-     * closed payroll run, each with its own direct download link -
-     * matching viewPayslips()'s pattern, and impossible to submit a year
-     * with nothing behind it.
-     */
     public function viewP9Forms(Request $request, $business)
     {
         $business = Business::findBySlug($business);
@@ -273,7 +222,7 @@ $rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
             return back()->with('error', 'Employee record not found.');
         }
 
-        $year = $request->query('year', now()->year); // Default to current year
+        $year = $request->query('year', now()->year);
 
         $payrolls = EmployeePayroll::where('employee_id', $employee->id)
             ->whereHas('payroll', fn($q) => $q->where('payrun_year', $year))
@@ -305,10 +254,6 @@ $rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
             ->where('user_id', Auth::id())
             ->first();
 
-        // No hard bounce on a missing employee record - same
-        // graceful-empty pattern as the rest of the portal (see
-        // OrganogramController::myTeam()) instead of silently back()ing
-        // to nowhere with a flash message nothing displayed anyway.
         $payslips = $employee
             ? EmployeePayroll::where('employee_id', $employee->id)
                 ->with(['payroll'])
@@ -316,7 +261,7 @@ $rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
                 ->map(function ($ep) {
                     if (!$ep->payroll) {
                         \Log::warning('Payroll record missing for EmployeePayroll', ['employee_payroll_id' => $ep->id, 'payroll_id' => $ep->payroll_id]);
-                        return null; // Skip records with missing payroll
+                        return null;
                     }
                     return [
                         'payroll_id' => $ep->payroll_id,
@@ -326,7 +271,7 @@ $rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
                         'status' => $ep->payroll->status,
                     ];
                 })
-                ->filter() // Remove null entries
+                ->filter()
                 ->sortByDesc('year')
                 ->sortByDesc('month')
                 ->values()
@@ -347,8 +292,6 @@ $rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
             ->where('user_id', Auth::id())
             ->first();
 
-        // Same graceful-empty pattern as the rest of the portal - no
-        // employee record just means nothing to show, not a bounce.
         $assignments = $employee
             ? \App\Models\AssetAssignment::where('business_id', $business->id)
                 ->where('employee_id', $employee->id)
@@ -373,8 +316,6 @@ $rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
             ->where('user_id', Auth::id())
             ->first();
 
-        // Same graceful-empty pattern as the rest of the portal - no
-        // employee record just means nothing to show, not a bounce.
         $enrollments = $employee
             ? \App\Models\CourseEnrollment::where('business_id', $business->id)
                 ->where('employee_id', $employee->id)
@@ -390,13 +331,12 @@ $rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
 
  public function downloadPayslip(Request $request, $business, $id)
 {
-    // Get business
+
     $business = Business::findBySlug($business);
     if (!$business || session('active_business_slug') !== $business->slug) {
         return redirect()->back()->with('error', 'Business not found or mismatched.');
     }
 
-    // Get employee for this business
     $employee = Employee::where('business_id', $business->id)
         ->where('user_id', Auth::id())
         ->first();
@@ -405,7 +345,6 @@ $rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
         return back()->with('error', 'Employee record not found.');
     }
 
-    // Get employee payroll
     $employeePayroll = EmployeePayroll::where('employee_id', $employee->id)
         ->where('payroll_id', $id)
         ->with(['payroll.business', 'payroll.location', 'employee.user'])
@@ -419,20 +358,17 @@ $rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
         return back()->with('error', 'Payslip is not available until payroll is closed.');
     }
 
-    // Currency Conversion Logic
     $targetCurrency = strtoupper($employeePayroll->employee->user->country ?? 'USD');
     $baseCurrency = $employeePayroll->payroll->currency ?? 'KES';
     $exchangeRates = $this->getExchangeRates($baseCurrency, $targetCurrency);
     $exchangeRates = is_numeric($exchangeRates) ? floatval($exchangeRates) : 1.0;
 
-    // Log the exchange rate for debugging
     Log::info('Exchange Rate Used for Download', [
         'base_currency' => $baseCurrency,
         'target_currency' => $targetCurrency,
         'exchange_rate' => $exchangeRates
     ]);
 
-    // Determine entity and entityType
     $entity = $business;
     $entityType = 'business';
     if ($employeePayroll->payroll->location_id) {
@@ -469,7 +405,7 @@ $rejected_leaves = LeaveRequest::where('employee_id', $employeeId)
     private function getExchangeRates($baseCurrency, $targetCurrency)
 {
     try {
-        // Fetch latest exchange rates
+
         $response = Http::get("https://api.frankfurter.dev/v1/latest", [
             'base' => $baseCurrency,
             'symbols' => $targetCurrency
@@ -509,9 +445,9 @@ private function prepareP9Data($employee, $employeePayrolls, $business = null)
     'business_company_name' => $employee->business->company_name ?? 'null',
     'business_tax_pin' => $employee->business->tax_pin_no ?? 'null',
 ]);
-    // Fetch business from employee if not provided
+
     if (!$business) {
-        $business = $employee->business ?? null; // Assuming Employee model has a 'business' relationship
+        $business = $employee->business ?? null;
         if (!$business) {
             if (!empty($employeePayrolls)) {
                 $firstPayroll = $employeePayrolls->first();
@@ -527,28 +463,26 @@ private function prepareP9Data($employee, $employeePayrolls, $business = null)
         }
     }
 
-    // Initialize monthly data array with default values for 12 months
     $monthlyData = array_fill(1, 12, [
-        'basic_salary' => 0,              // A
-        'benefits_non_cash' => 0,         // B
-        'value_of_quarters' => 0,         // C
-        'total_gross_pay' => 0,           // D
-        'retirement_e1' => 0,             // E1 (30% of A)
-        'retirement_e2' => 0,             // E2 (Actual)
-        'retirement_e3' => 30000,         // E3 (Fixed KRA limit for 2025)
-        'ahl' => 0,                       // F (Affordable Housing Levy)
-        'shif' => 0,                      // G (Social Health Insurance Fund)
-        'prmf' => 0,                      // H (Post Retirement Medical Fund)
-        'owner_occupied_interest' => 0,   // I
-        'total_deductions' => 0,          // J (Sum of defined contribution + other deductions)
-        'chargeable_pay' => 0,            // K (D - J)
-        'tax_charged' => 0,               // L
-        'personal_relief' => 2400,        // M (KRA standard, monthly)
-        'insurance_relief' => 0,          // N (Max 5000/month)
-        'paye' => 0,                      // O (L - M - N)
+        'basic_salary' => 0,
+        'benefits_non_cash' => 0,
+        'value_of_quarters' => 0,
+        'total_gross_pay' => 0,
+        'retirement_e1' => 0,
+        'retirement_e2' => 0,
+        'retirement_e3' => 30000,
+        'ahl' => 0,
+        'shif' => 0,
+        'prmf' => 0,
+        'owner_occupied_interest' => 0,
+        'total_deductions' => 0,
+        'chargeable_pay' => 0,
+        'tax_charged' => 0,
+        'personal_relief' => 2400,
+        'insurance_relief' => 0,
+        'paye' => 0,
     ]);
 
-    // Populate monthly data from payroll records
     foreach ($employeePayrolls as $ep) {
         $month = (int)$ep->payroll->payrun_month;
         $deductions = json_decode($ep->deductions, true) ?? [];
@@ -570,10 +504,8 @@ private function prepareP9Data($employee, $employeePayrolls, $business = null)
 
         $totalDeductions = $retirementContribution + $housingLevy + $shif + $postRetirementMedical + $mortgageInterest;
 
-        // Chargeable pay
         $chargeablePay = max(0, $grossPay - $totalDeductions);
 
-        // --- Updated progressive KRA tax computation (current rates as of 2025) ---
         $taxCharged = 0;
         $tempPay = $chargeablePay;
 
@@ -599,12 +531,10 @@ private function prepareP9Data($employee, $employeePayrolls, $business = null)
 
         $taxCharged += $tempPay * 0.10;
 
-        // Reliefs
         $personalRelief = (float)($ep->personal_relief ?? 2400);
         $insurancePremium = (float)($deductions['insurance_premium'] ?? 0);
         $insuranceRelief = min((float)($ep->insurance_relief ?? ($insurancePremium * 0.15)), 5000);
 
-        // PAYE
         $paye = max(0, $taxCharged - $personalRelief - $insuranceRelief);
 
         $monthlyData[$month] = [
@@ -628,7 +558,6 @@ private function prepareP9Data($employee, $employeePayrolls, $business = null)
         ];
     }
 
-   // Calculate totals across all months
 $totals = [
     'basic_salary' => array_sum(array_column($monthlyData, 'basic_salary')),
     'benefits_non_cash' => array_sum(array_column($monthlyData, 'benefits_non_cash')),
@@ -648,19 +577,16 @@ $totals = [
     'insurance_relief' => array_sum(array_column($monthlyData, 'insurance_relief')),
 ];
 
-// Compute total PAYE correctly as (L_total - M_total - N_total)
 $totals['paye'] = max(0, $totals['tax_charged'] - $totals['personal_relief'] - $totals['insurance_relief']);
 
-
-    // Split employee full name into main name and other names
     $employeeNameParts = explode(' ', trim($employee->full_name), 2);
 
     return [
-        'employer_pin' => $business->tax_pin_no ?? 'N/A',           // Employer's PIN from Business model
-        'employer_name' => $business->company_name ?? 'N/A',         // Employer's name from Business model
-        'employee_main_name' => $employeeNameParts[0] ?? '', // First name or part of full name
-        'employee_other_names' => $employeeNameParts[1] ?? '', // Remaining names
-        'employee_pin' => $employee->tax_no ?? 'N/A',        // Employee's tax number
+        'employer_pin' => $business->tax_pin_no ?? 'N/A',
+        'employer_name' => $business->company_name ?? 'N/A',
+        'employee_main_name' => $employeeNameParts[0] ?? '',
+        'employee_other_names' => $employeeNameParts[1] ?? '',
+        'employee_pin' => $employee->tax_no ?? 'N/A',
         'monthly_data' => $monthlyData,
         'totals' => $totals,
     ];
@@ -679,7 +605,6 @@ $totals['paye'] = max(0, $totals['tax_charged'] - $totals['personal_relief'] - $
         $user = Auth::user();
         $employee = Employee::where('user_id', $user->id)->firstOrFail();
 
-        // Validate the incoming data
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
@@ -694,7 +619,7 @@ $totals['paye'] = max(0, $totals['tax_charged'] - $totals['personal_relief'] - $
             'address' => 'required|string|max:255',
             'permanent_address' => 'nullable|string|max:255',
             'blood_group' => 'nullable|in:A+,A-,B+,B-,AB+,AB-,O+,O-',
-            'avatar' => 'nullable|image|max:2048', // Max 2MB for profile picture
+            'avatar' => 'nullable|image|max:2048',
             'spouse_surname_name' => 'nullable|string|max:255',
             'spouse_first_name' => 'nullable|string|max:255',
             'spouse_middle_name' => 'nullable|string|max:255',
@@ -705,16 +630,13 @@ $totals['paye'] = max(0, $totals['tax_charged'] - $totals['personal_relief'] - $
             'emmergency_contact_phone.*' => 'required|string|max:20',
         ]);
 
-        // Handle file upload for avatar
         if ($request->hasFile('avatar')) {
             $avatarPath = $request->file('avatar')->store('avatars', 'public');
             $validated['avatar'] = $avatarPath;
         }
 
-        // Update employee details
         $employee->update($validated);
 
-        // Handle emergency contacts (assuming a separate table or JSON column)
         if ($request->has('emmergency_contact_name')) {
             $emergencyContacts = [];
             foreach ($request->emmergency_contact_name as $index => $name) {
@@ -724,18 +646,14 @@ $totals['paye'] = max(0, $totals['tax_charged'] - $totals['personal_relief'] - $
                     'phone' => $request->emmergency_contact_phone[$index],
                 ];
             }
-            // Save to a JSON column or related table
-            $employee->emergency_contacts = json_encode($emergencyContacts); // If using JSON column
+
+            $employee->emergency_contacts = json_encode($emergencyContacts);
             $employee->save();
         }
 
         return redirect()->route('account.settings')->with('success', 'Profile updated successfully!');
     }
 
-    /**
-     * Portal notifications page (database-channel notifications written by
-     * things like LeaveStatusNotification, KpiAssigned, etc.).
-     */
     public function notifications(Request $request, Business $business)
     {
         $notifications = $request->user()

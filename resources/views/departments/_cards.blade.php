@@ -4,7 +4,7 @@
             <x-department-card :department="$department" />
         </div>
     @empty
-        <!-- Card to display when no shifts are available -->
+
         <div class="col-md-12">
             <div class="card">
                 <div class="card-body text-center" style="height: 200px; display: flex; justify-content: center; align-items: center;">

@@ -6,22 +6,17 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
+
     public function up(): void
     {
         Schema::table('businesses', function (Blueprint $table) {
             if (!Schema::hasColumn('businesses', 'email')) {
-                $table->string('email')->nullable()->after('company_name'); // adjust 'name' to whichever column fits best
+                $table->string('email')->nullable()->after('company_name');
             }
             $table->string('hr_email')->nullable()->after('email');
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::table('businesses', function (Blueprint $table) {

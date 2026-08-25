@@ -6,12 +6,7 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Extends the contract-action enum so the "Suspend" employee action (and
-     * disciplinary cases that escalate to suspension) can be recorded the
-     * same way termination already is - one auditable, reversible record
-     * per action instead of a dead UI button.
-     */
+
     public function up(): void
     {
         $column = collect(DB::select("SHOW COLUMNS FROM employee_contract_actions WHERE Field = 'action_type'"))->first();

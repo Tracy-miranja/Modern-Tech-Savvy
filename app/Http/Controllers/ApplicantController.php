@@ -29,11 +29,6 @@ class ApplicantController extends Controller
         return view('applicants.index', ['page' => 'Job Applicants', 'jobPosts' => $jobPosts]);
     }
 
-    /**
-     * Applicants listing for a business must include:
-     * - internally created applicants (created_by = business owner or employees)
-     * - external applicants (created_by null) who have applications for this business
-     */
     public function fetch(Request $request)
     {
         try {
@@ -116,9 +111,6 @@ class ApplicantController extends Controller
         return view('applicants.create', compact('users', 'jobPosts', 'applicant'));
     }
 
-    /**
-     * INTERNAL create still creates a User (unchanged behaviour)
-     */
     public function store(Request $request)
     {
         $request->validate([
@@ -174,9 +166,9 @@ class ApplicantController extends Controller
 
             $applicant = Applicant::create([
                 'user_id' => $user->id,
-                'fullname' => $name,              // keep your canonical applicant name field
-                'phone' => $phoneNumber,          // mirror
-                'country' => $request->country,   // canonical nationality store
+                'fullname' => $name,
+                'phone' => $phoneNumber,
+                'country' => $request->country,
                 'address' => $request->address,
                 'city' => $request->city,
                 'state' => $request->state,
@@ -229,11 +221,6 @@ class ApplicantController extends Controller
         return RequestResponse::ok('Ok', $form);
     }
 
-    /**
-     * Update supports both:
-     * - applicants with user_id (update user fields too)
-     * - applicants without user_id (update applicant fields only)
-     */
     public function update(Request $request)
     {
         $validated = $request->validate([
@@ -282,7 +269,6 @@ class ApplicantController extends Controller
                 })
                 ->firstOrFail();
 
-            // If applicant has user, update user too
             if ($applicant->user) {
                 $user = $applicant->user;
 
@@ -294,12 +280,12 @@ class ApplicantController extends Controller
 
                 if (!empty($nameParts)) {
                     $user->name = trim(implode(' ', $nameParts));
-                    // keep applicant.fullname consistent
+
                     $applicant->fullname = $user->name;
                 }
 
                 if (!empty($validated['email'])) {
-                    // ensure unique if changing
+
                     if ($validated['email'] !== $user->email) {
                         $requestValidator = Validator::make(
                             ['email' => $validated['email']],
@@ -317,7 +303,7 @@ class ApplicantController extends Controller
 
                 $user->save();
             } else {
-                // no user, but allow updating applicant fullname if names were sent
+
                 $nameParts = array_filter([
                     $validated['first_name'] ?? null,
                     $validated['middle_name'] ?? null,
@@ -331,7 +317,6 @@ class ApplicantController extends Controller
                 }
             }
 
-            // Update applicant fields
             $applicant->fill(array_filter([
                 'address' => $validated['address'] ?? null,
                 'city' => $validated['city'] ?? null,
@@ -386,13 +371,12 @@ class ApplicantController extends Controller
             }
 
             foreach ($applicants as $applicant) {
-                // delete applications first (cascades external tables if your FK is cascade)
+
                 $applicant->applications()->delete();
                 $applicant->skills()->detach();
                 $user = $applicant->user;
                 $applicant->delete();
 
-                // only delete user if exists (internal)
                 if ($user) $user->delete();
             }
 
@@ -470,7 +454,6 @@ class ApplicantController extends Controller
             })
             ->firstOrFail();
 
-        // media is attached on Application (not Applicant)
         $media = $applicant->applications
             ->flatMap->getMedia('applications')
             ->firstWhere('id', (int)$validated['media_id']);

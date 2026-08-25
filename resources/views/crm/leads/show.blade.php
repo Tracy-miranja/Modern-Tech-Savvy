@@ -9,7 +9,7 @@
                             class="btn btn-outline-secondary btn-sm rounded-pill px-3">Back to Leads</a>
                     </div>
                     <div class="card-body p-4">
-                        <!-- Lead Details and Survey Responses -->
+
                         <div class="row g-4 mb-5">
                             <div class="col-md-6">
                                 <h6 class="fw-semibold text-dark mb-3">Lead Details</h6>
@@ -52,7 +52,6 @@
                             </div>
                         </div>
 
-                        <!-- Update Lead Form -->
                         <div class="mb-5">
                             <h6 class="fw-semibold text-dark mb-3">Update Lead</h6>
                             <form id="statusForm" class="bg-white p-4 rounded-3 border"
@@ -98,7 +97,6 @@
                             </form>
                         </div>
 
-                        <!-- Log Activity Form -->
                         <div class="mb-5">
                             <h6 class="fw-semibold text-dark mb-3">Log Activity</h6>
                             <form id="activityForm" class="bg-white p-4 rounded-3 border"
@@ -124,7 +122,6 @@
                             </form>
                         </div>
 
-                        <!-- Activity Log (Timeline) -->
                         <div>
                             <h6 class="fw-semibold text-dark mb-4">Activity Log</h6>
                             @if ($activities->isEmpty())

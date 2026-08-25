@@ -56,9 +56,9 @@
             </tr>
         </thead>
         <tbody>
-            @php $total = 0; @endphp
+            @php $total = 0;@endphp
             @forelse($payroll->employeePayrolls as $ep)
-            @php $rowTotal = $ep->paye + $ep->shif + $ep->nssf + $ep->housing_levy; @endphp
+            @php $rowTotal = $ep->paye + $ep->shif + $ep->nssf + $ep->housing_levy;@endphp
             <tr>
                 <td>{{ $ep->employee->full_name ?? 'N/A' }}</td>
                 <td>{{ $ep->employee->tax_no ?? 'N/A' }}</td>
@@ -67,7 +67,7 @@
                 <td>{{ number_format($ep->nssf, 2) }}</td>
                 <td>{{ number_format($ep->housing_levy, 2) }}</td>
                 <td>{{ number_format($rowTotal, 2) }}</td>
-                @php $total += $rowTotal; @endphp
+                @php $total += $rowTotal;@endphp
             </tr>
             @empty
             <tr>

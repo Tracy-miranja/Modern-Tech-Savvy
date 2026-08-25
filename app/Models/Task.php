@@ -32,9 +32,6 @@ class Task extends Model implements HasMedia
         'links' => 'array',
     ];
 
-    // public function getRouteKeyName()
-    // {
-    //     return 'slug';
     // }
 
     public function employees()

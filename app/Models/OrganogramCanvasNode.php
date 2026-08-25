@@ -4,11 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-/**
- * One node on the structure canvas (see 2026_08_07_..._create_organogram_canvas_nodes_and_edges_tables
- * migration for the design rationale). node_type + ref_id point at the
- * real Department/OrganogramRole/JobCategory row this node represents.
- */
 class OrganogramCanvasNode extends Model
 {
     protected $fillable = [
@@ -40,10 +35,6 @@ class OrganogramCanvasNode extends Model
         return $this->hasMany(OrganogramCanvasEdge::class, 'to_node_id');
     }
 
-    /**
-     * The real entity (Department, OrganogramRole, or JobCategory) this
-     * node represents.
-     */
     public function referencedModel(): ?Model
     {
         return match ($this->node_type) {

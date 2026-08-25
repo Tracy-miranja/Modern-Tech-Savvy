@@ -17,7 +17,7 @@
                             <div class="mb-3">
                                 <label class="form-label">Survey Fields</label>
                                 <div id="fieldsContainer" class="border p-3 rounded">
-                                    <!-- Fields will be added dynamically -->
+
                                     <div id="noFieldsMessage" class="text-muted" style="display: none;">
                                         No survey fields defined. Add a new field below.
                                     </div>
@@ -49,7 +49,7 @@
     @php
     $surveyConfig = $campaign->survey_config ?? [];
     logger()->debug('Survey Config for Campaign ' . $campaign->id, ['survey_config' => $surveyConfig]);
-    @endphp
+@endphp
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>

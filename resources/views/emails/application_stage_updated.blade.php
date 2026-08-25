@@ -61,13 +61,12 @@
 
 <body>
     <div class="email-container">
-        <!-- Header -->
+
         <div class="email-header">
             <img src="{{ config('app.url') }}/media/krstlogo.png" alt="{{ config('app.name') }} Logo">
             <div>Application Update</div>
         </div>
 
-        <!-- Body -->
         <div class="email-body">
             <p>Hello, <strong>{{ $applicantName }}</strong>,</p>
             <p>We have an update regarding your application for the <strong>{{ $jobTitle }}</strong> position at
@@ -103,7 +102,6 @@
             <p>Feel free to reach out if you have any questions!</p>
         </div>
 
-        <!-- Footer -->
         <div class="email-footer">
             Best Regards, <br>
             <strong>{{ config('app.name') }} Recruitment Team</strong> <br>

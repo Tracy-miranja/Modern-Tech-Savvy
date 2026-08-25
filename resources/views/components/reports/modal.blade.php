@@ -1,12 +1,4 @@
-{{--
-    Shared report modal shell, reused by every module's reports (Attendance,
-    Leave, Disciplinary, Performance - see plan). Report type selector ->
-    filter bar (only relevant fields shown) -> Generate Preview swaps the
-    body to the rendered HTML preview with Print/Download buttons.
 
-    Expects $departments and $jobCategories collections in scope (id, name)
-    for the filter selects; employees are loaded via AJAX.
---}}
 <div class="modal fade" id="reportModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
@@ -15,7 +7,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                {{-- Filter step --}}
+
                 <div id="reportModalFilters">
                     <div class="mb-3" id="reportTypeGroup">
                         <label class="form-label">Report</label>
@@ -72,11 +64,7 @@
                         </div>
                         <div class="col-md-6 report-filter-field" data-field="leave_type">
                             <label class="form-label small text-muted mb-1">Leave Type(s)</label>
-                            {{-- Deliberately NOT .select2-multiple - the theme's global
-                                 $(".select2-multiple").select2() init (no placeholder) would
-                                 claim it before ReportModal.init() ever runs; that init owns
-                                 this field's select2 setup instead, so its placeholder always
-                                 takes effect. --}}
+
                             <select class="form-select" id="reportFilterLeaveTypes" multiple>
                                 <option value="">All leave types</option>
                                 @foreach(($leaveTypes ?? []) as $leaveType)
@@ -104,9 +92,7 @@
                         </div>
                         <div class="col-12 report-filter-field" data-field="employee">
                             <label class="form-label small text-muted mb-1">Employee(s)</label>
-                            {{-- Deliberately NOT .select2-multiple - see the leave-type
-                                 field's comment above; ReportModal.loadEmployeeOptions()
-                                 owns this one's select2 setup instead. --}}
+
                             <select class="form-select" id="reportFilterEmployees" multiple>
                                 <option value="">Loading employees…</option>
                             </select>
@@ -114,9 +100,6 @@
                     </div>
                 </div>
 
-                {{-- Preview step (hidden until Generate Preview). An <iframe> (not a
-                     plain div) so the preview's own <style> block survives - assigning
-                     a full HTML document string to a div's innerHTML strips <head>. --}}
                 <div id="reportModalPreview" class="d-none">
                     <iframe id="reportPreviewFrame" style="width:100%; height:60vh; border:1px solid #dee2e6; border-radius:.375rem; background:#fff;"></iframe>
                 </div>

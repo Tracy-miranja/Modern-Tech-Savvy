@@ -11,5 +11,4 @@
     </div>
 </div>
 
-
 @include('modals.delete-account')

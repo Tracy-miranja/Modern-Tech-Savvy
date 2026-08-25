@@ -6,14 +6,7 @@ use Illuminate\Database\Migrations\Migration;
 
 return new class extends Migration
 {
-    /**
-     * A business can have locations (branches) in different countries -
-     * each location's own country (falling back to the business's country
-     * when not set) determines which public holidays apply to employees
-     * based there. Free-text, matching Business.country's convention (and
-     * the same Nager.Date country-name guessing already used for
-     * business-wide holiday import).
-     */
+
     public function up(): void
     {
         if (Schema::hasColumn('locations', 'country')) {

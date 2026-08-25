@@ -6,12 +6,7 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Persists the "Getting Started" dashboard panel's dismissed state per
-     * business - not session-based, since a session-only dismiss would
-     * reappear every new login/device even after the business finished (or
-     * chose to ignore) setup.
-     */
+
     public function up(): void
     {
         Schema::table('businesses', function (Blueprint $table) {

@@ -13,7 +13,7 @@
                         </div>
                     </div>
                     <div class="card-body p-4">
-                        <!-- Breadcrumb -->
+
                         <nav aria-label="breadcrumb" class="mb-4">
                             <ol class="breadcrumb mb-0">
                                 <li class="breadcrumb-item">
@@ -28,7 +28,6 @@
                             </ol>
                         </nav>
 
-                        <!-- Campaign Details and Short Link -->
                         <div class="row g-4 mb-5">
                             <div class="col-md-6">
                                 <h6 class="fw-semibold text-dark mb-3">Campaign Details</h6>
@@ -80,7 +79,6 @@
                             </div>
                         </div>
 
-                        <!-- Related Leads -->
                         <div>
                             <h6 class="fw-semibold text-dark mb-3">Related Leads</h6>
                             @if($campaign->leads->isEmpty())

@@ -1,4 +1,4 @@
-<!--  This is the employee Leave slip pdf template -->
+
 <!doctype html>
 <html>
 <head>

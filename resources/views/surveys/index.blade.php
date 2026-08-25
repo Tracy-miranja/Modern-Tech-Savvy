@@ -2,7 +2,7 @@
     <div class="container py-5">
         <div class="row justify-content-center">
             <div class="col-lg-12">
-                <!-- Surveys Table -->
+
                 <div class="card shadow-sm mb-5 border-0 rounded-3">
                     <div class="card-body p-4">
                         <div class="d-flex justify-content-between align-items-center mb-4">

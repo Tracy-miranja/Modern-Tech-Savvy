@@ -12,16 +12,6 @@ use App\Http\RequestResponse;
 use App\Traits\HandleTransactions;
 use Illuminate\Http\Request;
 
-/**
- * The Kanban board itself - columns are the business's configured
- * ProjectTaskStatus rows, cards are ProjectTask rows ordered by `position`
- * within their column. Drag-drop is handled by reorder() rather than a
- * single move-one-card endpoint, so the frontend can just send the full
- * ordered id list for whichever column(s) changed and the backend rewrites
- * position/status_id for exactly those cards in one transaction - no
- * fragile "insert at index N, shift everything after" arithmetic to get
- * wrong across two columns at once.
- */
 class ProjectTaskController extends Controller
 {
     use HandleTransactions;
@@ -114,13 +104,6 @@ class ProjectTaskController extends Controller
         return RequestResponse::ok('Task deleted.');
     }
 
-    /**
-     * Drag-drop persistence - $columns is [{status_id, task_ids: [...]}]
-     * for the one or two columns actually touched by the drag. Every task
-     * id listed gets its position set to its index in that array and its
-     * status_id set to the column it's now in; completed_at is stamped/
-     * cleared based on whether the destination column is_done.
-     */
     public function reorder(Request $request, Business $business, Project $project)
     {
         if ((int) $project->business_id !== (int) $business->id) {

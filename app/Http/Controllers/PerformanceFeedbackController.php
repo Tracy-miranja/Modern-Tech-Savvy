@@ -11,20 +11,10 @@ use Illuminate\Http\Request;
 use App\Http\RequestResponse;
 use App\Traits\HandleTransactions;
 
-/**
- * OKR Phase 04: peer/360 feedback. Purely qualitative evidence gathered
- * from nominated peers about a subject employee - it never carries a
- * numeric score and never feeds into OKR/KPI grading.
- */
 class PerformanceFeedbackController extends Controller
 {
     use HandleTransactions;
 
-    /**
-     * Self, their direct line manager, or HR/admin can view/manage
-     * feedback about an employee - mirrors PerformanceController's rule so
-     * the same people who can see objectives can see 360 feedback.
-     */
     private function canManagePerformanceFor(Employee $target): bool
     {
         $actingEmployee = auth()->user()->activeEmployee();
@@ -39,10 +29,6 @@ class PerformanceFeedbackController extends Controller
         return in_array($activeRole, ['business-hr', 'business-admin'], true);
     }
 
-    /**
-     * The 360 feedback gathered about a subject employee for a cycle -
-     * nominated peers, their status, and their submitted answers.
-     */
     public function fetchForSubject(Request $request, Business $business, Employee $employee)
     {
         if (!$this->canManagePerformanceFor($employee)) {
@@ -61,10 +47,6 @@ class PerformanceFeedbackController extends Controller
         return RequestResponse::ok('Feedback requests fetched successfully.', $requests);
     }
 
-    /**
-     * The acting employee's own inbox - feedback they've been asked to
-     * give about someone else, across any subject.
-     */
     public function fetchMyInbox(Request $request, Business $business)
     {
         $actingEmployee = auth()->user()->activeEmployee();
@@ -85,11 +67,6 @@ class PerformanceFeedbackController extends Controller
         return RequestResponse::ok('Feedback inbox fetched successfully.', $requests);
     }
 
-    /**
-     * Nominate a peer to give feedback about the subject employee - the
-     * subject themselves (self-nomination of reviewers) or their
-     * manager/HR can do this.
-     */
     public function store(Request $request, Business $business, Employee $employee)
     {
         if (!$this->canManagePerformanceFor($employee)) {
@@ -137,9 +114,6 @@ class PerformanceFeedbackController extends Controller
         });
     }
 
-    /**
-     * The nominated reviewer declines to give feedback.
-     */
     public function decline(Request $request, Business $business, PerformanceFeedbackRequest $feedbackRequest)
     {
         if ((int) $feedbackRequest->business_id !== (int) $business->id) {
@@ -159,11 +133,6 @@ class PerformanceFeedbackController extends Controller
         return RequestResponse::ok('Feedback request declined.', $feedbackRequest->fresh());
     }
 
-    /**
-     * The nominated reviewer submits their behavioral feedback - every
-     * question in the fixed set is required, and it's stored as-is with
-     * no scoring applied.
-     */
     public function submitResponse(Request $request, Business $business, PerformanceFeedbackRequest $feedbackRequest)
     {
         if ((int) $feedbackRequest->business_id !== (int) $business->id) {

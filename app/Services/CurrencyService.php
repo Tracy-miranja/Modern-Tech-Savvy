@@ -10,23 +10,8 @@ use Illuminate\Support\Facades\Log;
 
 class CurrencyService
 {
-    protected int $cacheTtlSeconds = 21600; // 6 hours
+    protected int $cacheTtlSeconds = 21600;
 
-    // ── CONVENTION ────────────────────────────────────────────────────────────
-    //
-    // business_currencies.manual_rate / auto_rate stores:
-    //   "1 unit of THIS currency = X units of the PRIMARY currency"
-    //
-    //   e.g.  USD row: manual_rate = 100  →  1 USD = 100 KES
-    //   e.g.  EUR row: manual_rate = 129  →  1 EUR = 129 KES
-    //   e.g.  KES row (primary): rate = 1 (base)
-    //
-    // getBusinessRate($business, 'USD', 'KES') → 100
-    //   meaning: 1 USD = 100 KES
-    //   usage:   kesAmount = usdAmount * 100
-    //
-    // getBusinessRate($business, 'KES', 'USD') → 0.01
-    //   meaning: 1 KES = 0.01 USD
     //   usage:   usdAmount = kesAmount * 0.01  (= kesAmount / 100)
 
     public function getBusinessRate($business, string $from, string $to): float
@@ -51,16 +36,6 @@ class CurrencyService
         $primary     = $currencies->firstWhere('is_primary', true);
         $primaryCode = $primary?->currency_code ?? $business->currency ?? 'KES';
 
-        // Each row stores: 1 unit of its currency = X units of primary
-        // fromRate = units of primary per 1 unit of $from
-        // toRate   = units of primary per 1 unit of $to
-        // from→to  = fromRate / toRate
-        //
-        // Example: USD→EUR
-        //   fromRate (USD) = 100  (1 USD = 100 KES)
-        //   toRate   (EUR) = 129  (1 EUR = 129 KES)
-        //   USD→EUR = 100/129 ≈ 0.775  (1 USD ≈ 0.775 EUR)  ✓
-
         $fromRow = $currencies->get($from);
         $toRow   = $currencies->get($to);
 
@@ -81,24 +56,17 @@ class CurrencyService
         return $this->getRate($from, $to);
     }
 
-    /**
-     * Resolve the stored rate for a currency row.
-     *
-     * Returns: how many units of $primaryCode equal 1 unit of $currencyCode
-     * e.g. USD row (manual_rate=100, primary=KES) → returns 100
-     *      KES row (primary)                       → returns 1.0
-     */
     private function resolveRate(
         ?BusinessCurrency $currency,
         string $currencyCode,
         string $primaryCode,
         $business
     ): float {
-        // Primary currency is always 1:1 with itself
+
         if ($currencyCode === $primaryCode) return 1.0;
 
         if (!$currency) {
-            // Not configured in business_currencies — use live API
+
             return $this->getRate($currencyCode, $primaryCode);
         }
 
@@ -106,13 +74,12 @@ class CurrencyService
             return floatval($currency->manual_rate ?? 1.0);
         }
 
-        // Auto mode — refresh if stale (> 6 hours) or missing
         $isStale = !$currency->rate_fetched_at
             || $currency->rate_fetched_at->diffInSeconds(now()) > $this->cacheTtlSeconds;
 
         if ($isStale || !$currency->auto_rate) {
             try {
-                // Store: 1 unit of this currency = X units of primary
+
                 $liveRate = $this->getRate($currencyCode, $primaryCode);
                 $currency->update([
                     'auto_rate'       => $liveRate,
@@ -128,11 +95,6 @@ class CurrencyService
         return floatval($currency->auto_rate ?? 1.0);
     }
 
-    // ── Global rate lookup (no business context) ──────────────────────────────
-    //
-    // getRate('USD', 'KES') → how many KES equal 1 USD  ≈ 129
-    // getRate('KES', 'USD') → how many USD equal 1 KES  ≈ 0.00775
-    //
     // Uses USD as API base and cross-multiplies.
 
     public function getAllRates(): array
@@ -156,14 +118,6 @@ class CurrencyService
             return 1.0;
         }
 
-        // rates[] are all relative to USD base:
-        //   rates['USD'] = 1.0
-        //   rates['KES'] = 129
-        //   rates['EUR'] = 0.92
-        //
-        // from→to = rates[to] / rates[from]
-        // e.g. USD→KES = 129 / 1.0 = 129  ✓
-        // e.g. KES→USD = 1.0 / 129 = 0.00775  ✓
         return round($rates[$to] / $rates[$from], 6);
     }
 

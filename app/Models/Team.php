@@ -6,11 +6,6 @@ use Spatie\Sluggable\HasSlug;
 use Spatie\Sluggable\SlugOptions;
 use Illuminate\Database\Eloquent\Model;
 
-/**
- * An optional grouping inside a department (e.g. a squad with its own
- * line manager) - purely additive; departments with no teams behave
- * exactly as they did before this existed.
- */
 class Team extends Model
 {
     use HasSlug;

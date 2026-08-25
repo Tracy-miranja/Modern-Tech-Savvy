@@ -43,7 +43,6 @@
         </div>
     </div>
 
-    <!-- Create Platform Admin Modal -->
     <div class="modal fade" id="createPlatformAdminModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">

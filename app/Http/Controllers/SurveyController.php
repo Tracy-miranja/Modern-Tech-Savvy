@@ -286,7 +286,6 @@ class SurveyController extends Controller
         });
     }
 
-
     public function destroy(Request $request, $surveyId)
     {
         $validatedData = $request->validate([

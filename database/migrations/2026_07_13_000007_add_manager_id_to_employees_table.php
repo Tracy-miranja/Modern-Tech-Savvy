@@ -6,10 +6,7 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Foundation for the organogram: a self-referencing reporting line used
-     * for the org chart, "my team" views, and line-manager leave approval.
-     */
+
     public function up(): void
     {
         if (Schema::hasColumn('employees', 'manager_id')) {

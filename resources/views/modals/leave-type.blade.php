@@ -6,7 +6,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body" id="leaveTypeDetailsContent">
-                <!-- Dynamic content will be loaded here -->
+
             </div>
         </div>
     </div>

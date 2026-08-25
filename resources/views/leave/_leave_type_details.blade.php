@@ -1,15 +1,14 @@
 @php
-    /** @var \App\Models\LeaveType $leaveType */
+
     $lt = $leaveType;
     $ex = is_array($lt->excluded_days) ? $lt->excluded_days : [];
 
-    // Freshness badge: "Updated just now" if within 2 minutes
     $updatedAt = $lt->updated_at ?? null;
     $isFresh = false;
     $updatedText = '';
     if ($updatedAt) {
         $diffSeconds = now()->diffInSeconds($updatedAt);
-        $isFresh = $diffSeconds <= 120; // 2 minutes
+        $isFresh = $diffSeconds <= 120;
         $updatedText = $updatedAt->format('Y-m-d H:i');
     }
 @endphp

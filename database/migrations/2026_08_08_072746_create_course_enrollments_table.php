@@ -6,13 +6,6 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-/**
- * One row per employee per course - tracks progress through to completion
- * and, on completion, the certification fields ("Certification Tracking")
- * directly on the enrollment rather than a separate certificates table,
- * since a certificate here is always 1:1 with one employee finishing one
- * course.
- */
 return new class extends Migration
 {
     public function up(): void
@@ -23,7 +16,7 @@ return new class extends Migration
             $table->foreignId('course_session_id')->nullable()->constrained('course_sessions')->nullOnDelete();
             $table->foreignIdFor(Business::class)->constrained()->cascadeOnDelete();
             $table->foreignIdFor(Employee::class)->constrained()->cascadeOnDelete();
-            $table->string('status')->default('enrolled'); // enrolled, in_progress, completed, dropped
+            $table->string('status')->default('enrolled');
             $table->timestamp('enrolled_at')->nullable();
             $table->timestamp('completed_at')->nullable();
             $table->decimal('score', 5, 2)->nullable();

@@ -24,7 +24,7 @@
                                     $link = isset($data['reference_number'])
                                         ? route('myaccount.leave.show', ['business' => $business->slug, 'leave' => $data['reference_number']])
                                         : null;
-                                @endphp
+@endphp
                                 <div class="list-group-item {{ $isUnread ? 'bg-light' : '' }} d-flex justify-content-between align-items-start"
                                      data-notification-id="{{ $notification->id }}">
                                     <div>

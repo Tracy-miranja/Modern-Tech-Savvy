@@ -8,7 +8,6 @@
                             Manage API Token for {{ $business->company_name }}
                         </h2>
 
-                        <!-- Success Message -->
                         @if (session('message'))
                         <div class="alert alert-success alert-dismissible fade show mb-4" role="alert">
                             <i class="bi bi-check-circle-fill me-2"></i>
@@ -17,7 +16,6 @@
                         </div>
                         @endif
 
-                        <!-- Token Display -->
                         @if (session('api_token'))
                         <div class="card border-info-subtle mb-4">
                             <div class="card-body">
@@ -45,7 +43,6 @@
                         </div>
                         @endif
 
-                        <!-- Form -->
                         <form method="POST" action="{{ route('api.business.generate-token', $business->slug) }}">
                             @csrf
                             <p class="text-muted mb-4">
@@ -58,7 +55,6 @@
                             </button>
                         </form>
 
-                        <!-- Last Generated -->
                         @if ($business->api_token)
                         <p class="text-muted small mt-4 mb-0">
                             <i class="bi bi-clock me-1"></i>

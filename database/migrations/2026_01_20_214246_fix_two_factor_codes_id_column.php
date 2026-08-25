@@ -9,9 +9,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('two_factor_codes', function (Blueprint $table) {
-            // Drop the existing id if needed (adjust if it has data/constraints)
+
             $table->dropColumn('id');
-            // Add proper auto-increment primary key
+
             $table->id()->first();
         });
     }
@@ -20,7 +20,7 @@ return new class extends Migration
     {
         Schema::table('two_factor_codes', function (Blueprint $table) {
             $table->dropColumn('id');
-            // Revert to original (adjust as per your original schema)
+
             $table->bigInteger('id')->unsigned();
         });
     }

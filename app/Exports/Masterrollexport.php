@@ -103,16 +103,12 @@ class MasterRollExport implements WithMultipleSheets
     }
 }
 
-
-// ============================================================================
 class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSize
 {
     private int $dataStartRow = 5;
     private int $totalsRow    = 5;
     private int $totalCols    = 0;
 
-    // Row number (relative, 1-based within data rows) => 1/3 rule status string,
-    // populated during array() so styles() can colour the status cell per row.
     private array $thirdRuleStatusByRow = [];
 
     private array $statutory = [
@@ -120,7 +116,6 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
         'Personal Relief', 'Ins. Relief', 'PAYE',
     ];
 
-    // Columns for the new 1/3 RULE CHECK group.
     private array $thirdRuleCols = [
         '1/3 Rule Basis',
         'Max Allowed Deductions (2/3)',
@@ -159,8 +154,8 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
         private object  $business,
         private string  $currency,
         private string  $type,
-        private array   $allowanceNames,   // [lc_key => display_name]
-        private array   $deductionNames,   // [lc_key => display_name]
+        private array   $allowanceNames,
+        private array   $deductionNames,
         private string  $sheetTitle
     ) {
         $this->totalCols = count($this->buildColumnHeader());
@@ -168,38 +163,12 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
 
     public function title(): string { return $this->sheetTitle; }
 
-    // =========================================================================
-    // CORE DECODER
-    // =========================================================================
-    /**
-     * Robustly decode an allowances/deductions field regardless of how many
-     * times it has been JSON-encoded or what structure it uses.
-     *
-     * The database stores these fields double-encoded, e.g.:
-     *   "\"[{\\\"name\\\":\\\"Absenteeism Charge\\\",\\\"amount\\\":0}]\""
-     *   "\"{\\\"pension\\\":{\\\"name\\\":\\\"pension\\\",\\\"amount\\\":30000}}\""
-     *
-     * Returns a flat associative array keyed by strtolower(name):
-     *   [
-     *     'pension' => ['display_name' => 'pension', 'amount' => 30000.0],
-     *     'sacco'   => ['display_name' => 'Sacco Contribution', 'amount' => 200.0],
-     *     ...
-     *   ]
-     *
-     * Handles all known storage formats:
-     *   Format A — slug-keyed assoc:  {'pension': {'name':'pension','amount':30000}}
-     *   Format B — numeric item_name: [{'item_name':'pension','amount':30000}]
-     *   Format C — numeric name:      [{'name':'pension','amount':30000}]
-     *   Format D — already PHP array  (Eloquent json cast already decoded it)
-     *   Format E — double-encoded     (the actual DB format found in production)
-     */
     public static function decodeJsonField($raw): array
     {
-        // ── Step 1: Unwrap until we have a PHP array ──────────────────────
+
         $decoded = $raw;
 
-        // Keep decoding while we still have a string
-        $maxPasses = 4; // safety limit against infinite loops
+        $maxPasses = 4;
         while (is_string($decoded) && $maxPasses-- > 0) {
             $attempt = json_decode($decoded, true);
             if (json_last_error() !== JSON_ERROR_NONE) break;
@@ -208,31 +177,28 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
 
         if (!is_array($decoded)) return [];
 
-        // ── Step 2: Normalise into [lc_key => ['display_name', 'amount']] ─
         $out = [];
 
         foreach ($decoded as $keyOrIndex => $value) {
-            // Skip non-array entries (e.g. a stray scalar)
+
             if (!is_array($value)) continue;
 
-            // ---- Determine the item name ----
             if (isset($value['item_name']) && trim((string)$value['item_name']) !== '') {
-                // Format B
+
                 $name = trim((string)$value['item_name']);
             } elseif (isset($value['name']) && trim((string)$value['name']) !== '') {
-                // Format A or C
+
                 $name = trim((string)$value['name']);
             } elseif (is_string($keyOrIndex) && trim($keyOrIndex) !== '') {
-                // Format A fallback: key IS the slug/name
+
                 $name = trim($keyOrIndex);
             } else {
-                continue; // can't determine name, skip
+                continue;
             }
 
             $lc  = strtolower($name);
             $amt = (float)($value['amount'] ?? 0);
 
-            // Last write wins (so settings that come later override ep values)
             $out[$lc] = [
                 'display_name' => $name,
                 'amount'       => $amt,
@@ -242,8 +208,6 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
         return $out;
     }
 
-    // =========================================================================
-    // ARRAY OUTPUT
     // =========================================================================
     public function array(): array
     {
@@ -335,12 +299,11 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
     // ── Data row for one employee ─────────────────────────────────────────
     private function buildDataRow(EmployeePayroll $ep, int $rowNum): array
     {
-        // Always read raw DB value to avoid Eloquent double-decode issues
+
         $allowanceMap    = self::decodeJsonField($ep->getRawOriginal('allowances'));
         $overtimeFromAll = $allowanceMap['overtime allowance']['amount'] ?? 0.0;
         unset($allowanceMap['overtime allowance']);
 
-        // Fetch payroll_settings (stored as plain JSON, not double-encoded)
         $ps = \Illuminate\Support\Facades\DB::table('payroll_settings')
             ->where('employee_id', $ep->employee_id)
             ->where('year',        $this->payroll->payrun_year)
@@ -353,19 +316,18 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
                 $overtimeFromAll = $psAllMap['overtime allowance']['amount'];
                 unset($psAllMap['overtime allowance']);
             }
-            // Settings always override ep values
+
             foreach ($psAllMap as $lc => $item) {
                 $allowanceMap[$lc] = $item;
             }
         }
 
-        // ── Deductions ────────────────────────────────────────────────────
         $rawDedMap = self::decodeJsonField($ep->getRawOriginal('deductions'));
 
         if ($ps) {
             $psDedMap = self::decodeJsonField($ps->deductions);
             foreach ($psDedMap as $lc => $item) {
-                $rawDedMap[$lc] = $item; // settings win
+                $rawDedMap[$lc] = $item;
             }
         }
 
@@ -379,9 +341,8 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
             }
         }
 
-        // ── Overtime ─────────────────────────────────────────────────────
         $overtimeDecoded = self::decodeJsonField($ep->getRawOriginal('overtime'));
-        // overtime is stored as {"amount": X} — check for 'amount' key directly
+
         $rawOvertimeStr = $ep->getRawOriginal('overtime');
         $overtimeArr    = $rawOvertimeStr;
         $passes         = 4;
@@ -392,7 +353,6 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
         }
         $overtimeAmt = (float)(is_array($overtimeArr) ? ($overtimeArr['amount'] ?? $overtimeFromAll) : $overtimeFromAll);
 
-        // ── Basic salary ──────────────────────────────────────────────────
         $basicSalary = (float)(
             $ep->basic_salary
             ?? $ep->employee?->employmentDetails?->basic_salary
@@ -400,12 +360,9 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
             ?? 0
         );
 
-        // ── Personal / Insurance relief ───────────────────────────────────
-        // Prefer the dedicated DB columns — they are always correct
         $personalRelief  = (float)($ep->personal_relief  ?? 0);
         $insuranceRelief = (float)($ep->insurance_relief ?? 0);
 
-        // Fallback: parse reliefs JSON only when DB columns are zero
         if ($personalRelief == 0 || $insuranceRelief == 0) {
             $reliefsDecoded = self::decodeJsonField($ep->getRawOriginal('reliefs'));
             foreach ($reliefsDecoded as $lc => $item) {
@@ -418,7 +375,6 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
             }
         }
 
-        // ── Assemble row ──────────────────────────────────────────────────
         $row = [
             $rowNum,
             $ep->employee?->user?->name ?? 'N/A',
@@ -427,7 +383,6 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
             $basicSalary,
         ];
 
-        // Dynamic allowance columns
         foreach ($this->allowanceNames as $lc => $displayName) {
             $row[] = $allowanceMap[$lc]['amount'] ?? 0.0;
         }
@@ -435,7 +390,6 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
         $row[] = $overtimeAmt;
         $row[] = (float)($ep->gross_pay ?? 0);
 
-        // Statutory columns (7 fixed)
         $row[] = (float)($ep->shif           ?? 0);
         $row[] = (float)($ep->nssf           ?? 0);
         $row[] = (float)($ep->housing_levy   ?? 0);
@@ -444,19 +398,16 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
         $row[] = $insuranceRelief;
         $row[] = (float)($ep->paye           ?? 0);
 
-        // Dynamic custom deduction columns (pension, sacco, HELB, etc.)
         foreach ($this->deductionNames as $lc => $displayName) {
             $row[] = $deductionMap[$lc] ?? 0.0;
         }
 
-        // Fixed other-deduction columns
         $row[] = $absenteeismAmt;
         $row[] = (float)($ep->loan_repayment   ?? 0);
         $row[] = (float)($ep->advance_recovery ?? 0);
 
         $row[] = (float)($ep->net_pay ?? 0);
 
-        // ── 1/3 Rule Check (Employment Act 2007, s.19(3)) ──────────────────
         $ruleResult = ThirdRuleService::evaluateEmployee($ep);
         $row[] = round($ruleResult['basis_amount'], 2);
         $row[] = round($ruleResult['max_total_deductions'], 2);
@@ -468,8 +419,7 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
             default            => 'BREACH',
         };
         $row[] = $statusLabel;
-        // Remember which sheet row (offset from dataStartRow) holds which status,
-        // so styles() can colour it after array() has run.
+
         $this->thirdRuleStatusByRow[$rowNum] = $statusLabel;
 
         $row[] = (int)  ($ep->attendance_present ?? 0);
@@ -481,8 +431,6 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
         return $row;
     }
 
-    // =========================================================================
-    // STYLES
     // =========================================================================
     public function styles(Worksheet $sheet): array
     {
@@ -568,10 +516,8 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
         $sheet->getStyle("{$netPayL}{$this->dataStartRow}:{$netPayL}" . ($tr - 1))
             ->getFont()->setBold(true);
 
-        // Numeric formatting for the 4 numeric 1/3-rule columns (basis, max total,
-        // max voluntary, total deductions) — the 5th column (status) stays text.
-        $thirdRuleFirstCol = $this->totalCols - 5 - count($this->thirdRuleCols) + 1; // right after NET PAY
-        $thirdRuleNumEnd   = $thirdRuleFirstCol + 3; // 4 numeric columns
+        $thirdRuleFirstCol = $this->totalCols - 5 - count($this->thirdRuleCols) + 1;
+        $thirdRuleNumEnd   = $thirdRuleFirstCol + 3;
         $tStart = Coordinate::stringFromColumnIndex($thirdRuleFirstCol);
         $tEnd   = Coordinate::stringFromColumnIndex($thirdRuleNumEnd);
         $sheet->getStyle("{$tStart}{$this->dataStartRow}:{$tEnd}{$tr}")
@@ -579,7 +525,6 @@ class MasterRollSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSiz
         $sheet->getStyle("{$tStart}{$this->dataStartRow}:{$tEnd}{$tr}")
             ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
 
-        // Colour the 1/3 Rule Status cell per row based on computed status.
         $statusCol = Coordinate::stringFromColumnIndex($thirdRuleNumEnd + 1);
         foreach ($this->thirdRuleStatusByRow as $rowNum => $status) {
             $sheetRow = $this->dataStartRow + $rowNum - 1;

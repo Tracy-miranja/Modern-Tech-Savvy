@@ -6,15 +6,7 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Evolves the flat "warnings" log into a full disciplinary case record:
-     * a case type/stage (verbal -> written -> final -> suspension ->
-     * termination), severity, an escalation chain (previous_case_id links a
-     * case to the one it escalated from, replacing the old hardcoded
-     * "max 2 warnings" cap), employee acknowledgement, resolution notes, and
-     * an attachment - without renaming the existing table/model, since many
-     * views/routes/mailables already depend on the `Warning` name.
-     */
+
     public function up(): void
     {
         if (Schema::hasColumn('warnings', 'case_type')) {

@@ -9,10 +9,6 @@ use App\Http\RequestResponse;
 use App\Traits\HandleTransactions;
 use Illuminate\Http\Request;
 
-/**
- * hasMany per case (see DisciplinaryMinutes migration) - a case can have
- * multiple hearing sessions.
- */
 class DisciplinaryMinutesController extends Controller
 {
     use HandleTransactions;

@@ -12,19 +12,9 @@ use App\Services\Reports\ReportPdfService;
 use App\Models\WorkSchedule;
 use Illuminate\Http\Request;
 
-/**
- * Attendance reports - see GUIDE plan (Phase 1). Every report method
- * builds its view/data once via a private *ViewData() method, then both
- * the preview and download endpoints render that exact same view+data
- * through ReportPdfService - preview and download can never disagree.
- */
 class AttendanceReportController extends Controller
 {
-    /**
-     * Trigger page for the Attendance Reports nav item - previously this
-     * button lived inline on attendances/index.blade.php; promoted to its
-     * own page/route so Reports is directly reachable from the sidebar.
-     */
+
     public function index(Business $business)
     {
         $departments = Department::where('business_id', $business->id)->orderBy('name')->get(['id', 'name']);
@@ -112,9 +102,6 @@ class AttendanceReportController extends Controller
     {
         $filters = $this->periodFiltersDefaultingToCurrentMonth($request);
 
-        // Non-working days and holidays are never "absences" - excluding
-        // them here means the report can't accidentally flag a Saturday
-        // (for a Mon-Fri employee) or a public holiday as an absence.
         return $this->rowReportViewData($business, $filters, 'absent', 'Absence Report', function ($query) {
             $query->where('is_absent', true)
                 ->where('is_working_day', true)
@@ -211,12 +198,6 @@ class AttendanceReportController extends Controller
         return $this->aggregatedViewData($business, $filters, 'monthly', 'Monthly Attendance Report', true);
     }
 
-    // ---- Employee self-service ("My Attendance") ------------------------
-    //
-    // Every method here forces employeeIds to the CALLER's own employee
-    // record and strips department/job-category, discarding whatever the
-    // request actually contains for those fields - an employee-portal
-    // request must never be able to pull another employee's or another
     // department's attendance data, no matter what query params it sends.
 
     public function myDailyPreview(Request $request, Business $business)
@@ -306,14 +287,6 @@ class AttendanceReportController extends Controller
         return $filters;
     }
 
-    /**
-     * Row-level report (one line per attendance record): Daily, Full,
-     * Lateness, Absent, Overtime, Per-member all share ONE Blade view -
-     * they only differ by an optional extra query constraint and title.
-     * $viewKey is unused for the view path now (kept as a param for the
-     * per-report title/meta callers below) - every row report renders
-     * attendances.reports.rows.
-     */
     private function rowReportViewData(Business $business, ReportFilters $filters, string $viewKey, string $title, ?callable $extra = null): array
     {
         $query = Attendance::where('business_id', $business->id)
@@ -330,9 +303,6 @@ class AttendanceReportController extends Controller
             ->sortBy(fn ($a) => (optional(optional($a->employee)->user)->name ?? '') . '_' . $a->date)
             ->values();
 
-        // Employees with no WorkSchedule at all have no real "expected" day,
-        // so an absence flag isn't meaningful for them - exclude rather than
-        // false-flag (GUIDE plan: flexible/no-shift employees).
         if ($viewKey === 'absent' && $rows->isNotEmpty()) {
             $scheduledEmployeeIds = WorkSchedule::whereIn('employee_id', $rows->pluck('employee_id')->unique())
                 ->pluck('employee_id')->unique()->flip();
@@ -351,13 +321,6 @@ class AttendanceReportController extends Controller
         return ['attendances.reports.rows', $data];
     }
 
-    /**
-     * Department -> employee -> one row per flagged day, with a totals row
-     * closing out each employee before moving to the next: Lateness and
-     * Overtime. Distinct from rowReportViewData() (a flat, one-row-per-record
-     * table) because these two need every individual late/overtime day
-     * visible per person, not just a count.
-     */
     private function personDayReportViewData(Business $business, ReportFilters $filters, string $viewKey, string $title, callable $extra): array
     {
         $query = Attendance::where('business_id', $business->id)
@@ -402,12 +365,6 @@ class AttendanceReportController extends Controller
         return ['attendances.reports.person-days', $data];
     }
 
-    /**
-     * Aggregated report (one line per employee): Summary and Monthly.
-     * Iterates every employee MATCHING the filters (not just ones with
-     * attendance rows) so an employee with zero records still shows as an
-     * explicit zero rather than being silently dropped.
-     */
     private function aggregatedViewData(Business $business, ReportFilters $filters, string $viewKey, string $title, bool $includeExpectedHours): array
     {
         $employees = $filters->matchingEmployees($business);
@@ -427,7 +384,8 @@ class AttendanceReportController extends Controller
             $row = [
                 'employee' => $employee,
                 'is_flexible' => !$hasSchedule,
-                'present_days' => $records->where('is_absent', false)->count(),
+                'present_days' => $records->where('is_absent', false)->where('is_on_leave', false)->count(),
+                'on_leave_days' => $records->where('is_on_leave', true)->count(),
                 'late_days' => $records->where('late_minutes', '>', 0)->count(),
                 'absent_days' => $records->where('is_absent', true)->where('is_working_day', true)->where('is_holiday', false)->count(),
                 'regular_hours' => round((float) $records->sum('regular_hours'), 2),

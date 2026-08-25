@@ -35,12 +35,6 @@ class BusinessCurrency extends Model
         return $this->belongsTo(Business::class);
     }
 
-    // ── Accessors ────────────────────────────────────────────────────────────
-
-    /**
-     * The effective rate to use — manual_rate if mode=manual, otherwise auto_rate.
-     * Returns null if auto mode and no rate has been fetched yet.
-     */
     public function getEffectiveRateAttribute(): ?float
     {
         if ($this->rate_mode === 'manual') {
@@ -49,20 +43,11 @@ class BusinessCurrency extends Model
         return $this->auto_rate;
     }
 
-    /**
-     * Human-readable label for the rate mode.
-     */
     public function getRateModeLabel(): string
     {
         return $this->rate_mode === 'manual' ? 'Manual' : 'Automatic';
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
-
-    /**
-     * Known currency metadata — code → [name, symbol, decimal_places]
-     * Used to pre-fill fields when adding a new currency.
-     */
     public static function knownCurrencies(): array
     {
         return [

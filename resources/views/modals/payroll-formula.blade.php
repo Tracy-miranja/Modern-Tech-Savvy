@@ -1,4 +1,4 @@
-<!-- Modal Structure -->
+
 <div class="modal fade" id="payrollFormulaModal" tabindex="-1" aria-labelledby="payrollFormulaModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">

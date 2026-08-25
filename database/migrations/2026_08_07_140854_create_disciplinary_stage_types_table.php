@@ -5,14 +5,6 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-/**
- * Fully business-configurable disciplinary stages, replacing the hardcoded
- * Warning::STAGES ladder (see GUIDE plan Phase 3 - user explicitly asked
- * for fully custom stages per business, not just toggle+approvers).
- * Lazily seeded with the 5 stock stages (Verbal -> Written -> Final ->
- * Suspension -> Termination) the first time a business's Configure screen
- * is opened - see DisciplinaryStageTypeService::ensureSeeded().
- */
 return new class extends Migration
 {
     public function up(): void

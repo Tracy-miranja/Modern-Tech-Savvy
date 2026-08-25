@@ -4,11 +4,6 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-/**
- * Project Management settings - plain scalar column on businesses, same
- * precedent as Learning Management's learning_* columns (no generic
- * per-business settings table exists in this app).
- */
 return new class extends Migration
 {
     public function up(): void

@@ -1,4 +1,4 @@
-<!-- Leave Entitlement Details Modal -->
+
 <div class="modal fade" id="leaveEntitlementsDetailsModal" tabindex="-1" aria-labelledby="leaveEntitlementsDetailsModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">

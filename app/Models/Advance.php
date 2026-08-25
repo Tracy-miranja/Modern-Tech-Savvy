@@ -18,15 +18,11 @@ class Advance extends Model
         'note',
     ];
 
-    // Add casts
     protected $casts = [
-        'date' => 'date', // Casts to Carbon
+        'date' => 'date',
         'amount' => 'decimal:2',
     ];
 
-    /**
-     * Get the employee that owns the Advance.
-     */
     public function employee()
     {
         return $this->belongsTo(Employee::class);

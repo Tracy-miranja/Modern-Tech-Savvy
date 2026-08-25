@@ -6,12 +6,7 @@ use Illuminate\Database\Migrations\Migration;
 
 return new class extends Migration
 {
-    /**
-     * An optional file to go with handover_notes - a separate column
-     * (rather than reusing the existing `attachment` field) since that one
-     * is already semantically tied to LeaveType.requires_attachment's
-     * conditionally-required documentation flow.
-     */
+
     public function up(): void
     {
         if (Schema::hasColumn('leave_requests', 'handover_attachment')) {

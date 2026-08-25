@@ -9,16 +9,14 @@ return new class extends Migration {
     {
         Schema::table('employees', function (Blueprint $table) {
             $table->string('registered_device_mac', 64)->nullable()->after('updated_at');
-            // You may add ->unique() if you want one-employee-per-device constraint:
-            // $table->unique('registered_device_mac');
+
         });
     }
 
     public function down(): void
     {
         Schema::table('employees', function (Blueprint $table) {
-            // dropUnique if you added it above
-            // $table->dropUnique(['registered_device_mac']);
+
             $table->dropColumn(['registered_device_mac']);
         });
     }

@@ -25,7 +25,6 @@
         </div>
     </div>
 
-    <!-- New/Edit Custom Role Modal -->
     <div class="modal fade" id="roleModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
             <div class="modal-content">

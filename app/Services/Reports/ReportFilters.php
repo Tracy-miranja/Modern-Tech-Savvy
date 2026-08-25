@@ -7,24 +7,16 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 
-/**
- * One shared filter resolver for every report across every module (see
- * GUIDE-plan: Attendance/Leave/Disciplinary/Performance reports). Every
- * report controller builds its query through this instead of hand-rolling
- * its own filter parsing, so "filter and enforce on export" is structural -
- * a report can't accidentally forget to apply a filter server-side that it
- * only applied client-side.
- */
 class ReportFilters
 {
     public ?Carbon $startDate = null;
     public ?Carbon $endDate = null;
-    /** @var int[] */
+
     public array $employeeIds = [];
     public ?int $departmentId = null;
     public ?int $jobCategoryId = null;
     public ?int $leavePeriodId = null;
-    /** @var int[] */
+
     public array $leaveTypeIds = [];
     public ?int $courseId = null;
     public ?int $projectId = null;
@@ -34,7 +26,7 @@ class ReportFilters
         $filters = new self();
 
         if ($request->filled('date')) {
-            // Single-day reports (e.g. Daily) - start and end are the same day.
+
             $filters->startDate = Carbon::parse($request->input('date'))->startOfDay();
             $filters->endDate = Carbon::parse($request->input('date'))->endOfDay();
         } else {
@@ -57,11 +49,6 @@ class ReportFilters
         return $filters;
     }
 
-    /**
-     * Applies the resolved employee/department/job-category filters onto a
-     * query that joins/relates through an `employee` relation - the
-     * dimensions every report in the plan shares regardless of module.
-     */
     public function applyToEmployeeScopedQuery($query, string $employeeRelation = 'employee')
     {
         if (!empty($this->employeeIds)) {
@@ -75,11 +62,7 @@ class ReportFilters
         }
 
         if ($this->jobCategoryId) {
-            // employees.job_category_id isn't a real column - the job
-            // category lives on employment_details (Employee's own
-            // job_category_id is a PHP-level accessor falling back to it,
-            // see Employee::getJobCategoryIdAttribute()), so this must
-            // filter through that relation, not a raw column.
+
             $query->whereHas("{$employeeRelation}.employmentDetails", function ($q) {
                 $q->where('job_category_id', $this->jobCategoryId);
             });
@@ -93,13 +76,6 @@ class ReportFilters
         return $query->getModel()->getTable() . '.employee_id';
     }
 
-    /**
-     * Every employee matching department/job-category (independent of
-     * whether they have any records in the reported data) - used so a
-     * Summary/Monthly report can still show an employee with zero
-     * attendance rows as an explicit zero rather than silently omitting
-     * them.
-     */
     public function matchingEmployees(Business $business): Collection
     {
         $query = \App\Models\Employee::where('business_id', $business->id);
@@ -111,8 +87,7 @@ class ReportFilters
             $query->where('department_id', $this->departmentId);
         }
         if ($this->jobCategoryId) {
-            // Same reasoning as applyToEmployeeScopedQuery() - job category
-            // lives on employment_details, not a real employees column.
+
             $query->whereHas('employmentDetails', function ($q) {
                 $q->where('job_category_id', $this->jobCategoryId);
             });

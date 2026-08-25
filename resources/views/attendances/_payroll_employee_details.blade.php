@@ -25,7 +25,7 @@
       }
       $sumOt = $sumOtR + $sumOtH;
       $sumAll = $sumReg + $sumOt;
-    @endphp
+@endphp
     <div><span class="text-muted">Regular:</span> <strong>{{ $hm($sumReg) }}</strong></div>
     <div><span class="text-muted">OT:</span> <strong>{{ $hm($sumOt) }}</strong></div>
     <div><span class="text-muted">Total:</span> <strong>{{ $hm($sumAll) }}</strong></div>
@@ -50,7 +50,7 @@
     <tbody>
       @foreach($days as $d)
         @php
-          /** @var \Carbon\Carbon $dateObj */
+          
           $dateObj = $d['date'];
           $a = $d['attendance'];
 
@@ -83,7 +83,7 @@
 
             $remarks = $a->remarks ?: '-';
           }
-        @endphp
+@endphp
 
         <tr class="{{ $rowClass }}">
           <td><strong>{{ $dateObj->format('D') }}</strong></td>

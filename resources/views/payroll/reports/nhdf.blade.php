@@ -53,14 +53,14 @@
             </tr>
         </thead>
         <tbody>
-            @php $totalNhdf = 0; @endphp
+            @php $totalNhdf = 0;@endphp
             @forelse($payroll->employeePayrolls as $ep)
             <tr>
                 <td>{{ $ep->employee->full_name ?? 'N/A' }}</td>
                 <td>{{ $ep->employee->tax_no ?? 'N/A' }}</td>
                 <td>{{ number_format($ep->gross_pay, 2) }}</td>
                 <td>{{ number_format($ep->housing_levy, 2) }}</td>
-                @php $totalNhdf += $ep->housing_levy; @endphp
+                @php $totalNhdf += $ep->housing_levy;@endphp
             </tr>
             @empty
             <tr>

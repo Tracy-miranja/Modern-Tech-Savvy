@@ -68,13 +68,6 @@ class EmployeeCareerEvent extends Model
         return $this->belongsTo(User::class, 'issued_by_id');
     }
 
-    /**
-     * Pushes this event's new_* values onto the employee's live records
-     * (EmploymentDetail for job_category/department, EmployeePaymentDetail
-     * for salary) and marks the event applied. Idempotent - a second call
-     * on an already-applied event is a no-op, so the daily scheduled
-     * command can't double-apply if it somehow runs twice on the same day.
-     */
     public function apply(): void
     {
         if ($this->status === 'applied') {
@@ -92,15 +85,6 @@ class EmployeeCareerEvent extends Model
                 ], fn ($v) => $v !== null));
             }
 
-            // department_id is ALSO a real column directly on employees
-            // (unlike job_category_id, which only ever exists on
-            // EmploymentDetail) and is what every department-scoped
-            // query/filter in the app actually reads - Employee's own
-            // getDepartmentIdAttribute() accessor only falls back to
-            // EmploymentDetail when this raw column is null, so updating
-            // EmploymentDetail alone left the employee showing their old
-            // department everywhere except the one accessor path that
-            // happened to already be null.
             if ($this->new_department_id) {
                 $employee->update(['department_id' => $this->new_department_id]);
             }

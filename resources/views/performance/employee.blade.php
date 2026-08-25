@@ -111,7 +111,6 @@
         </div>
     </div>
 
-    <!-- Request Feedback Modal -->
     <div class="modal fade" id="requestFeedbackModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -135,7 +134,6 @@
         </div>
     </div>
 
-    <!-- Give Feedback Modal -->
     <div class="modal fade" id="giveFeedbackModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
@@ -162,7 +160,6 @@
         </div>
     </div>
 
-    <!-- New Objective Modal -->
     <div class="modal fade" id="newObjectiveModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -225,7 +222,6 @@
         </div>
     </div>
 
-    <!-- New Key Result Modal -->
     <div class="modal fade" id="newKeyResultModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -264,7 +260,6 @@
         </div>
     </div>
 
-    <!-- Update Progress Modal -->
     <div class="modal fade" id="updateProgressModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -289,7 +284,6 @@
         </div>
     </div>
 
-    <!-- Self Assessment Modal -->
     <div class="modal fade" id="selfAssessmentModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -311,7 +305,6 @@
         </div>
     </div>
 
-    <!-- Manager Assessment Modal -->
     <div class="modal fade" id="managerAssessmentModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">

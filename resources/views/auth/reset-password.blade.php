@@ -24,10 +24,9 @@
 
                 <form method="POST" action="{{ route('password.store') }}" id="reset-password-form">
                     @csrf
-                    <!-- Password Reset Token -->
+
                     <input type="hidden" name="token" value="{{ $request->route('token') }}">
 
-                    <!-- Email Address -->
                     <div class="from__input-box">
                         <div class="form__input-title">
                             <label for="email">{{ __('Email') }}</label>
@@ -39,7 +38,6 @@
                         </div>
                     </div>
 
-                    <!-- Password -->
                     <div class="from__input-box">
                         <div class="form__input-title">
                             <label for="password">{{ __('Password') }}</label>
@@ -54,7 +52,6 @@
                         </div>
                     </div>
 
-                    <!-- Confirm Password -->
                     <div class="from__input-box">
                         <div class="form__input-title">
                             <label for="password_confirmation">{{ __('Confirm Password') }}</label>

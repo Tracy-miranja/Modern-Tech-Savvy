@@ -61,13 +61,12 @@
 
 <body>
     <div class="email-container">
-        <!-- Header -->
+
         <div class="email-header">
             <img src="{{ config('app.url') }}/media/krstlogo.png" alt="{{ config('app.name') }} Logo">
             <div>Application Received</div>
         </div>
 
-        <!-- Body -->
         <div class="email-body">
             <p>Hello, <strong>{{ $applicantName }}</strong>,</p>
             <p>Thank you for applying to the <strong>{{ $jobTitle }}</strong> position at {{ config('app.name') }}! We
@@ -76,7 +75,6 @@
             <p>We appreciate your interest in joining us!</p>
         </div>
 
-        <!-- Footer -->
         <div class="email-footer">
             Best Regards, <br>
             <strong>{{ config('app.name') }} Recruitment Team</strong> <br>

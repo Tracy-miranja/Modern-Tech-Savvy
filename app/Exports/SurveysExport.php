@@ -44,7 +44,7 @@ class SurveysExport implements FromCollection, WithHeadings, WithMapping
             $lead->status,
             $lead->created_at->toDateTimeString(),
         ];
-        // Add response values
+
         foreach ($lead->survey_responses ?? [] as $field) {
             $row[] = $field['value'] ?? 'N/A';
         }

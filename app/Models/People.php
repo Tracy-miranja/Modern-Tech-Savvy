@@ -15,6 +15,4 @@ class People extends Model
         'start_date',
     ];
 
-    //relationshops
-
 }

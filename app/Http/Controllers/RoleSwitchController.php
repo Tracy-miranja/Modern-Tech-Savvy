@@ -16,18 +16,15 @@ class RoleSwitchController extends Controller
         $user = Auth::user();
         $newRole = $request->input('role');
 
-        // Log request and session data
         Log::info('Switch role request:', $request->all());
         Log::info('User roles:', $user->roles->pluck('name')->toArray());
         Log::info('Session values:', session()->all());
 
-        // Validate role input
         if (!$newRole) {
             Log::error('No role specified');
             return response()->json(['error' => 'No role specified'], 400);
         }
 
-        // Check business context
         $slug = session('active_business_slug');
         $business = Business::where('slug', $slug)->first();
 
@@ -36,21 +33,8 @@ class RoleSwitchController extends Controller
             return response()->json(['error' => 'No business context found'], 400);
         }
 
-        // Check if user has the role
         if ($user->hasRole($newRole)) {
-            // super-admin only ever operates against the platform business
-            // itself (see RoleOrImpersonation/EnsureCorrectRole's "platform
-            // home business" bypass) - force the business back to the
-            // platform business regardless of whatever was active before
-            // switching, and land on business.index directly rather than
-            // through the generic 'dashboard' fallback. That fallback
-            // (BusinessController::redirectToDashboard()) re-derives the
-            // active role from the user's OWN held roles via its own
-            // hardcoded business-admin-first priority chain, completely
-            // ignoring which role was just switched TO - an account that
-            // also holds business-admin (common for a super-admin testing
-            // account) would immediately get bounced back to
-            // active_role=business-admin, undoing the switch entirely.
+
             if ($newRole === 'super-admin') {
                 $platformBusiness = Business::where('slug', config('business.main_slug'))->first();
                 if (!$platformBusiness) {
@@ -68,7 +52,7 @@ class RoleSwitchController extends Controller
                 return redirect($redirect);
             }
 
-            $redirectRoute = $this->getRedirectRoute($newRole);
+            $redirectRoute = $this->getRedirectRoute($newRole, $user);
             $requiredPermission = $this->getRequiredPermissionForRoute($redirectRoute);
 
             if ($requiredPermission && !$user->hasPermissionTo($requiredPermission, 'web')) {
@@ -95,7 +79,7 @@ class RoleSwitchController extends Controller
         return response()->json(['error' => 'You do not have permission to switch to this role'], 403);
     }
 
-    private function getRedirectRoute($role)
+    private function getRedirectRoute($role, $user = null)
     {
         return match ($role) {
             'business-admin' => 'business.index',
@@ -105,8 +89,23 @@ class RoleSwitchController extends Controller
             'restricted-hr' => 'business.employees.index',
             'head-of-department' => 'business.leave.index',
             'chief-of-staff' => 'business.leave.index',
-            default => 'dashboard',
+            default => $this->customRoleHomeRoute($user) ?? 'dashboard',
         };
+    }
+
+    private function customRoleHomeRoute($user): ?string
+    {
+        if (!$user) {
+            return null;
+        }
+
+        foreach (\Database\Seeders\ModuleActionPermissionSeeder::MODULE_HOME_ROUTES as $module => $routeName) {
+            if ($user->hasPermissionTo("module.{$module}.view", 'web')) {
+                return $routeName;
+            }
+        }
+
+        return null;
     }
 
     private function getRequiredPermissionForRoute($route)

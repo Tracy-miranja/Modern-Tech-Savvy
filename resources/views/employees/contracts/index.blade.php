@@ -3,7 +3,7 @@
     <div class="container py-5">
         <div class="row justify-content-center">
             <div class="col-lg-10">
-                <!-- Page Header -->
+
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h2 class="fw-bold text-dark">{{ $page }}</h2>
                     <span id="contractActionCount"
@@ -11,7 +11,6 @@
                         Actions</span>
                 </div>
 
-                <!-- Expiring Contracts and Licenses Section -->
                 <div class="card shadow-sm mb-5 border-0 rounded-3">
                     <div class="card-body p-4">
                         <h4 class="fw-semibold text-dark mb-4">Contracts and Licenses Nearing Expiry (Within 30 Days)</h4>
@@ -69,7 +68,6 @@
                     </div>
                 </div>
 
-                <!-- Termination Section -->
                 <div class="card shadow-sm mb-5 border-0 rounded-3">
                     <div class="card-body p-4">
                         <h4 class="fw-semibold text-dark mb-4">Batch Termination</h4>
@@ -144,7 +142,6 @@
                     </div>
                 </div>
 
-                <!-- Cards Section -->
                 <div>
                     <h4 class="fw-semibold text-dark mt-4 mb-4">Contract Actions</h4>
                     <div id="contractActionsContainer">

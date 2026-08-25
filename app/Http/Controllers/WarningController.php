@@ -51,9 +51,6 @@ class WarningController extends Controller
             $query = Warning::where('business_id', $business->id)
                 ->with('employee.user', 'issuedBy', 'stageType');
 
-            // "Cases" is a filtered view of the same warnings table, not a
-            // separate entity - only stages a business has flagged
-            // is_disciplinary_case count (see disciplinary_stage_types).
             if ($request->input('scope') === 'cases') {
                 $query->disciplinaryCases();
             }
@@ -110,12 +107,6 @@ class WarningController extends Controller
                 }
             }
 
-            // stage_type_id is the authoritative, business-configurable
-            // stage (Phase 3) - case_type stays populated too (existing
-            // mailables/enum-driven code still reads it) by mirroring the
-            // stage's slug when it matches one of the 5 stock stages, or
-            // falling back to its own default otherwise (a custom stage
-            // like "Coaching Session" has no equivalent enum value).
             $stageType = null;
             if (!empty($validatedData['stage_type_id'])) {
                 $stageType = DisciplinaryStageType::where('business_id', $business->id)->find($validatedData['stage_type_id']);
@@ -148,7 +139,6 @@ class WarningController extends Controller
                 'response_due_at' => ($stageType && $stageType->requires_response) ? now()->addDays(7) : null,
             ]);
 
-            // Send email notification to the employee
             $employee = $warning->employee;
             if ($employee && $employee->user && $employee->user->email) {
                 Mail::to($employee->user->email)->send(new EmployeeWarningIssued($warning));
@@ -158,13 +148,6 @@ class WarningController extends Controller
         });
     }
 
-    /**
-     * Case detail page - the one part of Disciplinary that genuinely
-     * warrants a full page rather than a modal (a full escalation timeline
-     * + investigations + minutes has too much content) - every action on
-     * it (issue show cause, log investigation, record minutes, escalate)
-     * is still a modal.
-     */
     public function show(Request $request, Business $business, Warning $warning)
     {
         if ((int) $warning->business_id !== (int) $business->id) {
@@ -187,12 +170,6 @@ class WarningController extends Controller
         return view('employees.warning.show', compact('page', 'business', 'warning', 'stageTypes', 'employees'));
     }
 
-    /**
-     * Creates the next case in the chain (previous_case_id = this one),
-     * using this business's CONFIGURED stage order (Warning::suggestedNextStageType())
-     * rather than the old hardcoded ladder. The prior case is marked
-     * resolved-by-escalation, not left dangling as still "active".
-     */
     public function escalate(Request $request, $id)
     {
         $validated = $request->validate([
@@ -218,12 +195,6 @@ class WarningController extends Controller
                 return RequestResponse::badRequest('This case is already at the final stage - nothing further to escalate to.');
             }
 
-            // case_type is an ENUM restricted to the 5 stock values - a
-            // custom stage's slug (e.g. "coaching_session") can't be stored
-            // there directly, so it falls back to a default enum value
-            // (mirrors store()'s same fallback). $nextSlug on its own is
-            // NOT a safe fallback here: when stage_type_id is set,
-            // suggestedNextStage() just returns the same custom slug too.
             $caseType = match (true) {
                 $nextStageType && in_array($nextStageType->slug, Warning::STAGES, true) => $nextStageType->slug,
                 $nextStageType !== null => 'written_warning',
@@ -258,11 +229,6 @@ class WarningController extends Controller
         });
     }
 
-    /**
-     * Employee's Show Cause response - generalized onto ANY stage
-     * configured with requires_response=true (not one hardcoded case
-     * type), scoped to the caller's own employee record exactly like acknowledge().
-     */
     public function submitResponse(Request $request, $id)
     {
         $validated = $request->validate([
@@ -289,11 +255,6 @@ class WarningController extends Controller
         });
     }
 
-    /**
-     * "My Disciplinary Cases" - the employee portal has never had a browse
-     * view for an employee's own warnings (only the acknowledge action) -
-     * this is that view, forced to the caller's own employee record only.
-     */
     public function myIndex(Request $request, Business $business)
     {
         $page = 'My Disciplinary Cases';
@@ -310,9 +271,6 @@ class WarningController extends Controller
         return view('employees.warning.my-index', compact('page', 'business', 'warnings'));
     }
 
-    /**
-     * Employee acknowledges receipt of a disciplinary case.
-     */
     public function acknowledge(Request $request, $id)
     {
         $employee = auth()->user()->activeEmployee();
@@ -391,7 +349,7 @@ class WarningController extends Controller
                 return RequestResponse::badRequest('Warning ID mismatch.');
             }
 
-            $previousStatus = $warning->status; // Store previous status
+            $previousStatus = $warning->status;
             $warning->update([
                 'employee_id' => $validatedData['employee_id'],
                 'case_type' => $validatedData['case_type'] ?? $warning->case_type,
@@ -404,7 +362,6 @@ class WarningController extends Controller
                 'issued_by' => auth()->user()->id,
             ]);
 
-            // Check if status changed to 'resolved' and send email
             if ($validatedData['status'] === 'resolved' && $previousStatus !== 'resolved') {
                 $employee = $warning->employee;
                 if ($employee && $employee->user && $employee->user->email) {

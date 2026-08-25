@@ -83,13 +83,4 @@ public function getDocumentUrls()
     return $this->getMedia('application_documents')->map(fn($media) => $media->getUrl());
 }
 
-
-    // public function getImageUrl()
-    // {
-    //     $media = $this->getFirstMedia('applications');
-    //     if ($media && File::exists($media->getPath())) {
-    //         return $media->getUrl();
-    //     }
-    //     return asset('media/avatar.png');
-    // }
 }

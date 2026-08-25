@@ -6,11 +6,6 @@ use App\Models\Employee;
 use App\Models\EmployeeContractAction;
 use App\Models\OffboardingChecklist;
 
-/**
- * Owns the "sensible defaults, editable per case" task list (GUIDE plan
- * Phase 4) - called from EmployeeController::storeContractAction's
- * termination branch so a checklist appears with zero extra manual steps.
- */
 class OffboardingChecklistService
 {
     private const DEFAULT_TASKS = [

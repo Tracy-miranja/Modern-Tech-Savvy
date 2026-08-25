@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('login_attempts', function (Blueprint $table) {
             $table->id();
-            $table->string('ip_address', 45)->index(); // IPv4 or IPv6
+            $table->string('ip_address', 45)->index();
             $table->integer('attempts')->default(0);
             $table->timestamp('last_attempt_at')->nullable();
             $table->timestamps();

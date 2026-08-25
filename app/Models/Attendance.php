@@ -31,6 +31,8 @@ class Attendance extends Model
         'is_absent',
         'is_working_day',
         'is_holiday',
+        'is_on_leave',
+        'leave_request_id',
         'remarks',
         'logged_by',
         'device_mac',
@@ -49,6 +51,7 @@ class Attendance extends Model
         'is_absent' => 'boolean',
         'is_working_day' => 'boolean',
         'is_holiday' => 'boolean',
+        'is_on_leave' => 'boolean',
         'overtime_hours' => 'float',
         'overtime_regular' => 'float',
         'overtime_holiday' => 'float',
@@ -88,9 +91,12 @@ class Attendance extends Model
     {
         return $this->belongsTo(WorkSchedule::class, 'work_schedule_id');
     }
-    /**
-     * Calculate all time metrics for this attendance record
-     */
+
+    public function leaveRequest()
+    {
+        return $this->belongsTo(LeaveRequest::class);
+    }
+
     public function calculateTimeMetrics(): void
     {
         if (!$this->date || !$this->clock_in) {
@@ -99,7 +105,6 @@ class Attendance extends Model
 
         $day = Carbon::parse($this->date)->startOfDay();
 
-        // Build full datetimes from stored time strings (you store H:i:s)
         $clockIn = $this->clock_in instanceof Carbon
             ? $this->clock_in
             : $day->copy()->setTimeFromTimeString((string)$this->clock_in);
@@ -110,13 +115,11 @@ class Attendance extends Model
                 ? $this->clock_out
                 : $day->copy()->setTimeFromTimeString((string)$this->clock_out);
 
-            // If clock out is "earlier" than clock in, assume it crossed midnight
             if ($clockOut->lt($clockIn)) {
                 $clockOut->addDay();
             }
         }
 
-        // Resolve schedule (for expected times + working day)
         $schedule = WorkSchedule::getActiveSchedule($this->employee_id, $day, $this->business_id);
 
         $expectedIn = null;
@@ -126,7 +129,6 @@ class Attendance extends Model
             $expectedIn = $day->copy()->setTimeFromTimeString($schedule->shift->start_time);
             $expectedOut = $day->copy()->setTimeFromTimeString($schedule->shift->end_time);
 
-            // Shift crossing midnight (e.g. 22:00 -> 06:00)
             if ($expectedOut->lte($expectedIn)) {
                 $expectedOut->addDay();
             }
@@ -135,15 +137,12 @@ class Attendance extends Model
             $this->expected_clock_out = $expectedOut;
         }
 
-        // Determine working day from schedule
         $isWorkingDay = $schedule ? $schedule->isWorkingDay($day) : true;
 
-        // Determine holiday
         $holiday = Holiday::isHoliday($this->business_id, $day);
         $isHoliday = $holiday !== null;
         $holidayIsWorkingDay = $isHoliday ? (bool)$holiday->is_working_day : false;
 
-        // If holiday is marked as "working day", treat it as working day
         if ($isHoliday && $holidayIsWorkingDay) {
             $isWorkingDay = true;
         }
@@ -151,58 +150,46 @@ class Attendance extends Model
         $this->is_working_day = $isWorkingDay;
         $this->is_holiday = $isHoliday;
 
-        // Lateness (minutes)
         $this->late_minutes = 0;
         if ($expectedIn && $clockIn->gt($expectedIn)) {
             $this->late_minutes = $clockIn->diffInMinutes($expectedIn);
         }
 
-        // Without clock out we can't calculate the rest
         if (!$clockOut) {
             return;
         }
 
-        // Early departure (minutes)
         $this->early_departure_minutes = 0;
         if ($expectedOut && $clockOut->lt($expectedOut)) {
             $this->early_departure_minutes = $expectedOut->diffInMinutes($clockOut);
         }
 
-        // Total worked hours
         $totalMinutes = $clockIn->diffInMinutes($clockOut);
         $totalHours = round($totalMinutes / 60, 2);
 
-        // Expected shift hours
-        $expectedShiftHours = 8.0; // default fallback
+        $expectedShiftHours = 8.0;
         if ($expectedIn && $expectedOut) {
             $expectedShiftHours = round($expectedIn->diffInMinutes($expectedOut) / 60, 2);
         }
 
-        // Reset
         $this->regular_hours = 0;
         $this->overtime_regular = 0;
         $this->overtime_holiday = 0;
 
-        /**
-         * RULES
-         * 1) Non-working day OR holiday (non-working): all hours = holiday OT
-         * 2) Normal working day (not holiday): OT beyond shift = regular OT
-         * 3) Holiday but marked as working day: OT beyond shift = holiday OT, regular hours capped
-         */
         if (!$isWorkingDay || ($isHoliday && !$holidayIsWorkingDay)) {
-            // Non-working day OR holiday non-working
+
             $this->regular_hours = 0;
             $this->overtime_holiday = $totalHours;
         } else {
-            // Working day (either normal day OR holiday working day)
+
             $this->regular_hours = min($totalHours, $expectedShiftHours);
             $extra = max(0, round($totalHours - $expectedShiftHours, 2));
 
             if ($isHoliday && $holidayIsWorkingDay) {
-                // Working holiday: overtime is holiday OT
+
                 $this->overtime_holiday = $extra;
             } else {
-                // Normal working day: overtime is regular OT
+
                 $this->overtime_regular = $extra;
             }
         }
@@ -210,9 +197,6 @@ class Attendance extends Model
         $this->overtime_hours = round($this->overtime_regular + $this->overtime_holiday, 2);
     }
 
-    /**
-     * Create overtime records from attendance
-     */
     public function createOvertimeRecords(): void
     {
         $employee = $this->employee;
@@ -283,25 +267,18 @@ class Attendance extends Model
         }
     }
 
-    /**
-     * Calculate hourly rate for employee
-     */
     private function calculateHourlyRate(Employee $employee): float
     {
-        // Assuming monthly salary / (working days per month * hours per day)
-        // Adjust based on your payroll structure
+
         $monthlySalary = $employee->salary ?? 0;
-        $workingDaysPerMonth = 22; // average
+        $workingDaysPerMonth = 22;
         $hoursPerDay = 8;
-        
-        return $monthlySalary > 0 
+
+        return $monthlySalary > 0
             ? round($monthlySalary / ($workingDaysPerMonth * $hoursPerDay), 2)
             : 0;
     }
 
-    /**
-     * Get summary statistics for an employee in a date range
-     */
     public static function getEmployeeSummary(int $employeeId, Carbon $start, Carbon $end): array
     {
         $attendances = self::where('employee_id', $employeeId)
@@ -310,8 +287,9 @@ class Attendance extends Model
 
         return [
             'total_days' => $attendances->count(),
-            'present_days' => $attendances->where('is_absent', false)->count(),
-            'absent_days' => $attendances->where('is_absent', true)->count(),
+            'present_days' => $attendances->where('is_absent', false)->where('is_on_leave', false)->count(),
+            'absent_days' => $attendances->where('is_absent', true)->where('is_on_leave', false)->count(),
+            'on_leave_days' => $attendances->where('is_on_leave', true)->count(),
             'total_regular_hours' => round($attendances->sum('regular_hours'), 2),
             'total_overtime_regular' => round($attendances->sum('overtime_regular'), 2),
             'total_overtime_holiday' => round($attendances->sum('overtime_holiday'), 2),

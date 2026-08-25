@@ -8,10 +8,6 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-/**
- * Sent to the requester when their chosen reliever accepts or declines
- * covering their duties while they're on leave.
- */
 class LeaveDelegationResponded extends Notification implements ShouldQueue
 {
     use Queueable;

@@ -19,7 +19,6 @@ class BusinessCurrencyController extends Controller
     {
         $param = $request->route('business');
 
-        // Route model binding returns the model directly — handle both cases
         if ($param instanceof Business) {
             return $param;
         }
@@ -118,8 +117,6 @@ class BusinessCurrencyController extends Controller
         }
     }
 
-    // ── Show ──────────────────────────────────────────────────────────────────
-
     // $businessSlug absorbs the {business} route param so $id correctly receives the currency ID
     public function show(Request $request, $businessSlug, $id)
     {
@@ -131,8 +128,6 @@ class BusinessCurrencyController extends Controller
 
         return RequestResponse::ok('success', ['currency' => $this->formatCurrency($currency)]);
     }
-
-    // ── Update ────────────────────────────────────────────────────────────────
 
     // $businessSlug absorbs the {business} route param so $id correctly receives the currency ID
     public function update(Request $request, $businessSlug, $id)
@@ -187,8 +182,6 @@ class BusinessCurrencyController extends Controller
         }
     }
 
-    // ── Delete ────────────────────────────────────────────────────────────────
-
     // $businessSlug absorbs the {business} route param so $id correctly receives the currency ID
     public function destroy(Request $request, $businessSlug, $id)
     {
@@ -226,8 +219,6 @@ class BusinessCurrencyController extends Controller
         BusinessCurrency::where('business_id', $business->id)->whereIn('id', $ids)->delete();
         return RequestResponse::ok('Selected currencies deleted successfully.');
     }
-
-    // ── Refresh Auto Rate (single) ────────────────────────────────────────────
 
     // $businessSlug absorbs the {business} route param so $id correctly receives the currency ID
     public function refreshRate(Request $request, $businessSlug, $id)

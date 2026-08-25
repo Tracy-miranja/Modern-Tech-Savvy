@@ -17,7 +17,7 @@
 
     h1 {
         text-align: center;
-        color: #0d6efd;
+        color: #f89616;
     }
 
     table {

@@ -3,11 +3,10 @@
     use Illuminate\Support\Facades\Auth;
     $business = Business::findBySlug(session('active_business_slug'));
     $activeRoleForNav = session('active_role');
-    // restricted-hr never sees Payroll/Payroll Settings, regardless of
-    // business - matches the route-level block in EnsureCorrectRole.
+
     $hidePayrollMenus = $activeRoleForNav === 'restricted-hr';
 @endphp
-{{-- Enhanced CSS – Forces white text & icons on active menu --}}
+
 <style>
     /* Target the active menu item */
     .sidebar__menu-item.active,
@@ -65,7 +64,6 @@
     max-height: 100% !important;
 }
 
-
 </style>
 <div class="app-sidebar" id="sidebar">
    <div class="main-sidebar-header d-flex align-items-center justify-content-center"
@@ -81,7 +79,6 @@
     </a>
 </div>
 
-
     <div class="main-sidebar" id="sidebar-scroll">
         <nav class="main-menu-container nav nav-pills flex-column sub-open">
             <div class="sidebar-left" id="sidebar-left"></div>
@@ -90,7 +87,6 @@
 
                 @include('layouts.partials.switch-role')
 
-                    <!-- Dashboard -->
                     <li class="slide {{ request()->routeIs('business.index') ? 'active' : '' }}">
                         <a href="{{ route('business.index', $currentBusiness->slug) }}"
                             class="sidebar__menu-item {{ request()->routeIs('business.index') ? 'active' : '' }}">
@@ -99,10 +95,8 @@
                         </a>
                     </li>
 
-
                 @if (Auth::check() && Auth::user()->hasRole('super-admin') && $currentBusiness?->slug === config('business.main_slug'))
-                <!-- Clients (platform operators, platform business context only -
-                     not visible while browsing/impersonating a client business). -->
+
                 <li class="slide {{ request()->routeIs('business.clients.*') ? 'active' : '' }}">
                     <a href="{{ route('business.clients.index', $currentBusiness->slug) }}"
                         class="sidebar__menu-item {{ request()->routeIs('business.clients.*') ? 'active' : '' }}">
@@ -112,7 +106,6 @@
                 </li>
                 @endif
 
-                <!-- Business Locations -->
                 <li class="slide {{ request()->routeIs('business.locations.*') ? 'active' : '' }}">
                     <a href="{{ route('business.locations.index', $currentBusiness->slug) }}"
                         class="sidebar__menu-item {{ request()->routeIs('business.locations.*') ? 'active' : '' }}">
@@ -193,7 +186,6 @@
                     </ul>
                 </li>
 
-                <!-- Employee Management Dropdown -->
                 <li
                     class="slide has-sub {{ request()->routeIs('business.employees.*', 'business.organogram.*', 'business.offboarding.*', 'business.career-growth.*') || request()->routeIs('employees.*') ? 'active open' : '' }}">
                     <a href="javascript:void(0);"
@@ -249,7 +241,6 @@
                     </ul>
                 </li>
 
-<!-- Payroll Management Dropdown -->
                 @if (!$hidePayrollMenus)
                     <li
                         class="slide has-sub {{ request()->routeIs('business.payroll.*') || request()->routeIs('business.advances.index') || request()->routeIs('business.loans.index') || request()->routeIs('business.employee-reliefs.index') ? 'active open' : '' }}">
@@ -295,7 +286,6 @@
                     </li>
                 @endif
 
-                <!-- Payroll Settings Management Dropdown -->
                 @if (!$hidePayrollMenus)
                     <li
                         class="slide has-sub {{ request()->routeIs('business.payroll-formulas.index') || request()->routeIs('business.reliefs.*') || request()->routeIs('business.deductions') || request()->routeIs('business.allowances.*') ? 'active open' : '' }}">
@@ -335,7 +325,6 @@
                     </li>
                 @endif
 
-                <!-- Leave Management Dropdown -->
                 <li class="slide has-sub {{ request()->routeIs('business.leave.*') ? 'active open' : '' }}">
                     <a href="javascript:void(0);"
                         class="sidebar__menu-item {{ request()->routeIs('business.leave.*') ? 'active' : '' }}">
@@ -388,7 +377,7 @@
                         </li>
                     </ul>
                 </li>
-                <!-- Time & Attendance Dropdown -->
+
                 <li
                     class="slide has-sub {{ request()->routeIs('business.attendances.*', 'business.overtime.*', 'business.absenteeism.*', 'business.clock-in-out.*', 'business.reports.*', 'business.work-schedules.*') ? 'active open' : '' }}">
                     <a href="javascript:void(0);"
@@ -447,7 +436,6 @@
             </ul>
             </li>
 
-            <!-- Performance Management Dropdown -->
             <li class="slide has-sub {{ request()->routeIs('business.performance.*') ? 'active open' : '' }}">
                 <a href="javascript:void(0);"
                     class="sidebar__menu-item {{ request()->routeIs('business.performance.*') ? 'active' : '' }}">
@@ -489,7 +477,6 @@
                 </ul>
             </li>
 
-            <!-- Assets Dropdown -->
             <li class="slide has-sub {{ request()->routeIs('business.assets.*') ? 'active open' : '' }}">
                 <a href="javascript:void(0);"
                     class="sidebar__menu-item {{ request()->routeIs('business.assets.*') ? 'active' : '' }}">
@@ -513,7 +500,6 @@
                 </ul>
             </li>
 
-            <!-- Learning Management Dropdown -->
             <li class="slide has-sub {{ request()->routeIs('business.learning.*') ? 'active open' : '' }}">
                 <a href="javascript:void(0);"
                     class="sidebar__menu-item {{ request()->routeIs('business.learning.*') ? 'active' : '' }}">
@@ -537,7 +523,6 @@
                 </ul>
             </li>
 
-            <!-- Project Management Dropdown -->
             <li class="slide has-sub {{ request()->routeIs('business.projects.*') ? 'active open' : '' }}">
                 <a href="javascript:void(0);"
                     class="sidebar__menu-item {{ request()->routeIs('business.projects.*') ? 'active' : '' }}">
@@ -561,7 +546,6 @@
                 </ul>
             </li>
 
-            <!-- CRM -->
             <li class="slide has-sub {{ request()->routeIs('business.crm.*') ? 'active open' : '' }}">
                 <a href="javascript:void(0);" class="sidebar__menu-item">
                     <i class="fa-solid fa-angle-down side-menu__angle"></i>
@@ -590,7 +574,6 @@
                 </ul>
             </li>
 
-            <!-- Recruitment Management Dropdown -->
             <li
                 class="slide has-sub {{ request()->routeIs('business.recruitment.*') || request()->routeIs('business.applicants.*') || request()->routeIs('business.applications.*') ? 'active open' : '' }}">
                 <a href="javascript:void(0);" class="sidebar__menu-item">
@@ -632,7 +615,6 @@
                 </ul>
             </li>
 
-            <!-- Settings Dropdown -->
             <li class="sidebar__menu-category"><span class="category-name">Account</span></li>
 
             <li class="slide {{ request()->routeIs('business.profile.index') ? 'active' : '' }}">
@@ -652,9 +634,7 @@
             </li>
 
             @if (Auth::check() && Auth::user()->hasRole('business-admin') && $activeRoleForNav === 'business-admin')
-            <!-- Add Business (business-admin only): same account, another
-                 business - reuses the normal business-setup wizard, just
-                 without re-collecting personal details already on file. -->
+
             <li class="slide {{ request()->routeIs('setup.business') ? 'active' : '' }}">
                 <a href="{{ route('setup.business') }}"
                     class="sidebar__menu-item {{ request()->routeIs('setup.business') ? 'active' : '' }}">
@@ -663,8 +643,6 @@
                 </a>
             </li>
 
-            <!-- Account Sharing (business-admin only): invite a colleague
-                 into this business account / approve their request. -->
             <li class="slide {{ request()->routeIs('business.clients.request-access', 'business.clients.grant-access') ? 'active' : '' }}">
                 <a href="{{ route('business.clients.request-access', $currentBusiness->slug) }}"
                     class="sidebar__menu-item {{ request()->routeIs('business.clients.request-access', 'business.clients.grant-access') ? 'active' : '' }}">
@@ -679,7 +657,6 @@
         </nav>
     </div>
 </div>
-
 
 <div class="app__offcanvas-overlay"></div>
 

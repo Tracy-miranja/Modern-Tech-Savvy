@@ -10,10 +10,7 @@ class ReliefSeeder extends Seeder
 {
     public function run()
     {
-        // Resolve the platform business dynamically - Business::first()
-        // picks whatever happens to have the lowest id, not necessarily
-        // Krest, and silently seeds reliefs against the wrong business if
-        // that ever changes.
+
         $business = Business::where('slug', config('business.main_slug'))->first()
             ?? Business::first();
 

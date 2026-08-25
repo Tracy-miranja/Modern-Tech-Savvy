@@ -121,9 +121,6 @@ class Employee extends Model implements HasMedia
         return $this->hasOne(EmploymentDetail::class);
     }
 
-    /* ----------------
-       Organogram / reporting line
-    -----------------*/
     public function manager()
     {
         return $this->belongsTo(Employee::class, 'manager_id');
@@ -134,20 +131,11 @@ class Employee extends Model implements HasMedia
         return $this->hasMany(Employee::class, 'manager_id');
     }
 
-    /**
-     * Optional dotted-line/matrix manager - distinct from manager() (the
-     * primary line-management edge). Always a direct manual assignment,
-     * see OrganogramController::assignManager().
-     */
     public function functionalManager()
     {
         return $this->belongsTo(Employee::class, 'functional_manager_id');
     }
 
-    /**
-     * All employees anywhere below this one in the reporting chain
-     * (direct + indirect reports), walked breadth-first.
-     */
     public function allReports(): \Illuminate\Support\Collection
     {
         $all = collect();
@@ -165,10 +153,6 @@ class Employee extends Model implements HasMedia
         return $all->unique('id')->values();
     }
 
-    /**
-     * True if $employee is this employee's manager, or any manager above that
-     * (i.e. $employee sits somewhere above $this in the reporting chain).
-     */
     public function reportsTo(Employee $employee): bool
     {
         $current = $this->manager;
@@ -183,13 +167,6 @@ class Employee extends Model implements HasMedia
         return false;
     }
 
-    /**
-     * The ordered chain of managers above this employee - direct manager
-     * first, then their manager, and so on. This is the authoritative
-     * approval chain for things like leave requests: level 1 is index 0,
-     * level 2 is index 1, etc. Stops at 50 hops as a safety net against a
-     * pathological cycle slipping past wouldCreateCycle().
-     */
     public function managerChain(): \Illuminate\Support\Collection
     {
         $chain = collect();
@@ -205,10 +182,6 @@ class Employee extends Model implements HasMedia
         return $chain;
     }
 
-    /**
-     * True if setting manager_id = $managerId on this employee would create a
-     * cycle (i.e. $managerId is this employee or already reports to them).
-     */
     public function wouldCreateCycle(int $managerId): bool
     {
         if ($managerId === $this->id) {
@@ -220,9 +193,6 @@ class Employee extends Model implements HasMedia
         return $candidate && $candidate->reportsTo($this);
     }
 
-    /* ----------------
-       Organization structure template (main organogram)
-    -----------------*/
     public function organogramRole()
     {
         return $this->belongsTo(OrganogramRole::class);
@@ -233,24 +203,11 @@ class Employee extends Model implements HasMedia
         return $this->belongsTo(Team::class);
     }
 
-    /**
-     * Positions this employee personally holds (i.e. they're the assigned
-     * manager/head for one or more departments or teams under some role).
-     */
     public function organogramPositions()
     {
         return $this->hasMany(OrganogramPosition::class);
     }
 
-    /**
-     * Who this employee should report to by default, per the org-structure
-     * template: their own role's reports_to_role_id points at a target
-     * role, and whoever holds a Position for that target role covering
-     * this employee's team (preferred) or department is the manager.
-     * Null if this employee has no role, their role is the top of the
-     * chain (reports_to_role_id is null), or nobody currently holds the
-     * target role's position over their team/department.
-     */
     public function computeTemplateManagerId(): ?int
     {
         if (!$this->organogram_role_id || !$this->department_id) {
@@ -282,15 +239,6 @@ class Employee extends Model implements HasMedia
         return $departmentMatch?->employee_id;
     }
 
-    /**
-     * Grants the Spatie permission role mapped to each organogram
-     * position this employee currently holds (OrganogramRole.spatie_role_name).
-     * Deliberately additive only - it never removes a Spatie role, since
-     * there's no reliable way to know whether a given role was granted
-     * via a position or independently by an admin, and silently revoking
-     * access would be far more dangerous than leaving an extra grant in
-     * place. Call after assigning this employee to a new position.
-     */
     public function syncSpatieRoleFromPositions(): void
     {
         if (!$this->user) {
@@ -311,12 +259,6 @@ class Employee extends Model implements HasMedia
         }
     }
 
-    /**
-     * Recomputes and persists manager_id from the template - a no-op if this
-     * employee has a manual override (manager_override = true), which is
-     * exactly what lets HR move one employee onto a different line without
-     * affecting anyone else in the department.
-     */
     public function syncManagerFromTemplate(): void
     {
         if ($this->manager_override) {
@@ -325,12 +267,6 @@ class Employee extends Model implements HasMedia
 
         $templateManagerId = $this->computeTemplateManagerId();
 
-        // The role graph itself can't cycle (enforced by
-        // OrganogramRole::wouldCreateCycle()), but the resolved manager
-        // could still sit below this employee via an unrelated manual
-        // override - fall back to no manager rather than writing a cycle
-        // that would make both employees silently vanish from the tree
-        // (OrganogramController::fetch() only walks down from roots).
         if ($templateManagerId !== null && $this->wouldCreateCycle((int) $templateManagerId)) {
             $templateManagerId = null;
         }
@@ -468,7 +404,7 @@ class Employee extends Model implements HasMedia
 public function assignedDepartmentIds(): array
 {
     try {
-        // Prefer cached relationship to avoid extra queries on loops
+
         return $this->relationLoaded('departments')
             ? $this->departments->pluck('id')->map(fn ($i) => (int)$i)->all()
             : $this->departments()->pluck('departments.id')->map(fn ($i) => (int)$i)->all();
@@ -477,14 +413,6 @@ public function assignedDepartmentIds(): array
     }
 }
 
-/**
- * Every department this employee should be considered part of for
- * org-structure purposes: their single primary department_id (whichever
- * source it resolves from, see getDepartmentIdAttribute) plus any extra
- * departments assigned via the employee_departments pivot - so a
- * position covering department X also picks up an employee whose
- * primary department is elsewhere but who is additionally assigned to X.
- */
 public function allDepartmentIds(): array
 {
     $ids = $this->assignedDepartmentIds();
@@ -495,12 +423,6 @@ public function allDepartmentIds(): array
     return array_values(array_unique($ids));
 }
 
-/**
- * Query-level equivalent of allDepartmentIds() - matches the primary
- * department_id column, its employment_details fallback (for rows where
- * the employees.department_id column itself is null), or membership in
- * the employee_departments pivot.
- */
 public function scopeInDepartment($query, int $departmentId)
 {
     return $query->where(function ($q) use ($departmentId) {
@@ -512,7 +434,6 @@ public function scopeInDepartment($query, int $departmentId)
             });
     });
 }
-
 
     public function getEmploymentDateAttribute($value)
     {
@@ -526,10 +447,5 @@ public function scopeInDepartment($query, int $departmentId)
     {
         return $value ?? optional($this->employmentDetails)->job_category_id ?? null;
     }
-//    public function employmentDetail()
-//     {
-//         return $this->hasOne(\App\Models\EmploymentDetail::class);
-//     }
-
 
 }

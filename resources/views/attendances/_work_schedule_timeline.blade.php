@@ -1,5 +1,5 @@
 @php
-  // convert HH:MM:SS to minutes since 00:00
+  
   $toMin = function($t){
     if(!$t) return 0;
     [$h,$m,$s] = array_pad(explode(':', $t), 3, 0);
@@ -34,16 +34,16 @@
         $startMin = $toMin($shift->start_time);
         $endMin = $toMin($shift->end_time);
 
-        // overnight: treat end as next day
+        
         if ($endMin <= $startMin) $endMin += 1440;
 
-        // clamp to 0..1440 for display (shows overnight as wrapping - simplified)
+        
         $left = max(0, min(1440, $startMin));
         $width = max(10, min(1440, $endMin) - $left);
 
         $leftPct = ($left/1440)*100;
         $widthPct = ($width/1440)*100;
-      @endphp
+@endphp
 
       <div class="mb-2">
         <div class="small fw-semibold mb-1">
@@ -53,7 +53,7 @@
 
         <div class="position-relative" style="height: 22px; background:#f6f7fb; border-radius: 10px;">
           <div class="position-absolute top-0 bottom-0"
-               style="left: {{ $leftPct }}%; width: {{ $widthPct }}%; background:#0d6efd; border-radius:10px;">
+               style="left: {{ $leftPct }}%; width: {{ $widthPct }}%; background:var(--clr-bg-primary, #f89616); border-radius:10px;">
           </div>
         </div>
       </div>

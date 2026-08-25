@@ -61,13 +61,12 @@
 
 <body>
     <div class="email-container">
-        <!-- Header -->
+
         <div class="email-header">
             <img src="{{ config('app.url') }}/media/krstlogo.png" alt="{{ config('app.name') }} Logo">
             <div>Your Payslip is Ready</div>
         </div>
 
-        <!-- Body -->
         <div class="email-body">
             <p>Hello, <strong>{{ $employeeName }}</strong>,</p>
             <p>Your payslip for <strong>{{ $payrollPeriod }}</strong> is now available.</p>
@@ -75,7 +74,6 @@
             <p>If you have any questions, feel free to reach out to HR.</p>
         </div>
 
-        <!-- Footer -->
         <div class="email-footer">
             Best Regards, <br>
             <strong>{{ config('app.name') }} Team</strong> <br>

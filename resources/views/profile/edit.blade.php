@@ -21,7 +21,6 @@
         </div>
     </div>
 
-
     @push('scripts')
         <script src="{{ asset('js/main/profile.js') }}" type="module"></script>
     @endpush

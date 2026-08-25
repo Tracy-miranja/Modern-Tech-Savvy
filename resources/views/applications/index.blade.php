@@ -1,6 +1,6 @@
 <x-app-layout>
   <div class="apps-page">
-    {{-- KPI ROW --}}
+
     <div class="apps-kpis mb-3">
       <div class="apps-kpi">
         <div>
@@ -51,7 +51,6 @@
       </div>
     </div>
 
-    {{-- FILTER CARD --}}
     <div class="apps-filters mb-3">
       <div class="grid">
         <div>
@@ -104,7 +103,6 @@
       </div>
     </div>
 
-    {{-- BULK BAR --}}
     <div class="apps-bulkbar mb-3">
       <div class="left">
         <div class="form-check m-0">
@@ -130,7 +128,6 @@
       </div>
     </div>
 
-    {{-- TABLE --}}
     <div class="apps-table-wrap" id="jobApplicationsContainer">
       {{ loader() }}
     </div>

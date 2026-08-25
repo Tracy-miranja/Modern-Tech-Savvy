@@ -189,7 +189,7 @@
 </head>
 
 <body>
-    <!-- Header -->
+
     <div class="header">
         <div class="left">
             @php
@@ -200,7 +200,7 @@
             $ext = pathinfo($filePath, PATHINFO_EXTENSION);
             $logoBase64 = 'data:image/' . $ext . ';base64,' . base64_encode(file_get_contents($filePath));
             }
-            @endphp
+@endphp
 
             @if($logoBase64)
             <img src="{{ $logoBase64 }}" alt="{{ $business->company_name }} Logo" class="logo">
@@ -220,7 +220,6 @@
         </div>
     </div>
 
-    <!-- Table -->
     @if($leads->isEmpty())
     <p>No leads available for this business.</p>
     @else
@@ -262,7 +261,7 @@
                     return "{$response['label']}: {$response['value']}";
                     })->implode('; ')
                     : json_encode($lead->survey_responses);
-                    @endphp
+@endphp
                     {{ $responses }}
                     @else
                     N/A

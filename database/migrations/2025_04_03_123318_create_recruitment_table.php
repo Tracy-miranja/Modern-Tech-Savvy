@@ -7,7 +7,7 @@ return new class extends Migration
 {
     public function up()
     {
-        // Create psychometric_tests table (only if it doesn't exist)
+
         if (!Schema::hasTable('psychometric_tests')) {
             Schema::create('psychometric_tests', function (Blueprint $table) {
                 $table->id();
@@ -24,7 +24,7 @@ return new class extends Migration
 
     public function down()
     {
-        // Drop psychometric_tests table
+
         if (Schema::hasTable('psychometric_tests')) {
             Schema::dropIfExists('psychometric_tests');
         }

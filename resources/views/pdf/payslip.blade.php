@@ -31,13 +31,13 @@
         <p style="margin: 0; font-size: 10px;">NSSF Contribution: -{{ number_format($payslip->nssf, 2) }}</p>
 
         @php
-        $totalDeductions = $payslip->paye + $payslip->nhif + $payslip->nssf; // Initialize with PAYE, NHIF, NSSF
-        @endphp
+        $totalDeductions = $payslip->paye + $payslip->nhif + $payslip->nssf;
+@endphp
 
         @if($payslip->deductions)
             @foreach($payslip->deductions as $deduction)
                 <p style="margin: 0; font-size: 10px;">{{ $deduction['name'] }}: -{{ number_format($deduction['amount'], 2) }}</p>
-                @php $totalDeductions += $deduction['amount']; @endphp
+                @php $totalDeductions += $deduction['amount'];@endphp
             @endforeach
         @endif
 

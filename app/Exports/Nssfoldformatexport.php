@@ -13,9 +13,6 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 
-/**
- * Old NSSF Format — simple payroll number, name, NSSF No, contribution
- */
 class NssfOldFormatExport implements FromCollection, WithHeadings, WithStyles, WithColumnWidths
 {
     protected $payroll;

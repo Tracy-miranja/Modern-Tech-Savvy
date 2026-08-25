@@ -1,11 +1,4 @@
-{{--
-    Shared intl-tel-input assets + init logic for any page with a
-    `.phone-input-control` field - @include this once anywhere in the
-    page (order doesn't matter, everything here pushes to the layout's
-    stacks). Previously this ran unconditionally on every single page in
-    the app via layouts/app.blade.php, regardless of whether that page
-    had a phone field at all.
---}}
+
 @push('styles')
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.12/css/intlTelInput.min.css">
 @endpush

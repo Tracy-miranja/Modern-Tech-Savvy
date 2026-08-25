@@ -31,6 +31,12 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->prepend(SetCurrentBusiness::class);
         $middleware->appendToGroup('web', TriggerDueLeaveAccruals::class);
+        // Biometric device push receivers - external hardware firmware,
+        // no session/CSRF token to send.
+        $middleware->validateCsrfTokens(except: [
+            'device-webhook/*',
+            'iclock/*',
+        ]);
         $middleware->alias([
             'role' => \App\Http\Middleware\RoleOrImpersonation::class,
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,

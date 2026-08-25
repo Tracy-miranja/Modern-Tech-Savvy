@@ -6,7 +6,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body" id="leaveEntitlementContent">
-                <!-- Dynamic content will be loaded here -->
+
             </div>
         </div>
     </div>

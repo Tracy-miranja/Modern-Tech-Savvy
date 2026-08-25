@@ -8,12 +8,6 @@ use App\Services\Reports\ReportFilters;
 use App\Services\Reports\ReportPdfService;
 use Illuminate\Http\Request;
 
-/**
- * Offboarding reports - Phase 4 of the GUIDE plan, built on the same
- * shared report engine as Attendance/Leave/Disciplinary: offboarding
- * status by period/department/employee, plus a per-checklist
- * final-clearance printable summary.
- */
 class OffboardingReportController extends Controller
 {
     // ---- Status --------------------------------------------------------

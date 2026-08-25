@@ -9,14 +9,6 @@ use App\Http\RequestResponse;
 use App\Traits\HandleTransactions;
 use Illuminate\Http\Request;
 
-/**
- * Learning Management Settings - mandatory/compliance courses. Creating or
- * widening a mandate immediately auto-enrolls every currently-matching
- * employee (CourseMandate::autoEnroll()); the daily learning:sync command
- * re-runs the same call so employees added after the mandate was saved
- * still get caught. See the course_mandates migration's docblock for why
- * this is deliberately additive-only.
- */
 class CourseMandateController extends Controller
 {
     use HandleTransactions;
@@ -62,10 +54,6 @@ class CourseMandateController extends Controller
         });
     }
 
-    /**
-     * Scope and active-state only - a mandate's course is fixed at
-     * creation (changing it would orphan the enrollments it already made).
-     */
     public function update(Request $request, Business $business, CourseMandate $mandate)
     {
         if ((int) $mandate->business_id !== (int) $business->id) {
@@ -94,9 +82,6 @@ class CourseMandateController extends Controller
             return RequestResponse::badRequest('Mandate not found for this business.', 404);
         }
 
-        // Deleting the mandate never touches existing enrollments it
-        // created - they stay as ordinary enrollments (course_mandate_id
-        // is nullOnDelete on the FK), preserving progress/certificates.
         $mandate->delete();
 
         return RequestResponse::ok('Mandate removed. Employees already enrolled through it keep their enrollment.');

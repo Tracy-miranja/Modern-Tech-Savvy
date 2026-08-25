@@ -12,18 +12,6 @@ use App\Http\RequestResponse;
 use App\Traits\HandleTransactions;
 use Illuminate\Http\Request;
 
-/**
- * On-demand leave encashment - Leave-side only, no Payroll module
- * involvement (see the create_leave_encashments_table migration's
- * docblock). Approval is deliberately single-step by an HR/admin role
- * (gated at the route level, role:business-admin|business-hr|restricted-hr)
- * rather than reusing LeaveRequest's full multi-level approval_chain
- * machinery - that system is tightly coupled to LeaveRequest's own routing
- * (organogram/HOD/chief-of-staff resolution) and wiring it in for this
- * smaller, opt-in feature would be a disproportionate amount of coupling
- * for what this batch needs. Flagged as a scoped simplification, not an
- * oversight.
- */
 class LeaveEncashmentController extends Controller
 {
     use HandleTransactions;

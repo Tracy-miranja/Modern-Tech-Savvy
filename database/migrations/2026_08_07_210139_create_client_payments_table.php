@@ -7,14 +7,6 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-/**
- * Manual payment ledger (user's explicit choice over a real gateway
- * integration - no Stripe/Paystack, no webhooks). A platform admin records
- * that a client paid; recording it extends business_modules.subscription_ends_at
- * for the covered module(s) - see ClientPaymentController::store(). module_id
- * is nullable: null means the payment covers every module the client
- * currently has active, not just one.
- */
 return new class extends Migration
 {
     public function up(): void
@@ -25,7 +17,7 @@ return new class extends Migration
             $table->foreignIdFor(Module::class)->nullable()->constrained('modules')->nullOnDelete();
             $table->decimal('amount', 12, 2);
             $table->string('currency', 3)->default('KES');
-            $table->string('payment_method'); // bank, mpesa, cheque, cash, other
+            $table->string('payment_method');
             $table->string('reference')->nullable();
             $table->date('period_start');
             $table->date('period_end');

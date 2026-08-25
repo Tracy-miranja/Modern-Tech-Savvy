@@ -5,13 +5,6 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-/**
- * A course can run more than once ("Training Schedules" in the module's
- * feature list) - each row is one scheduled run of a course, with its own
- * dates/location/capacity. Enrollments optionally point at a specific
- * session; a course with no sessions yet can still take general
- * enrollments (course_session_id nullable on course_enrollments).
- */
 return new class extends Migration
 {
     public function up(): void
@@ -24,7 +17,7 @@ return new class extends Migration
             $table->date('end_date')->nullable();
             $table->string('location')->nullable();
             $table->unsignedInteger('capacity')->nullable();
-            $table->string('status')->default('scheduled'); // scheduled, ongoing, completed, cancelled
+            $table->string('status')->default('scheduled');
             $table->timestamps();
         });
     }

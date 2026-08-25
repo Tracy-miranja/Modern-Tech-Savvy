@@ -20,10 +20,8 @@ class SuspiciousLoginController extends Controller
         $user = User::findOrFail($userId);
         $loginLog = LoginLog::findOrFail($loginId);
 
-        // Log out the user if still logged in
         Auth::logout();
 
-        // Invalidate all sessions for the user
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 

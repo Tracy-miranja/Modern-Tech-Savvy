@@ -6,11 +6,7 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Recreates a migration that ran against existing databases (recorded in
-     * the `migrations` table as batch 34) but whose file was never committed
-     * to the repo. Guarded so it stays a no-op where the column already exists.
-     */
+
     public function up(): void
     {
         if (Schema::hasColumn('leave_entitlements', 'policy_snapshot')) {

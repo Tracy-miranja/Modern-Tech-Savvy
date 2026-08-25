@@ -25,8 +25,8 @@
                 <td>{{ number_format($loan->interest_rate, 2) }}</td>
                 <td>{{ $loan->term_months }}</td>
                 <td>{{ $loan->start_date ? \Carbon\Carbon::parse($loan->start_date)->format('Y-m-d') : 'N/A' }}</td>
-                <td>{{ number_format($loan->repayments()->sum('amount_paid'), 2) }}</td> <!-- Option 1: Sum of repayments -->
-                <td>{{ number_format($loan->amount - $loan->repayments()->sum('amount_paid'), 2) }}</td> <!-- Balance remaining -->
+                <td>{{ number_format($loan->repayments()->sum('amount_paid'), 2) }}</td>
+                <td>{{ number_format($loan->amount - $loan->repayments()->sum('amount_paid'), 2) }}</td>
                 <td>{{ ucfirst($loan->status) }}</td>
                 <td>{{ $loan->notes ?? 'N/A' }}</td>
                 <td>

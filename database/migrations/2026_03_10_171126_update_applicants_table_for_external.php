@@ -19,7 +19,6 @@ return new class extends Migration {
                     ->nullOnDelete();
             }
 
-            // Add only if missing (NO duplicates)
             if (!Schema::hasColumn('applicants', 'dob')) {
                 $table->date('dob')->nullable()->after('age');
             }
@@ -33,7 +32,6 @@ return new class extends Migration {
                 $table->string('home_county', 100)->nullable()->after('city');
             }
 
-            // helpful indexes
             if (Schema::hasColumn('applicants', 'idnumber')) {
                 $table->index('idnumber');
             }

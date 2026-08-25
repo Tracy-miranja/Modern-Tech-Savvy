@@ -49,7 +49,6 @@
     <p>Generated: {{ now()->format('d M Y H:i') }} &nbsp;|&nbsp; Currency: {{ $cur }}</p>
 </div>
 
-{{-- Summary table --}}
 <p class="section">Key Metrics Comparison</p>
 <table>
     <thead>
@@ -63,7 +62,7 @@
     </thead>
     <tbody>
         @foreach($data['summary'] as $row)
-        @php $cls = $row['variance'] > 0 ? 'inc' : ($row['variance'] < 0 ? 'dec' : ''); @endphp
+        @php $cls = $row['variance'] > 0 ? 'inc' : ($row['variance'] < 0 ? 'dec' : '');@endphp
         <tr>
             <td>{{ $row['metric'] }}</td>
             <td class="num">{{ number_format($row['period1'], 2) }}</td>
@@ -79,7 +78,6 @@
     </tbody>
 </table>
 
-{{-- Month-by-month (year mode only) --}}
 @if($params['mode'] === 'year' && !empty($data['monthly']))
 <p class="section">Month-by-Month Gross Pay</p>
 <table>
@@ -97,7 +95,7 @@
     <tbody>
         @foreach($data['monthly'] as $row)
         @if($row['period1'] > 0 || $row['period2'] > 0)
-        @php $cls = $row['variance'] > 0 ? 'inc' : ($row['variance'] < 0 ? 'dec' : ''); @endphp
+        @php $cls = $row['variance'] > 0 ? 'inc' : ($row['variance'] < 0 ? 'dec' : '');@endphp
         <tr>
             <td>{{ $row['month'] }}</td>
             <td class="num">{{ $row['period1'] > 0 ? number_format($row['period1'],2) : '-' }}</td>
@@ -115,14 +113,13 @@
         @endif
         @endforeach
 
-        {{-- Totals row --}}
         @php
             $t1 = collect($data['monthly'])->sum('period1');
             $t2 = collect($data['monthly'])->sum('period2');
             $tv = $t2 - $t1;
             $tp = $t1 != 0 ? round(($tv/abs($t1))*100,2) : 0;
             $cls = $tv > 0 ? 'inc' : ($tv < 0 ? 'dec' : '');
-        @endphp
+@endphp
         <tr class="total-row">
             <td>TOTAL</td>
             <td class="num">{{ number_format($t1,2) }}</td>

@@ -96,7 +96,7 @@
 </head>
 
 <body>
-    <!-- Header -->
+
     <div class="header">
         <div class="left">
             @php
@@ -109,7 +109,7 @@
             $ext = pathinfo($filePath, PATHINFO_EXTENSION);
             $logoBase64 = 'data:image/' . $ext . ';base64,' . base64_encode(file_get_contents($filePath));
             }
-            @endphp
+@endphp
 
             @if($logoBase64)
             <img src="{{ $logoBase64 }}" alt="{{ $business->company_name }} Logo"
@@ -131,7 +131,6 @@
         </div>
     </div>
 
-    <!-- Table -->
     <table class="table">
         <thead>
             <tr>
@@ -184,56 +183,55 @@
             @foreach($data as $row)
             <tr>
                 @if($column === 'paye')
-                {{-- PAYE has 25 columns, showing key ones --}}
-                <td>{{ $row[0] ?? 'N/A' }}</td> <!-- PIN of Employee -->
-                <td>{{ $row[1] ?? 'N/A' }}</td> <!-- Name of Employee -->
-                <td>{{ $row[2] ?? 'N/A' }}</td> <!-- Resident Status -->
-                <td>{{ $row[3] ?? 'N/A' }}</td> <!-- Type of Employee -->
-                <td>{{ is_numeric($row[6] ?? 0) ? number_format($row[6], 2) : ($row[6] ?? 'N/A') }}</td> <!-- Total Cash Pay -->
-                <td>{{ is_numeric($row[15] ?? 0) ? number_format($row[15], 2) : ($row[15] ?? 'N/A') }}</td> <!-- NSSF -->
-                <td>{{ is_numeric($row[14] ?? 0) ? number_format($row[14], 2) : ($row[14] ?? 'N/A') }}</td> <!-- SHIF -->
-                <td>{{ is_numeric($row[19] ?? 0) ? number_format($row[19], 2) : ($row[19] ?? 'N/A') }}</td> <!-- Housing Levy -->
-                <td>{{ is_numeric($row[21] ?? 0) ? number_format($row[21], 2) : ($row[21] ?? 'N/A') }}</td> <!-- Personal Relief -->
-                <td>{{ is_numeric($row[24] ?? 0) ? number_format($row[24], 2) : ($row[24] ?? 'N/A') }}</td> <!-- Self Assessed PAYE -->
+
+                <td>{{ $row[0] ?? 'N/A' }}</td>
+                <td>{{ $row[1] ?? 'N/A' }}</td>
+                <td>{{ $row[2] ?? 'N/A' }}</td>
+                <td>{{ $row[3] ?? 'N/A' }}</td>
+                <td>{{ is_numeric($row[6] ?? 0) ? number_format($row[6], 2) : ($row[6] ?? 'N/A') }}</td>
+                <td>{{ is_numeric($row[15] ?? 0) ? number_format($row[15], 2) : ($row[15] ?? 'N/A') }}</td>
+                <td>{{ is_numeric($row[14] ?? 0) ? number_format($row[14], 2) : ($row[14] ?? 'N/A') }}</td>
+                <td>{{ is_numeric($row[19] ?? 0) ? number_format($row[19], 2) : ($row[19] ?? 'N/A') }}</td>
+                <td>{{ is_numeric($row[21] ?? 0) ? number_format($row[21], 2) : ($row[21] ?? 'N/A') }}</td>
+                <td>{{ is_numeric($row[24] ?? 0) ? number_format($row[24], 2) : ($row[24] ?? 'N/A') }}</td>
                 @elseif($column === 'shif')
-                <td>{{ $row[0] ?? 'N/A' }}</td> <!-- PAYROLL NUMBER -->
-                <td>{{ $row[1] ?? 'N/A' }}</td> <!-- FIRSTNAME -->
-                <td>{{ $row[2] ?? 'N/A' }}</td> <!-- LASTNAME -->
-                <td>{{ $row[3] ?? 'N/A' }}</td> <!-- ID NO -->
-                <td>{{ $row[4] ?? 'N/A' }}</td> <!-- KRA PIN -->
-                <td>{{ $row[5] ?? 'N/A' }}</td> <!-- SHIF NO -->
-                <td>{{ is_numeric($row[6] ?? 0) ? number_format($row[6], 2) : ($row[6] ?? 'N/A') }}</td> <!-- CONTRIBUTION AMOUNT -->
-                <td>{{ $row[7] ?? 'N/A' }}</td> <!-- PHONE -->
+                <td>{{ $row[0] ?? 'N/A' }}</td>
+                <td>{{ $row[1] ?? 'N/A' }}</td>
+                <td>{{ $row[2] ?? 'N/A' }}</td>
+                <td>{{ $row[3] ?? 'N/A' }}</td>
+                <td>{{ $row[4] ?? 'N/A' }}</td>
+                <td>{{ $row[5] ?? 'N/A' }}</td>
+                <td>{{ is_numeric($row[6] ?? 0) ? number_format($row[6], 2) : ($row[6] ?? 'N/A') }}</td>
+                <td>{{ $row[7] ?? 'N/A' }}</td>
                 @elseif($column === 'nssf')
-                <td>{{ $row[0] ?? 'N/A' }}</td> <!-- PAYROLL NUMBER -->
-                <td>{{ $row[1] ?? 'N/A' }}</td> <!-- SURNAME -->
-                <td>{{ $row[2] ?? 'N/A' }}</td> <!-- OTHER NAMES -->
-                <td>{{ $row[3] ?? 'N/A' }}</td> <!-- ID NO -->
-                <td>{{ $row[4] ?? 'N/A' }}</td> <!-- KRA PIN -->
-                <td>{{ $row[5] ?? 'N/A' }}</td> <!-- NSSF NO -->
-                <td>{{ is_numeric($row[6] ?? 0) ? number_format($row[6], 2) : ($row[6] ?? 'N/A') }}</td> <!-- GROSS PAY -->
-                <td>{{ $row[7] ?? '' }}</td> <!-- VOLUNTARY -->
+                <td>{{ $row[0] ?? 'N/A' }}</td>
+                <td>{{ $row[1] ?? 'N/A' }}</td>
+                <td>{{ $row[2] ?? 'N/A' }}</td>
+                <td>{{ $row[3] ?? 'N/A' }}</td>
+                <td>{{ $row[4] ?? 'N/A' }}</td>
+                <td>{{ $row[5] ?? 'N/A' }}</td>
+                <td>{{ is_numeric($row[6] ?? 0) ? number_format($row[6], 2) : ($row[6] ?? 'N/A') }}</td>
+                <td>{{ $row[7] ?? '' }}</td>
                 @elseif($column === 'housing_levy')
-                <td>{{ $row[0] ?? 'N/A' }}</td> <!-- EMP NO -->
-                <td>{{ $row[1] ?? 'N/A' }}</td> <!-- FULL NAME -->
-                <td>{{ $row[2] ?? 'N/A' }}</td> <!-- TAX_NO -->
-                <td>{{ is_numeric($row[3] ?? 0) ? number_format($row[3], 2) : ($row[3] ?? 'N/A') }}</td> <!-- HOUSE_LEVY AMOUNT -->
+                <td>{{ $row[0] ?? 'N/A' }}</td>
+                <td>{{ $row[1] ?? 'N/A' }}</td>
+                <td>{{ $row[2] ?? 'N/A' }}</td>
+                <td>{{ is_numeric($row[3] ?? 0) ? number_format($row[3], 2) : ($row[3] ?? 'N/A') }}</td>
                 @else
-                {{-- Standard columns: [name, code, tax_no, basic, gross, net, column_value] --}}
-                <td>{{ $row[0] ?? 'N/A' }}</td> <!-- employee_name -->
-                <td>{{ $row[1] ?? 'N/A' }}</td> <!-- employee_code -->
-                <td>{{ $row[2] ?? 'N/A' }}</td> <!-- tax_no -->
-                <td>{{ is_numeric($row[3] ?? 0) ? number_format($row[3], 2) : ($row[3] ?? 'N/A') }}</td> <!-- basic_salary -->
-                <td>{{ is_numeric($row[4] ?? 0) ? number_format($row[4], 2) : ($row[4] ?? 'N/A') }}</td> <!-- gross_pay -->
-                <td>{{ is_numeric($row[5] ?? 0) ? number_format($row[5], 2) : ($row[5] ?? 'N/A') }}</td> <!-- net_pay -->
-                <td>{{ is_numeric($row[6] ?? 0) ? number_format($row[6], 2) : ($row[6] ?? 'N/A') }}</td> <!-- column_value -->
+
+                <td>{{ $row[0] ?? 'N/A' }}</td>
+                <td>{{ $row[1] ?? 'N/A' }}</td>
+                <td>{{ $row[2] ?? 'N/A' }}</td>
+                <td>{{ is_numeric($row[3] ?? 0) ? number_format($row[3], 2) : ($row[3] ?? 'N/A') }}</td>
+                <td>{{ is_numeric($row[4] ?? 0) ? number_format($row[4], 2) : ($row[4] ?? 'N/A') }}</td>
+                <td>{{ is_numeric($row[5] ?? 0) ? number_format($row[5], 2) : ($row[5] ?? 'N/A') }}</td>
+                <td>{{ is_numeric($row[6] ?? 0) ? number_format($row[6], 2) : ($row[6] ?? 'N/A') }}</td>
                 @endif
             </tr>
             @endforeach
         </tbody>
     </table>
 
-    <!-- Footer -->
     <div class="footer">
         <p class="text-muted">Generated on: {{ now()->format('F d, Y H:i:s') }}</p>
         <p class="text-muted">For official use only.</p>

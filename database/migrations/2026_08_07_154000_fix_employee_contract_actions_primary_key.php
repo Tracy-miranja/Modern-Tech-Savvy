@@ -8,9 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // The out-of-band employee_contract_actions table was created
-        // without a primary key / auto-increment on `id`, which blocks
-        // any foreign key from referencing it. Repair it here.
+
         $hasPrimaryKey = DB::selectOne("
             SELECT COUNT(*) as cnt
             FROM information_schema.STATISTICS
@@ -26,6 +24,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        // Intentionally left blank — don't want to strip the primary key back out.
+
     }
 };

@@ -14,14 +14,23 @@
                         <input type="hidden" name="business_slug" value="{{ $business->slug }}">
 
                         <div class="row g-3">
-                            <div class="col-md-6 d-flex align-items-center justify-content-between">
+                            <div class="col-md-6">
+                                <label class="form-label mb-0">Clock-in Method</label>
+                                <select class="form-select" id="check_in_method" name="check_in_method">
+                                    <option value="in_system" {{ ($business->check_in_method ?? 'in_system') === 'in_system' ? 'selected' : '' }}>In-system only (employee self clock-in/out)</option>
+                                    <option value="device" {{ ($business->check_in_method ?? '') === 'device' ? 'selected' : '' }}>Biometric device only</option>
+                                    <option value="both" {{ ($business->check_in_method ?? '') === 'both' ? 'selected' : '' }}>Both</option>
+                                </select>
+                                <small class="text-muted">Controls whether employees can self clock-in from the app, use a registered device below, or either.</small>
+                            </div>
+                            <div class="col-md-3 d-flex align-items-center justify-content-between">
                                 <label class="form-label mb-0">Enforce Geofence</label>
                                 <div class="form-check form-switch m-0">
                                     <input class="form-check-input" type="checkbox" id="enforce_geofence"
                                            name="enforce_geofence" value="1" {{ ($business->enforce_geofence ?? 0) ? 'checked' : '' }}>
                                 </div>
                             </div>
-                            <div class="col-md-6 d-flex align-items-center justify-content-between">
+                            <div class="col-md-3 d-flex align-items-center justify-content-between">
                                 <label class="form-label mb-0">Enforce Registered Device (MAC)</label>
                                 <div class="form-check form-switch m-0">
                                     <input class="form-check-input" type="checkbox" id="enforce_mac"
@@ -44,7 +53,6 @@
                                 </div>
                             </div>
 
-                            {{-- Search + Paste + Add row --}}
                             <div class="row g-2 mb-2">
                                 <div class="col-md-5">
                                     <input type="text" id="geoSearch" class="form-control" placeholder="Search building/address (e.g. KICC, Nairobi)" autocomplete="off">
@@ -104,10 +112,154 @@
                     </div>
                 </div>
             </card>
+
+            <card class="mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                        <div>
+                            <h5 class="mb-0">Biometric Clock-in Devices</h5>
+                            <small class="text-muted">
+                                Register a physical terminal, then paste the webhook URL it gives you into that
+                                device's own server configuration - the device pushes punches to us, we never
+                                connect out to it.
+                            </small>
+                        </div>
+                        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#newDeviceModal">
+                            <i class="bi bi-plus-circle me-1"></i> Add Device
+                        </button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Vendor</th>
+                                    <th>Location</th>
+                                    <th>Enrolled</th>
+                                    <th>Last Seen</th>
+                                    <th>Status</th>
+                                    <th style="width:260px;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="devicesTableBody">
+                                <tr><td colspan="7" class="text-center text-muted">Loading…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </card>
         </div>
     </div>
 
-    <!-- New Attendance Policy Modal -->
+    <div class="modal fade" id="newDeviceModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deviceModalTitle">Register Device</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="deviceForm">
+                        <input type="hidden" name="device_id" id="deviceFormId">
+                        <div class="mb-3">
+                            <label class="form-label">Device Name</label>
+                            <input type="text" name="name" id="deviceFormName" class="form-control" placeholder="e.g. Main Gate Terminal" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Vendor</label>
+                            <select name="vendor" id="deviceFormVendor" class="form-select" required>
+                                <option value="zkteco">ZKTeco</option>
+                                <option value="hikvision">Hikvision</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Location <small class="text-muted">(optional)</small></label>
+                            <select name="location_id" id="deviceFormLocation" class="form-select">
+                                <option value="">Not tied to a specific location</option>
+                                @foreach ($locations as $location)
+                                    <option value="{{ $location->id }}">{{ $location->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="mb-1" id="deviceFormSerialGroup">
+                            <label class="form-label">Serial Number <small class="text-muted">(ZKTeco classic ADMS devices only)</small></label>
+                            <input type="text" name="serial_number" id="deviceFormSerial" class="form-control" placeholder="Found on the device or its menu">
+                            <small class="text-muted">Only needed if the device can't be given a custom server URL/path - it will identify itself by this serial instead.</small>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="submitDeviceBtn">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="deviceUrlModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Device Webhook URL</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-2">
+                        Paste this into the device's "Server URL"/"Cloud Server" configuration. ZKTeco classic
+                        ADMS devices ignore custom paths - point them at this domain and port instead, and make
+                        sure the serial number is set on this device's record.
+                    </p>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="deviceUrlValue" readonly>
+                        <button class="btn btn-outline-secondary" type="button" id="copyDeviceUrlBtn"><i class="bi bi-clipboard"></i></button>
+                    </div>
+                    <button type="button" class="btn btn-outline-warning btn-sm mt-3" id="regenerateDeviceUrlBtn">
+                        <i class="bi bi-arrow-repeat me-1"></i> Rotate URL (if it leaked)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="deviceEnrollmentsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Employee PIN Mapping - <span id="enrollmentsDeviceName"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small">
+                        Only needed if an employee's PIN on this device doesn't match their employee code -
+                        otherwise punches match automatically.
+                    </p>
+                    <form id="enrollmentForm" class="row g-2 mb-3">
+                        <div class="col-4">
+                            <input type="text" class="form-control" id="enrollmentPin" placeholder="Device PIN" required>
+                        </div>
+                        <div class="col-6">
+                            <select class="form-select" id="enrollmentEmployee" required>
+                                <option value="">Loading employees…</option>
+                            </select>
+                        </div>
+                        <div class="col-2 d-grid">
+                            <button type="submit" class="btn btn-primary">Map</button>
+                        </div>
+                    </form>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered">
+                            <thead><tr><th>PIN</th><th>Employee</th><th style="width:80px;"></th></tr></thead>
+                            <tbody id="enrollmentsTableBody">
+                                <tr><td colspan="3" class="text-center text-muted">Loading…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="newAttendancePolicyModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -175,8 +327,8 @@
                 width: 3.2rem; height: 1.6rem; cursor: pointer; background-color: #cbd5e1; border: 0; border-radius: 1rem;
                 position: relative; transition: background-color .2s ease-in-out;
             }
-            .form-switch .form-check-input:focus { box-shadow: 0 0 0 .15rem rgba(13,110,253,.15); }
-            .form-switch .form-check-input:checked { background-color: #0d6efd; }
+            .form-switch .form-check-input:focus { box-shadow: 0 0 0 .15rem rgba(241,139,5,.15); }
+            .form-switch .form-check-input:checked { background-color: var(--clr-bg-primary, #f89616); }
             .form-switch .form-check-input::before {
                 content: ''; position: absolute; top: .2rem; left: .2rem; width: 1.2rem; height: 1.2rem; background: #fff; border-radius: 50%;
                 transition: transform .2s ease-in-out; box-shadow: 0 1px 2px rgba(0,0,0,.25);
@@ -197,7 +349,6 @@
         </script>
         <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
-        {{-- Map + Search + Paste + Add logic --}}
         <script>
 (function() {
   // Elements
@@ -566,6 +717,257 @@
         });
 
         loadPolicies();
+    })();
+
+    (function () {
+        const csrf = document.querySelector('meta[name="csrf-token"]').content;
+        const businessSlug = @json($business->slug);
+        const fetchUrl = @json(route('business.attendances.devices.fetch', $business->slug));
+        const storeUrl = @json(route('business.attendances.devices.store', $business->slug));
+        const updateUrlTemplate = @json(route('business.attendances.devices.update', ['business' => $business->slug, 'device' => '__ID__']));
+        const toggleUrlTemplate = @json(route('business.attendances.devices.toggle', ['business' => $business->slug, 'device' => '__ID__']));
+        const regenUrlTemplate = @json(route('business.attendances.devices.regenerate-token', ['business' => $business->slug, 'device' => '__ID__']));
+        const destroyUrlTemplate = @json(route('business.attendances.devices.destroy', ['business' => $business->slug, 'device' => '__ID__']));
+        const enrollmentsFetchTemplate = @json(route('business.attendances.devices.enrollments.fetch', ['business' => $business->slug, 'device' => '__ID__']));
+        const enrollmentsStoreTemplate = @json(route('business.attendances.devices.enrollments.store', ['business' => $business->slug, 'device' => '__ID__']));
+        const enrollmentsDestroyTemplate = @json(route('business.attendances.devices.enrollments.destroy', ['business' => $business->slug, 'device' => '__ID__', 'enrollment' => '__ENROLLMENT__']));
+        const employeeOptionsUrl = @json(route('business.organogram.employee-options', $business->slug));
+
+        async function postJson(url, data, method = 'POST') {
+            const resp = await fetch(url, {
+                method,
+                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
+                body: JSON.stringify(data),
+            });
+            const payload = await resp.json();
+            if (!resp.ok) throw new Error(payload.message || 'Request failed.');
+            return payload;
+        }
+
+        async function deleteRequest(url) {
+            const resp = await fetch(url, { method: 'DELETE', headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf } });
+            const payload = await resp.json();
+            if (!resp.ok) throw new Error(payload.message || 'Request failed.');
+            return payload;
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str ?? '';
+            return div.innerHTML;
+        }
+
+        let currentEnrollmentsDeviceId = null;
+
+        async function loadDevices() {
+            const tbody = document.getElementById('devicesTableBody');
+            try {
+                const resp = await fetch(fetchUrl, { headers: { 'Accept': 'application/json' } });
+                const payload = await resp.json();
+                const devices = payload.data ?? [];
+
+                if (!devices.length) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No devices registered yet.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = devices.map(d => `
+                    <tr>
+                        <td>${escapeHtml(d.name)}</td>
+                        <td class="text-capitalize">${escapeHtml(d.vendor)}</td>
+                        <td>${escapeHtml(d.location || '—')}</td>
+                        <td>${d.enrollments_count}</td>
+                        <td>${escapeHtml(d.last_seen_at || 'Never')}</td>
+                        <td><span class="badge ${d.is_active ? 'bg-success' : 'bg-secondary'}">${d.is_active ? 'Active' : 'Inactive'}</span></td>
+                        <td class="text-nowrap">
+                            <button type="button" class="btn btn-sm btn-outline-primary device-url-btn" data-id="${d.id}" data-url="${escapeHtml(d.webhook_url)}" title="Webhook URL"><i class="bi bi-link-45deg"></i></button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary device-enroll-btn" data-id="${d.id}" data-name="${escapeHtml(d.name)}" title="PIN mapping"><i class="bi bi-people"></i></button>
+                            <button type="button" class="btn btn-sm ${d.is_active ? 'btn-outline-warning' : 'btn-outline-success'} device-toggle-btn" data-id="${d.id}" title="${d.is_active ? 'Deactivate' : 'Activate'}"><i class="bi ${d.is_active ? 'bi-pause-circle' : 'bi-play-circle'}"></i></button>
+                            <button type="button" class="btn btn-sm btn-outline-danger device-delete-btn" data-id="${d.id}" title="Delete"><i class="bi bi-trash3"></i></button>
+                        </td>
+                    </tr>
+                `).join('');
+
+                tbody.querySelectorAll('.device-url-btn').forEach(btn => {
+                    btn.addEventListener('click', function () {
+                        document.getElementById('deviceUrlValue').value = this.dataset.url;
+                        document.getElementById('regenerateDeviceUrlBtn').dataset.id = this.dataset.id;
+                        new bootstrap.Modal(document.getElementById('deviceUrlModal')).show();
+                    });
+                });
+
+                tbody.querySelectorAll('.device-enroll-btn').forEach(btn => {
+                    btn.addEventListener('click', function () {
+                        openEnrollmentsModal(this.dataset.id, this.dataset.name);
+                    });
+                });
+
+                tbody.querySelectorAll('.device-toggle-btn').forEach(btn => {
+                    btn.addEventListener('click', async function () {
+                        try {
+                            await postJson(toggleUrlTemplate.replace('__ID__', this.dataset.id), {});
+                            loadDevices();
+                        } catch (e) { toastr.error(e.message); }
+                    });
+                });
+
+                tbody.querySelectorAll('.device-delete-btn').forEach(btn => {
+                    btn.addEventListener('click', async function () {
+                        const { isConfirmed } = await Swal.fire({
+                            title: 'Remove this device?',
+                            text: 'Its webhook URL will stop accepting punches immediately.',
+                            icon: 'warning',
+                            showCancelButton: true,
+                            confirmButtonColor: '#d33',
+                            confirmButtonText: 'Yes, remove',
+                        });
+                        if (!isConfirmed) return;
+                        try {
+                            await deleteRequest(destroyUrlTemplate.replace('__ID__', this.dataset.id));
+                            toastr.success('Device removed.');
+                            loadDevices();
+                        } catch (e) { toastr.error(e.message); }
+                    });
+                });
+            } catch (e) {
+                console.error(e);
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">Could not load devices.</td></tr>';
+            }
+        }
+
+        document.getElementById('newDeviceModal').addEventListener('show.bs.modal', function () {
+            document.getElementById('deviceForm').reset();
+            document.getElementById('deviceFormId').value = '';
+            document.getElementById('deviceModalTitle').textContent = 'Register Device';
+        });
+
+        document.getElementById('submitDeviceBtn').addEventListener('click', async function () {
+            const form = document.getElementById('deviceForm');
+            if (!form.checkValidity()) { form.reportValidity(); return; }
+
+            const id = document.getElementById('deviceFormId').value;
+            const data = {
+                name: document.getElementById('deviceFormName').value,
+                vendor: document.getElementById('deviceFormVendor').value,
+                location_id: document.getElementById('deviceFormLocation').value || null,
+                serial_number: document.getElementById('deviceFormSerial').value || null,
+            };
+
+            try {
+                const url = id ? updateUrlTemplate.replace('__ID__', id) : storeUrl;
+                const result = await postJson(url, data);
+                bootstrap.Modal.getInstance(document.getElementById('newDeviceModal')).hide();
+                loadDevices();
+                if (!id && result.data?.webhook_url) {
+                    document.getElementById('deviceUrlValue').value = result.data.webhook_url;
+                    document.getElementById('regenerateDeviceUrlBtn').dataset.id = result.data.id;
+                    new bootstrap.Modal(document.getElementById('deviceUrlModal')).show();
+                } else {
+                    toastr.success('Device saved.');
+                }
+            } catch (e) {
+                toastr.error(e.message || 'Could not save device.');
+            }
+        });
+
+        document.getElementById('copyDeviceUrlBtn').addEventListener('click', function () {
+            const input = document.getElementById('deviceUrlValue');
+            input.select();
+            navigator.clipboard?.writeText(input.value);
+            toastr.success('Copied.');
+        });
+
+        document.getElementById('regenerateDeviceUrlBtn').addEventListener('click', async function () {
+            const { isConfirmed } = await Swal.fire({
+                title: 'Rotate webhook URL?',
+                text: 'The old URL will stop working - update it on the device right after.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, rotate',
+            });
+            if (!isConfirmed) return;
+            try {
+                const result = await postJson(regenUrlTemplate.replace('__ID__', this.dataset.id), {});
+                document.getElementById('deviceUrlValue').value = result.data.webhook_url;
+                toastr.success('URL rotated.');
+                loadDevices();
+            } catch (e) { toastr.error(e.message); }
+        });
+
+        async function openEnrollmentsModal(deviceId, deviceName) {
+            currentEnrollmentsDeviceId = deviceId;
+            document.getElementById('enrollmentsDeviceName').textContent = deviceName;
+            document.getElementById('enrollmentForm').reset();
+
+            const select = document.getElementById('enrollmentEmployee');
+            select.innerHTML = '<option value="">Loading employees…</option>';
+            try {
+                const resp = await fetch(employeeOptionsUrl, { headers: { 'Accept': 'application/json' } });
+                const payload = await resp.json();
+                const employees = payload.data ?? [];
+                select.innerHTML = '<option value="">Select employee</option>' + employees.map(e => `<option value="${e.id}">${escapeHtml(e.name)}</option>`).join('');
+            } catch (e) {
+                select.innerHTML = '<option value="">Could not load employees</option>';
+            }
+
+            new bootstrap.Modal(document.getElementById('deviceEnrollmentsModal')).show();
+            loadEnrollments();
+        }
+
+        async function loadEnrollments() {
+            const tbody = document.getElementById('enrollmentsTableBody');
+            tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Loading…</td></tr>';
+            try {
+                const resp = await fetch(enrollmentsFetchTemplate.replace('__ID__', currentEnrollmentsDeviceId), { headers: { 'Accept': 'application/json' } });
+                const payload = await resp.json();
+                const enrollments = payload.data ?? [];
+
+                if (!enrollments.length) {
+                    tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">No PIN mappings yet - punches match by employee code automatically.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = enrollments.map(e => `
+                    <tr>
+                        <td>${escapeHtml(e.device_pin)}</td>
+                        <td>${escapeHtml(e.employee_name || '—')}</td>
+                        <td><button type="button" class="btn btn-sm btn-outline-danger enrollment-delete-btn" data-id="${e.id}"><i class="bi bi-trash3"></i></button></td>
+                    </tr>
+                `).join('');
+
+                tbody.querySelectorAll('.enrollment-delete-btn').forEach(btn => {
+                    btn.addEventListener('click', async function () {
+                        try {
+                            await deleteRequest(enrollmentsDestroyTemplate.replace('__ID__', currentEnrollmentsDeviceId).replace('__ENROLLMENT__', this.dataset.id));
+                            toastr.success('Mapping removed.');
+                            loadEnrollments();
+                        } catch (e) { toastr.error(e.message); }
+                    });
+                });
+            } catch (e) {
+                console.error(e);
+                tbody.innerHTML = '<tr><td colspan="3" class="text-center text-danger">Could not load mappings.</td></tr>';
+            }
+        }
+
+        document.getElementById('enrollmentForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const pin = document.getElementById('enrollmentPin').value.trim();
+            const employeeId = document.getElementById('enrollmentEmployee').value;
+            if (!pin || !employeeId) return;
+
+            try {
+                await postJson(enrollmentsStoreTemplate.replace('__ID__', currentEnrollmentsDeviceId), {
+                    device_pin: pin,
+                    employee_id: employeeId,
+                });
+                toastr.success('Mapped.');
+                this.reset();
+                loadEnrollments();
+            } catch (e) { toastr.error(e.message || 'Could not save mapping.'); }
+        });
+
+        loadDevices();
     })();
 
         </script>

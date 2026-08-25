@@ -33,7 +33,7 @@
                         <div id="leadsTable">
                             <div class="text-muted"><i class="fa fa-spinner fa-spin"></i> Loading leads...</div>
                         </div>
-                        <!-- Hidden input for business slug -->
+
                         <input type="hidden" id="businessSlug" value="{{ $currentBusiness->slug }}">
                     </div>
                 </div>

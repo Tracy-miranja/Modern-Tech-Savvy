@@ -8,12 +8,6 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-/**
- * Time Tracking - a manual daily hours log against a project, optionally
- * against a specific task. Deliberately a simple log entry (date + hours),
- * not a start/stop timer - keeps scope proportionate to an HR-suite add-on
- * rather than a dedicated timesheet product.
- */
 return new class extends Migration
 {
     public function up(): void

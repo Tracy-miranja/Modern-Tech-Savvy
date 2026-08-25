@@ -10,10 +10,6 @@ use App\Traits\HandleTransactions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
-/**
- * Settings: business-configurable Kanban columns. Mirrors
- * DisciplinaryStageTypeController's modal-CRUD shape.
- */
 class ProjectTaskStatusController extends Controller
 {
     use HandleTransactions;

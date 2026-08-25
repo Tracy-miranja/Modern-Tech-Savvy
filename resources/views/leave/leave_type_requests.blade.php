@@ -20,7 +20,7 @@
                     </thead>
                     <tbody>
                         @php
-                            // simple in-request cache to avoid repeated role queries
+
                             static $roleCache = [];
                             $getUserPrimaryRole = function($userId) use (&$roleCache) {
                                 if (!$userId) return null;
@@ -29,7 +29,7 @@
                                 $roleCache[$userId] = $u?->roles?->pluck('name')?->first();
                                 return $roleCache[$userId];
                             };
-                        @endphp
+@endphp
 
                         @foreach ($leaveType->leaveRequests as $req)
                             @php
@@ -38,7 +38,6 @@
                                 $lastApproverName = $lastApproval['approver_name'] ?? null;
                                 $lastApproverId   = $lastApproval['approver_id'] ?? null;
 
-                                // Prefer role saved in history; else look up approver's current primary role
                                 $lastApproverRole = $lastApproval['approver_role'] ?? $getUserPrimaryRole($lastApproverId);
 
                                 $requiredLevels = (int) (optional($req->leaveType)->approval_levels ?? 1);
@@ -47,7 +46,7 @@
                                 $isRejected = !is_null($req->rejection_reason) && is_null($req->approved_by);
                                 $isPending  = is_null($req->approved_by) && is_null($req->rejection_reason);
                                 $awaitingNext = $isPending && $currentLevel > 0 && $currentLevel < $requiredLevels;
-                            @endphp
+@endphp
 
                             <tr>
                                 <td>{{ $req->reference_number }}</td>

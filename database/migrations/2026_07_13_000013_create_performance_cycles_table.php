@@ -7,10 +7,7 @@ use Illuminate\Database\Migrations\Migration;
 
 return new class extends Migration
 {
-    /**
-     * The company-defined container for a performance period: its timeline
-     * and how KPI/OKR/competency scores are weighted into an overall score.
-     */
+
     public function up(): void
     {
         Schema::create('performance_cycles', function (Blueprint $table) {

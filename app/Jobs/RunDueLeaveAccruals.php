@@ -12,14 +12,6 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
-/**
- * Runs LeaveAccrualService for every business/period that can accrue.
- * Dispatched by TriggerDueLeaveAccruals middleware on the first request of a
- * new calendar day, so accrual happens automatically without an admin having
- * to run `leave:run-accruals` by hand (that command/scheduled task stays in
- * place as the primary path; this is the self-healing fallback for
- * environments where the OS-level cron isn't guaranteed to be configured).
- */
 class RunDueLeaveAccruals implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;

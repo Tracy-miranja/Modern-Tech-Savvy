@@ -6,9 +6,7 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
+
   public function up()
 {
     Schema::table('employee_payrolls', function (Blueprint $table) {
@@ -16,13 +14,11 @@ return new class extends Migration
         $table->decimal('pwd_exemption_amount', 15, 2)->default(0)->after('pwd_exemption_applied');
     });
 }
-    /**
-     * Reverse the migrations.
-     */
+
     public function down(): void
     {
         Schema::table('employee_payroll_details', function (Blueprint $table) {
-            //
+
         });
     }
 };

@@ -8,16 +8,14 @@ use Illuminate\Database\Migrations\Migration;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
+
     public function up(): void
     {
         Schema::create('payrolls', function (Blueprint $table) {
             $table->id();
             $table->foreignIdFor(Business::class);
-            $table->foreignIdFor(Location::class)->nullable(); // branch
-            $table->string('payroll_type'); //weekly, biweekly, monthly
+            $table->foreignIdFor(Location::class)->nullable();
+            $table->string('payroll_type');
             $table->string('currency');
             $table->integer('staff');
             $table->date('start_date');
@@ -26,9 +24,6 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('payrolls');

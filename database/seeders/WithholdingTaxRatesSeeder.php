@@ -7,13 +7,11 @@ use Illuminate\Database\Seeder;
 
 class WithholdingTaxRatesSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
+
     public function run()
 {
     $rates = [
-        // Professional Fees
+
         ['payment_type' => 'professional_fees',
          'label'        => 'Professional / Consultancy Fees',
          'residency'    => 'resident',
@@ -25,7 +23,6 @@ class WithholdingTaxRatesSeeder extends Seeder
          'rate'         => 20.00,
          'is_final_tax' => true],
 
-        // Training Fees
         ['payment_type' => 'training_fees',
          'label'        => 'Training Fees',
          'residency'    => 'resident',
@@ -37,7 +34,6 @@ class WithholdingTaxRatesSeeder extends Seeder
          'rate'         => 20.00,
          'is_final_tax' => true],
 
-        // Contractual
         ['payment_type' => 'contractual',
          'label'        => 'Contractual Payments',
          'residency'    => 'resident',
@@ -49,7 +45,6 @@ class WithholdingTaxRatesSeeder extends Seeder
          'rate'         => 20.00,
          'is_final_tax' => true],
 
-        // Commissions
         ['payment_type' => 'commissions',
          'label'        => 'Commissions / Agency Fees',
          'residency'    => 'resident',

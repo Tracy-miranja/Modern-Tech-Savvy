@@ -6,9 +6,7 @@
             <th>Country</th>
             <th>Coordinates</th>
             <th>Company Size</th>
-            {{-- <th>Registration No</th>
-            <th>Tax Pin No</th>
-            <th>Business License No</th> --}}
+
             <th>Physical Address</th>
             <th>Created At</th>
             <th>Actions</th>
@@ -29,9 +27,7 @@
                     @endif
                 </td>
                 <td>{{ $location->company_size }}</td>
-                {{-- <td>{{ $location->registration_no }}</td>
-                <td>{{ $location->tax_pin_no }}</td>
-                <td>{{ $location->business_license_no }}</td> --}}
+
                 <td>{{ $location->physical_address }}</td>
                 <td>{{ \Carbon\Carbon::parse($location->created_at)->diffForHumans() }}</td>
                 <td>

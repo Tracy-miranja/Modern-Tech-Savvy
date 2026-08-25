@@ -16,8 +16,6 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use App\Support\TimeFmt;
 
-
-
 class AttendanceController extends Controller
 {
     use HandleTransactions;
@@ -93,12 +91,15 @@ class AttendanceController extends Controller
             $business = Business::findBySlug(session('active_business_slug'));
             $today    = now('Africa/Nairobi');
 
-            // Determine employee_id based on active role
             $employee_id = null;
             $active_role = session('active_role');
             $selfPunch   = ($active_role === 'business-employee');
 
             if ($selfPunch) {
+                if (($business->check_in_method ?? 'in_system') === 'device') {
+                    return RequestResponse::badRequest('This business requires clocking in via a registered biometric device.');
+                }
+
                 $employee = $user->activeEmployee();
                 if (!$employee) {
                     return RequestResponse::badRequest('No employee record found for this user.');
@@ -120,32 +121,29 @@ class AttendanceController extends Controller
                 $employee_id = (int)$validatedData['employee_id'];
             }
 
+            $onLeaveToday = Attendance::where([
+                    'employee_id' => $employee_id,
+                    'business_id' => $business->id,
+                    'date'        => $today->toDateString(),
+                    'is_on_leave' => true,
+                ])->whereNull('clock_in')
+                ->exists();
+            if ($onLeaveToday) {
+                return RequestResponse::badRequest('This employee is on approved leave today. Contact HR if this is incorrect.');
+            }
+
             $openSession = Attendance::where([
                     'employee_id' => $employee_id,
                     'business_id' => $business->id,
                     'date'        => $today->toDateString(),
-                ])->whereNull('clock_out')
+                ])->whereNotNull('clock_in')
+                ->whereNull('clock_out')
                 ->latest('id')
                 ->first();
             if ($openSession) {
                 return RequestResponse::badRequest('You have an open attendance session. Please clock out before starting a new one.');
-            }   
+            }
 
-            /* Enforce unique per day
-            $existing = Attendance::where([
-                'employee_id' => $employee_id,
-                'business_id' => $business->id,
-                'date'        => $today->toDateString(),
-            ])->first();
-
-            if ($existing) {
-                if (!is_null($existing->clock_out)) {
-                    return RequestResponse::badRequest('You have already completed today\'s attendance.');
-                }
-                return RequestResponse::badRequest('You are already clocked in.');
-            }*/
-
-            // Capture punch meta (coords + MAC)
             $device_mac = $request->input('device_mac');
             $punch_lat  = $request->input('latitude');
             $punch_lng  = $request->input('longitude');
@@ -187,20 +185,16 @@ class AttendanceController extends Controller
                 }
             }
 
-            // Determine if this is a working day
             $schedule = WorkSchedule::getActiveSchedule($employee_id, $today, $business->id);
             $isWorkingDay = $schedule ? $schedule->isWorkingDay($today) : true;
- 
-            // Check if it's a holiday
+
             $holiday = Holiday::isHoliday($business->id, $today);
             $isHoliday = $holiday !== null;
 
-            // If it's a holiday marked as working day, treat as working day
             if ($isHoliday && $holiday->is_working_day) {
                 $isWorkingDay = true;
             }
 
-            // Create attendance record
             $attendance = Attendance::create([
                 'employee_id'     => $employee_id,
                 'business_id'     => $business->id,
@@ -218,12 +212,10 @@ class AttendanceController extends Controller
                 'punch_longitude' => $punch_lng ? (float)$punch_lng : null,
             ]);
 
-            // Set expected times from schedule
             if ($schedule && $schedule->shift) {
                 $expectedIn  = $today->copy()->setTimeFromTimeString($schedule->shift->start_time);
                 $expectedOut = $today->copy()->setTimeFromTimeString($schedule->shift->end_time);
 
-                // if shift crosses midnight
                 if ($expectedOut->lte($expectedIn)) {
                     $expectedOut->addDay();
                 }
@@ -252,12 +244,15 @@ class AttendanceController extends Controller
             $business = Business::findBySlug(session('active_business_slug'));
             $today    = now('Africa/Nairobi');
 
-            // Determine employee_id
             $active_role = session('active_role');
             $selfPunch   = ($active_role === 'business-employee');
             $employee_id = null;
 
             if ($selfPunch) {
+                if (($business->check_in_method ?? 'in_system') === 'device') {
+                    return RequestResponse::badRequest('This business requires clocking out via a registered biometric device.');
+                }
+
                 $employee = $user->activeEmployee();
                 if (!$employee) {
                     return RequestResponse::badRequest('No employee record found for this user.');
@@ -291,7 +286,6 @@ class AttendanceController extends Controller
                 return RequestResponse::badRequest('No active clock-in record found for today. Please clock in first.');
             }
 
-            // Capture meta (coords + MAC)
             $device_mac = $request->input('device_mac');
             $punch_lat  = $request->input('latitude');
             $punch_lng  = $request->input('longitude');
@@ -322,7 +316,6 @@ class AttendanceController extends Controller
                 }
             }
 
-            // Update attendance
             $attendance->update([
                 'clock_out'       => $today->format('H:i:s'),
                 'remarks'         => $request->input('remarks', $attendance->remarks),
@@ -331,14 +324,11 @@ class AttendanceController extends Controller
                 'punch_longitude' => $punch_lng ? (float)$punch_lng : $attendance->punch_longitude,
             ]);
 
-            // Calculate all time metrics
             $attendance->calculateTimeMetrics();
             $attendance->save();
 
-            // Create overtime records if eligible
             $attendance->load(['employee', 'business']);
             $attendance->createOvertimeRecords();
-
 
             return RequestResponse::created('Clock-out recorded successfully.');
         });
@@ -418,7 +408,7 @@ class AttendanceController extends Controller
 
         return $this->handleTransaction(function () use ($validated) {
             $attendance = Attendance::findOrFail($validated['attendance']);
-            Overtime::where('attendance_id', $attendance->id)->delete(); // remove linked OT
+            Overtime::where('attendance_id', $attendance->id)->delete();
             $attendance->delete();
             return RequestResponse::ok('Attendance deleted successfully.');
         });
@@ -464,7 +454,6 @@ class AttendanceController extends Controller
             $query->where('employee_id', (int)$validated['employee_id']);
         }
 
-        // Aggregate per employee
         $rows = $query
             ->select([
                 'employee_id',
@@ -475,7 +464,6 @@ class AttendanceController extends Controller
             ->groupBy('employee_id')
             ->get();
 
-        // load employee + user for display (ensure we have names)
         $employeeIds = $rows->pluck('employee_id')->unique()->values();
         $employees = Employee::whereIn('id', $employeeIds)
             ->with('user')
@@ -491,7 +479,7 @@ class AttendanceController extends Controller
         ])->render();
 
         return RequestResponse::ok('Ok.', $html);
-    } 
+    }
 
     public function payrollEmployeeDetails(Request $request)
     {
@@ -536,10 +524,6 @@ class AttendanceController extends Controller
         return RequestResponse::ok('Ok.', $html);
     }
 
-    /**
-     * Export payroll summary to Excel (HTML .xls) using current filters
-     * - Works without changing DB or adding packages
-     */
     public function payrollSummaryExport(Request $request, $slug)
     {
         $business = Business::findBySlug($slug);
@@ -589,9 +573,7 @@ class AttendanceController extends Controller
             'Cache-Control'       => 'no-store, no-cache',
         ]);
     }
-        /**
-     * Get attendance summary for an employee
-     */
+
     public function getEmployeeSummary(Request $request)
     {
         $validated = $request->validate([
@@ -608,7 +590,6 @@ class AttendanceController extends Controller
         return RequestResponse::ok('Summary calculated', $summary);
     }
 
-    // Geofence helper methods (keep existing ones)
     private const DEFAULT_RADIUS_M = 150;
 
     private function distanceMeters(float $lat1, float $lng1, float $lat2, float $lng2): float
@@ -667,18 +648,13 @@ class AttendanceController extends Controller
         return false;
     }
 
-    // Keep existing settings methods
-    /**
-     * Attendance settings page (geofencing, MAC enforcement) - lives in the
-     * Attendance module itself rather than Organization Setup, since that's
-     * where the rest of attendance configuration already happens.
-     */
     public function settingsPage(Business $business)
     {
         $departments = \App\Models\Department::where('business_id', $business->id)->orderBy('name')->get(['id', 'name']);
         $jobCategories = \App\Models\JobCategory::where('business_id', $business->id)->orderBy('name')->get(['id', 'name']);
+        $locations = \App\Models\Location::where('business_id', $business->id)->orderBy('name')->get(['id', 'name']);
 
-        return view('attendances.settings', compact('business', 'departments', 'jobCategories'));
+        return view('attendances.settings', compact('business', 'departments', 'jobCategories', 'locations'));
     }
 
     public function updateSettings(Request $request, $slug)
@@ -700,9 +676,15 @@ class AttendanceController extends Controller
                 }
             }
 
+            $checkInMethod = $request->input('check_in_method', $business->check_in_method);
+            if (!in_array($checkInMethod, ['in_system', 'device', 'both'], true)) {
+                return RequestResponse::badRequest('Invalid check-in method.');
+            }
+
             $business->enforce_geofence = $enforce_geofence;
             $business->enforce_mac      = $enforce_mac;
             $business->extra_geofences  = $extra ?: null;
+            $business->check_in_method  = $checkInMethod;
             $business->save();
 
             return response()->json([

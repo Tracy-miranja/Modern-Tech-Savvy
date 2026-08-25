@@ -13,7 +13,6 @@
 
                 @include('layouts.partials.switch-role')
 
-                <!-- Dashboard -->
                 <li class="slide {{ request()->routeIs('business.index') ? 'active' : '' }}">
                     <a href="{{ route('business.index', $currentBusiness->slug) }}" class="sidebar__menu-item {{ request()->routeIs('business.index') ? 'active' : '' }}">
                         <div class="side-menu__icon"><i class="fa-solid fa-home"></i></div>
@@ -21,7 +20,6 @@
                     </a>
                 </li>
 
-                <!-- Dashboard -->
                 <li class="slide {{ request()->routeIs('business.index') ? 'active' : '' }}">
                     <a href="{{ route('business.index', $currentBusiness->slug) }}" class="sidebar__menu-item {{ request()->routeIs('business.index') ? 'active' : '' }}">
                         <div class="side-menu__icon"><i class="fa-solid fa-"></i></div>
@@ -29,7 +27,6 @@
                     </a>
                 </li>
 
-                <!-- Dashboard -->
                 <li class="slide {{ request()->routeIs('business.index') ? 'active' : '' }}">
                     <a href="{{ route('business.index', $currentBusiness->slug) }}" class="sidebar__menu-item {{ request()->routeIs('business.index') ? 'active' : '' }}">
                         <div class="side-menu__icon"><i class="fa-solid fa-"></i></div>
@@ -37,7 +34,6 @@
                     </a>
                 </li>
 
-                <!-- Dashboard -->
                 <li class="slide {{ request()->routeIs('business.index') ? 'active' : '' }}">
                     <a href="{{ route('business.index', $currentBusiness->slug) }}" class="sidebar__menu-item {{ request()->routeIs('business.index') ? 'active' : '' }}">
                         <div class="side-menu__icon"><i class="fa-solid fa-"></i></div>
@@ -45,7 +41,6 @@
                     </a>
                 </li>
 
-                <!-- Dashboard -->
                 <li class="slide {{ request()->routeIs('business.index') ? 'active' : '' }}">
                     <a href="{{ route('business.index', $currentBusiness->slug) }}" class="sidebar__menu-item {{ request()->routeIs('business.index') ? 'active' : '' }}">
                         <div class="side-menu__icon"><i class="fa-solid fa-"></i></div>
@@ -53,7 +48,6 @@
                     </a>
                 </li>
 
-                <!-- Dashboard -->
                 <li class="slide {{ request()->routeIs('business.index') ? 'active' : '' }}">
                     <a href="{{ route('business.index', $currentBusiness->slug) }}" class="sidebar__menu-item {{ request()->routeIs('business.index') ? 'active' : '' }}">
                         <div class="side-menu__icon"><i class="fa-solid fa-"></i></div>
@@ -61,7 +55,6 @@
                     </a>
                 </li>
 
-                <!-- Dashboard -->
                 <li class="slide {{ request()->routeIs('business.index') ? 'active' : '' }}">
                     <a href="{{ route('business.index', $currentBusiness->slug) }}" class="sidebar__menu-item {{ request()->routeIs('business.index') ? 'active' : '' }}">
                         <div class="side-menu__icon"><i class="fa-solid fa-"></i></div>
@@ -69,7 +62,6 @@
                     </a>
                 </li>
 
-                <!-- Settings Dropdown -->
                 <li class="sidebar__menu-category"><span class="category-name">Settings</span></li>
 
                 <li class="slide">
@@ -91,6 +83,5 @@
         </nav>
     </div>
 </div>
-
 
 <div class="app__offcanvas-overlay"></div>

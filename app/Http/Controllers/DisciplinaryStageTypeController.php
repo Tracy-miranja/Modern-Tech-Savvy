@@ -10,10 +10,6 @@ use App\Traits\HandleTransactions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
-/**
- * "Configure" - fully business-configurable disciplinary stages (see GUIDE
- * plan Phase 3). Modal-CRUD table: add/edit/reorder/disable a stage.
- */
 class DisciplinaryStageTypeController extends Controller
 {
     use HandleTransactions;

@@ -154,7 +154,6 @@
         </div>
     </div>
 
-    <!-- Add/Edit Course Modal -->
     <div class="modal fade" id="courseModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -207,7 +206,6 @@
         </div>
     </div>
 
-    <!-- Add Category Modal -->
     <div class="modal fade" id="categoryModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -229,7 +227,6 @@
         </div>
     </div>
 
-    <!-- Add Mandate Modal -->
     <div class="modal fade" id="mandateModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -274,7 +271,6 @@
         </div>
     </div>
 
-    <!-- Manage Sessions Modal -->
     <div class="modal fade" id="sessionsModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
@@ -335,7 +331,6 @@
         </div>
     </div>
 
-    <!-- Enroll Employee Modal -->
     <div class="modal fade" id="enrollModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -366,7 +361,6 @@
         </div>
     </div>
 
-    <!-- Update Enrollment Modal -->
     <div class="modal fade" id="updateEnrollmentModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">

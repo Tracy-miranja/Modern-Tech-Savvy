@@ -4,11 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-/**
- * A business-configurable Kanban column (To Do, In Progress, Review, Done
- * by default, fully editable/extendable per business) - same shape as
- * DisciplinaryStageType.
- */
 class ProjectTaskStatus extends Model
 {
     protected $fillable = [

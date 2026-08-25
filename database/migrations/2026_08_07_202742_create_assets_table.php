@@ -5,12 +5,6 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-/**
- * Asset Management module (GUIDE follow-up: one of the 3 modules that were
- * only ever a name/price entry in ModulesSeeder with no real
- * implementation). status/condition are plain strings, not DB enums - see
- * the case_type-enum friction hit earlier in the Disciplinary module.
- */
 return new class extends Migration
 {
     public function up(): void
@@ -24,8 +18,8 @@ return new class extends Migration
             $table->string('serial_number')->nullable();
             $table->date('purchase_date')->nullable();
             $table->decimal('purchase_cost', 12, 2)->nullable();
-            $table->string('status')->default('available'); // available, assigned, maintenance, retired
-            $table->string('condition')->nullable(); // new, good, fair, poor
+            $table->string('status')->default('available');
+            $table->string('condition')->nullable();
             $table->text('notes')->nullable();
             $table->timestamps();
 

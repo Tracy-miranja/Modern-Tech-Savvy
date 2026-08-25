@@ -2,14 +2,14 @@
     <div class="container py-5">
         <div class="row justify-content-center">
             <div class="col-lg-10">
-                <!-- Page Header -->
+
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h2 class="fw-bold text-dark">{{ $page }}</h2>
                     <span id="employeeReliefCount"
                         class="badge bg-primary-soft text-primary px-3 py-2">{{ $employeeReliefs->count() }}
                         Assignments</span>
                 </div>
-                <!-- Form Section -->
+
                 <div class="card shadow-sm mb-5 border-0 rounded-3">
                     <div class="card-body p-4">
                         <h4 class="fw-semibold text-dark mb-4">Assign Relief to Employees</h4>
@@ -19,7 +19,6 @@
                     </div>
                 </div>
 
-                <!-- Table Section -->
                 <div>
                     <h4 class="fw-semibold text-dark mt-4 mb-4">Current Assignments</h4>
                     <div id="employeeReliefsContainer">

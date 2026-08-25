@@ -13,7 +13,6 @@ class ModuleController extends Controller
         $page = "Modules Setup";
         $description = "Select and configure the modules you need for your account.";
 
-        //get business
         $business = auth()->user()->business;
 
         return view('auth.modules-setup', compact('modules', 'page', 'description', 'business'));

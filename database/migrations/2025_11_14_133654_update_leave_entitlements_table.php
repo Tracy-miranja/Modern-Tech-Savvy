@@ -6,27 +6,23 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
+
     public function up(): void
     {
         Schema::table('leave_entitlements', function (Blueprint $table) {
-            // Add carryover_days only if it doesn't exist
+
             if (!Schema::hasColumn('leave_entitlements', 'carryover_days')) {
                 $table->decimal('carryover_days', 8, 2)
                     ->default(0)
                     ->after('accrued_days');
             }
 
-            // Add policy_snapshot only if it doesn't exist
             if (!Schema::hasColumn('leave_entitlements', 'policy_snapshot')) {
                 $table->json('policy_snapshot')
                     ->nullable()
                     ->after('carryover_days');
             }
 
-            // Add last_accrued_at only if it doesn't exist
             if (!Schema::hasColumn('leave_entitlements', 'last_accrued_at')) {
                 $table->timestamp('last_accrued_at')
                     ->nullable()
@@ -35,13 +31,10 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::table('leave_entitlements', function (Blueprint $table) {
-            // Drop columns only if they exist
+
             if (Schema::hasColumn('leave_entitlements', 'carryover_days')) {
                 $table->dropColumn('carryover_days');
             }

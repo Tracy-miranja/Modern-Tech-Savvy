@@ -4,10 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-/**
- * One per termination - auto-created by OffboardingChecklistService inside
- * EmployeeController::storeContractAction (see GUIDE plan Phase 4).
- */
 class OffboardingChecklist extends Model
 {
     protected $fillable = [
@@ -54,11 +50,6 @@ class OffboardingChecklist extends Model
         return (int) round(($this->tasks->where('is_done', true)->count() / $total) * 100);
     }
 
-    /**
-     * Flips status to 'completed' (with completed_at) once every task on
-     * the checklist is done - called after every task update rather than
-     * requiring a separate manual "close checklist" step.
-     */
     public function refreshStatus(): void
     {
         $tasks = $this->tasks()->get();

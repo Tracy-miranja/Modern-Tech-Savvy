@@ -6,13 +6,11 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
+
   public function up()
 {
     Schema::table('employee_payrolls', function (Blueprint $table) {
-        // Add missing columns
+
         $table->unsignedBigInteger('employee_payment_detail_id')->nullable()->after('employee_id');
         $table->decimal('paye_before_reliefs', 15, 2)->nullable()->after('paye');
         $table->decimal('shif', 15, 2)->nullable()->after('paye_before_reliefs');
@@ -26,7 +24,6 @@ return new class extends Migration
         $table->integer('attendance_absent')->nullable()->after('attendance_present');
         $table->integer('days_in_month')->nullable()->after('attendance_absent');
 
-        // Fix column types from int to decimal(15,2)
         $table->decimal('basic_salary', 15, 2)->nullable()->change();
         $table->decimal('housing_allowance', 15, 2)->nullable()->change();
         $table->decimal('gross_pay', 15, 2)->nullable()->change();
@@ -40,10 +37,6 @@ return new class extends Migration
         $table->decimal('deductions_after_tax', 15, 2)->nullable()->change();
         $table->decimal('net_pay', 15, 2)->nullable()->change();
 
-        // Rename nhif -> shif (if nhif exists)
-        // $table->renameColumn('nhif', 'shif'); // uncomment if needed
-
-        // Add index
         $table->index('employee_payment_detail_id');
     });
 }

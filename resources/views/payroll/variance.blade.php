@@ -1,5 +1,4 @@
-{{-- resources/views/payroll/variance.blade.php --}}
-{{-- Route: GET /business/{business}/payroll/variance --}}
+
 
 <x-app-layout title="Payroll Variance & AI Analysis">
 <div class="container py-4">
@@ -9,12 +8,10 @@
         <p class="text-muted small">Compare two years or two months — no budget required</p>
     </div>
 
-    {{-- Period selector card --}}
     <div class="card shadow-sm mb-4">
         <div class="card-body">
             <div class="row g-3 align-items-end">
 
-                {{-- Mode toggle --}}
                 <div class="col-md-2">
                     <label class="form-label fw-semibold small">Compare Mode</label>
                     <select id="modeSelect" class="form-select form-select-sm">
@@ -23,7 +20,6 @@
                     </select>
                 </div>
 
-                {{-- Period 1 --}}
                 <div class="col-md-auto" id="yearInputs1">
                     <label class="form-label fw-semibold small">Period 1</label>
                     <div class="d-flex gap-1">
@@ -44,7 +40,6 @@
                     <span class="text-muted fw-bold">vs</span>
                 </div>
 
-                {{-- Period 2 --}}
                 <div class="col-md-auto">
                     <label class="form-label fw-semibold small">Period 2</label>
                     <div class="d-flex gap-1">
@@ -61,7 +56,6 @@
                     </div>
                 </div>
 
-                {{-- Actions --}}
                 <div class="col-md-auto d-flex gap-2 align-items-end">
                     <button class="btn btn-primary btn-sm" id="loadBtn">
                         <i class="bi bi-bar-chart-line me-1"></i> Load Report
@@ -80,10 +74,8 @@
         </div>
     </div>
 
-    {{-- Summary metrics cards --}}
     <div id="metricsRow" class="row g-3 mb-4" style="display:none!important;"></div>
 
-    {{-- Charts --}}
     <div id="chartsRow" class="row g-3 mb-4" style="display:none!important;">
         <div class="col-md-8">
             <div class="card shadow-sm">
@@ -103,7 +95,6 @@
         </div>
     </div>
 
-    {{-- AI Output --}}
     <div id="aiCard" class="card shadow-sm mb-4 d-none">
         <div class="card-header bg-dark text-white d-flex align-items-center gap-2">
             <i class="bi bi-robot"></i>

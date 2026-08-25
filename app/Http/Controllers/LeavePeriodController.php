@@ -23,10 +23,6 @@ class LeavePeriodController extends Controller
         return RequestResponse::ok('Leave periods fetched successfully.', $leavePeriodTable);
     }
 
-    /**
-     * Blank create form - used to reset #leavePeriodsFormContainer back to
-     * "create" mode after an edit is cancelled or successfully saved.
-     */
     public function create(Request $request)
     {
         $form = view('leave._leave_period_form', ['leavePeriod' => null])->render();
@@ -80,10 +76,6 @@ class LeavePeriodController extends Controller
         return RequestResponse::ok('Leave period details fetched successfully.', $detailsView);
     }
 
-    /**
-     * Same details view as showDetails(), reached via the flat AJAX route
-     * (POST, id in the body) that the "View" button actually calls.
-     */
     public function show(Request $request)
     {
         $validated = $request->validate(['id' => 'required|integer']);
@@ -96,10 +88,6 @@ class LeavePeriodController extends Controller
         return RequestResponse::ok('Leave period details fetched successfully.', $detailsView);
     }
 
-    /**
-     * Returns the edit form pre-filled for the given leave period, for the
-     * "Edit" button to inject into #leavePeriodsFormContainer.
-     */
     public function edit(Request $request)
     {
         $validated = $request->validate(['leave_period_slug' => 'required|string|exists:leave_periods,slug']);
@@ -174,17 +162,6 @@ class LeavePeriodController extends Controller
         ]);
     }
 
-    /**
-     * Closes a leave period: blocks new leave requests dated within it
-     * (LeaveRequestController::store()'s guard) and triggers carryover for
-     * every entitlement in it into whichever period follows next -
-     * reusing LeavePolicyService::createOrUpdateEntitlement() exactly as
-     * the accrual pipeline already does, just invoked explicitly now
-     * instead of only lazily whenever someone next opens the following
-     * period. See LeavePeriod::nextPeriod()/isClosed() and the
-     * add_status_and_close_fields_to_leave_periods_table migration's
-     * docblock for the "Phase 1 of Year Open/Close" framing.
-     */
     public function close(Request $request, LeavePolicyService $policyService)
     {
         $validated = $request->validate(['leave_period_slug' => 'required|string|exists:leave_periods,slug']);
@@ -235,11 +212,6 @@ class LeavePeriodController extends Controller
         });
     }
 
-    /**
-     * Reopening is a rare, support-only action - does not undo carryover
-     * already computed into the next period, deliberately (see the
-     * migration's docblock).
-     */
     public function reopen(Request $request)
     {
         $validated = $request->validate(['leave_period_slug' => 'required|string|exists:leave_periods,slug']);
@@ -261,7 +233,7 @@ class LeavePeriodController extends Controller
         $validatedData = $request->validate([
             'leave_period_slug' => 'required|string|exists:leave_periods,slug',
         ]);
-        
+
         return $this->handleTransaction(function () use ($validatedData) {
             $business = Business::findBySlug(session('active_business_slug'));
             $leavePeriod = $business->leavePeriods()->where('slug', $validatedData['leave_period_slug'])->firstOrFail();

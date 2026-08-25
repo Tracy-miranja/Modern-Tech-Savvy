@@ -5,7 +5,7 @@
     @endif
 
     <div class="row">
-        <!-- Personal Information -->
+
         <div class="col-md-6">
             <div class="mb-3">
                 <label for="first_name" class="form-label">First Name</label>
@@ -68,7 +68,6 @@
             </div>
         </div>
 
-        <!-- Professional Information -->
         <div class="col-md-6">
             <div class="mb-3">
                 <label for="linkedin_profile" class="form-label">LinkedIn Profile</label>

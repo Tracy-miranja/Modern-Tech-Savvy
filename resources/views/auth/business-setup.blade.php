@@ -1,7 +1,7 @@
 <x-setup-layout>
     <div class="setup-wrapper">
         <div class="setup-container">
-            <!-- Left Section - Visual -->
+
             <div class="setup-visual">
                 <div class="visual-content">
                     <div class="visual-card">
@@ -14,10 +14,9 @@
                 </div>
             </div>
 
-            <!-- Right Section - Form -->
             <div class="setup-form-section">
                 <div class="form-wrapper">
-                    <!-- Header -->
+
                     <div class="form-header">
                         <a href="javascript:;" class="logo">
                             <img src="{{ asset('media/krstlogo.png') }}" alt="{{ config('app.name') }}">
@@ -28,7 +27,6 @@
                         </div>
                     </div>
 
-                    <!-- Progress Section -->
                     <div class="progress-section">
                         <div class="progress-track">
                             <div id="progressBar" class="progress-fill"></div>
@@ -36,11 +34,9 @@
                         <div id="stepIndicator" class="step-label">Step 1 of 2: Basic Information</div>
                     </div>
 
-                    <!-- Form -->
                     <form id="hrmSetupForm" enctype="multipart/form-data">
                         @csrf
 
-                        <!-- Step 1 -->
                         <div id="step1" class="form-step active">
                             <div class="form-group">
                                 <label for="name" class="form-label">Company / Organization Name</label>
@@ -102,7 +98,6 @@
                             </div>
                         </div>
 
-                        <!-- Step 2 -->
                         <div id="step2" class="form-step">
                             <div class="form-group">
                                 <label for="registration_no" class="form-label">Registration Number</label>

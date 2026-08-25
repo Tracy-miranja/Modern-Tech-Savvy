@@ -5,18 +5,6 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
-/**
- * Global (business_id null) statutory payroll formulas, one set per
- * country - most calculate via the `expression` column at payroll-run
- * time (see PayrollController), not the bracket table; only formulas
- * that are genuinely tiered (like PAYE) use payroll_formula_brackets.
- *
- * firstOrCreate() by slug, not truncate+insert: this table also holds
- * real per-business overrides (business_id set, e.g. a business's own
- * customized NSSF formula) that a truncate would silently destroy
- * alongside the global rows - this seeder must never be able to do that
- * again (see PayrollFormulaSeeder's git history for exactly that incident).
- */
 class PayrollFormulaSeeder extends Seeder
 {
     public function run(): void
@@ -44,10 +32,7 @@ class PayrollFormulaSeeder extends Seeder
         ];
 
         foreach ($formulas as $formula) {
-            // Only inserts when missing - never overwrites, so a formula
-            // someone has since edited in the app (SHIF's rate has
-            // already been revised once since it was first seeded) stays
-            // exactly as they left it on every future re-run.
+
             $exists = DB::table('payroll_formulas')
                 ->where('slug', $formula['slug'])
                 ->whereNull('business_id')
@@ -60,8 +45,6 @@ class PayrollFormulaSeeder extends Seeder
             }
         }
 
-        // PAYE is the only one of these tiered via the bracket table
-        // rather than `expression` - Kenya's current KRA bands.
         $payeId = DB::table('payroll_formulas')->where('slug', 'paye')->whereNull('business_id')->value('id');
 
         if ($payeId && !DB::table('payroll_formula_brackets')->where('payroll_formula_id', $payeId)->exists()) {

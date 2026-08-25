@@ -24,7 +24,7 @@
                                         return explode('.', $permission->name)[1] ?? $permission->name;
                                     });
                                     $accessPerms = $grouped->get('access') ?? collect();
-                                @endphp
+@endphp
 
                                 @if($accessPerms->isNotEmpty())
                                 <p class="small text-muted mb-1">Areas</p>
@@ -84,7 +84,6 @@
         <div class="invalid-feedback">Please select at least one department.</div>
     </div>
 
-    {{-- Include Select2 --}}
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
@@ -164,7 +163,6 @@
         </div>
     </div>
 
-    <!-- Modal for editing departments -->
     @if($role->name === 'chief-of-staff')
     <div class="modal fade" id="editDepartmentsModal" tabindex="-1">
         <div class="modal-dialog">

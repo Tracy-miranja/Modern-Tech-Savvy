@@ -58,13 +58,6 @@ class LeavePeriod extends Model
         return $this->period_status === 'closed';
     }
 
-    /**
-     * The period configured to follow this one - the closest LeavePeriod
-     * in the same business whose start_date is on/after this one's
-     * end_date. Same "closest adjacent period" concept
-     * LeavePolicyService::calculateCarryover() already uses in reverse
-     * (finding the period BEFORE a given one).
-     */
     public function nextPeriod(): ?self
     {
         return static::where('business_id', $this->business_id)
@@ -73,13 +66,6 @@ class LeavePeriod extends Model
             ->first();
     }
 
-    /**
-     * The business's "current open year" - an open (not closed) period whose
-     * date range covers today, falling back to whichever open period is
-     * flagged is_active if none covers today exactly. Used to scope the
-     * Leave Policies tab to what's actually in force for the year HR is
-     * currently working in, rather than every policy ever created.
-     */
     public static function currentlyOpenFor(int $businessId): ?self
     {
         $today = now()->toDateString();

@@ -1,21 +1,16 @@
-{{-- resources/views/settings/currencies.blade.php --}}
+
 <x-app-layout>
 
 @php
     $slug = $business->slug;
 
-    // ── Build the currency base URL from the index/store route ───────────────
-    // route('business.currencies.store', $slug) → "…/{slug}/settings/currencies"
-    // We use this as the base and JS appends  /{id}  or  /{id}/refresh.
-    // We do NOT use placeholder strings (like __ID__) because Laravel's route()
-    // helper may URL-encode them (__ → %5F%5F), breaking JS .replace().
     $routes = [
         'list'          => route('business.currencies.list',        $slug),
         'known'         => route('business.currencies.known',       $slug),
         'store'         => route('business.currencies.store',       $slug),
         'bulk_destroy'  => route('business.currencies.bulk-destroy',$slug),
         'refresh_all'   => route('business.currencies.refresh-all', $slug),
-        // Base for /{id} routes — JS does:  base + '/' + id
+
         'currency_base' => route('business.currencies.store',       $slug),
     ];
 @endphp
@@ -51,7 +46,6 @@
 
 <div class="container-fluid py-4" id="currency-manager">
 
-    {{-- ── Toast ── --}}
     <transition name="fade">
         <div v-if="toast.message"
              :class="['currency-toast', toast.type === 'success' ? 'toast-success' : 'toast-danger']"
@@ -65,7 +59,6 @@
         </div>
     </transition>
 
-    {{-- ── Header ── --}}
     <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
         <div class="d-flex gap-2 align-items-center flex-wrap">
             <button class="btn btn-primary btn-sm" @click="openAddModal">
@@ -96,7 +89,6 @@
         <span class="text-muted small">@{{ currencies.length }} currencies</span>
     </div>
 
-    {{-- ── Table ── --}}
     <div class="card shadow-sm">
         <div class="card-body p-0">
             <div class="table-responsive">
@@ -199,7 +191,6 @@
         </div>
     </div>
 
-    {{-- ── Add / Edit Modal ── --}}
     <div class="modal fade" id="currencyModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -295,7 +286,6 @@
         </div>
     </div>
 
-    {{-- ── Single Delete Confirm Modal ── --}}
     <div class="modal fade" id="deleteModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered" style="max-width:400px;">
             <div class="modal-content border-0 shadow-lg">
@@ -318,7 +308,6 @@
         </div>
     </div>
 
-    {{-- ── Bulk Delete Confirm Modal ── --}}
     <div class="modal fade" id="bulkDeleteModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered" style="max-width:400px;">
             <div class="modal-content border-0 shadow-lg">
@@ -338,7 +327,6 @@
         </div>
     </div>
 
-    {{-- ── View Modal ── --}}
     <div class="modal fade" id="viewModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">

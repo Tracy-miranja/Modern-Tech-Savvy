@@ -36,7 +36,6 @@
     <link rel="stylesheet" href="{{ asset('assets/css/custom.css') }}">
     <link rel="stylesheet" href="{{ asset('assets/css/applications-module.css') }}">
 
-
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
@@ -45,21 +44,17 @@
     <link rel="stylesheet" href="https://code.jquery.com/ui/1.14.1/themes/base/jquery-ui.css">
     <link rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/selectize.js/0.15.2/css/selectize.default.min.css" />
-    <!-- Intro.js CSS -->
+
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intro.js/minified/introjs.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.min.css">
     <link rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.12/css/intlTelInput.min.css">
     <link rel="shortcut icon" href="{{ asset('media/favicon.png') }}" type="image/png">
 
-    <!-- PWA: installable on desktop and mobile -->
     <link rel="manifest" href="{{ asset('manifest.json') }}">
     <meta name="theme-color" content="#f89616">
     <link rel="apple-touch-icon" href="{{ asset('media/pwa/icon-192.png') }}">
 
-    {{-- Per-page stylesheets/styles (e.g. a library only that one page
-         needs) - without this @stack, anything a page pushes to
-         @push('styles') is silently dropped. --}}
     @stack('styles')
 
     <style>
@@ -161,8 +156,6 @@
         position: relative;
         margin-bottom: 2.5rem;
     }
-
-
 
     .modern-spinner::before,
     .modern-spinner::after {
@@ -290,7 +283,6 @@
     });
 </script>
 
-<!-- Modern Preloader -->
 <div class="preloader" id="preloader">
     <div class="loader-accent loader-accent-1"></div>
     <div class="loader-accent loader-accent-2"></div>
@@ -337,7 +329,7 @@
 
         @php
         $activeRole = session('active_role');
-        @endphp
+@endphp
 
         @if (in_array($activeRole, ['business-admin', 'business-hr', 'business-finance', 'restricted-hr', 'general-hr', 'head-of-department', 'chief-of-staff']))
         @include('layouts.partials.navbar')
@@ -347,17 +339,12 @@
         @include('layouts.partials.navbar-super-admin')
         @endif
 
-
         <div class="page__body-wrapper">
 
             @include('layouts.partials.app-header')
 
             <div class="app__slide-wrapper">
-                {{-- Nothing anywhere in this layout displayed flash
-                messages before - every back()->with('error'/'success', ...)
-                across the app silently showed nothing, which is why
-                validation bounces (e.g. "no employee record for this
-                business") looked exactly like a dead link. --}}
+
                 @if (session('error'))
                 <div class="alert alert-danger alert-dismissible fade show m-3" role="alert">
                     {{ session('error') }}
@@ -384,7 +371,7 @@
             document.body.style.visibility = "visible";
         });
     </script>
-    <!-- Intro.js JS -->
+
     <script src="https://cdn.jsdelivr.net/npm/intro.js/minified/intro.min.js"></script>
     <script src="{{ asset('assets/js/vendor/jquery-3.7.0.js') }}"></script>
 
@@ -447,7 +434,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.12/js/utils.min.js"></script>
 
     <script src="{{ asset('js/init.js') }}"></script>
-    {{-- <script src="{{ asset('js/pusher.js') }}"></script> --}}
+
     <script>
         // Global so any page's scripts (impersonation banner, switch-business
         // dropdown, etc.) can build /businesses/{slug}/... URLs without each
@@ -476,7 +463,6 @@
                     }
                 });
             });
-
 
             // Initialize all dropdowns with global configuration
             document.querySelectorAll('.dropdown-toggle').forEach(button => {
@@ -529,7 +515,6 @@
                 });
             });
 
-
             document.querySelectorAll('.dropdown').forEach(dropdown => {
                 dropdown.addEventListener('mouseleave', function() {
                     const dropdownMenu = this.querySelector('.dropdown-menu');
@@ -543,7 +528,6 @@
                 });
             });
         });
-
 
         const phoneInputFields = document.querySelectorAll('.phone-input-control');
 

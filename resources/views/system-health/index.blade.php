@@ -16,7 +16,7 @@
                                     'error' => 'bg-danger',
                                     default => 'bg-secondary',
                                 };
-                            @endphp
+@endphp
                             <div class="col-md-4">
                                 <div class="border rounded p-3 h-100">
                                     <div class="d-flex justify-content-between align-items-start mb-1">

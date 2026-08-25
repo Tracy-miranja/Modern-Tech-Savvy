@@ -1,5 +1,5 @@
 @php
-    $assignments = $roster?->assignments ?? [null]; // fallback to empty array if no assignments
+    $assignments = $roster?->assignments ?? [null];
 @endphp
 
 @foreach ($assignments as $index => $assignment)

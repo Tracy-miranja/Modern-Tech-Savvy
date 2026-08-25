@@ -16,7 +16,6 @@ use Illuminate\Support\Str;
 use App\Notifications\KpiAssigned;
 use App\Notifications\KpiReviewed;
 
-
 class KPIsController extends Controller
 {
     use HandleTransactions;
@@ -54,7 +53,6 @@ class KPIsController extends Controller
                 ->with(['results', 'employee.user', 'location', 'business', 'department', 'jobCategory'])
                 ->get();
 
-            // Filter KPIs for different categories
             $businessKpis = $kpis->where('employee_id', null)
                 ->where('location_id', null)
                 ->where('department_id', null)
@@ -64,7 +62,6 @@ class KPIsController extends Controller
             $jobCategoryKpis = $kpis->where('job_category_id', '!=', null);
             $employeeKpis = $kpis->where('employee_id', '!=', null);
 
-            // Render partial views
             $businessKpisTable = view('kpis._table', ['kpis' => $businessKpis])->render();
             $locationKpisTable = view('kpis._table', ['kpis' => $locationKpis])->render();
             $departmentKpisTable = view('kpis._table', ['kpis' => $departmentKpis])->render();
@@ -134,7 +131,6 @@ class KPIsController extends Controller
             'job_category_id.exists' => 'The selected job category is invalid.',
         ]);
 
-        // Ensure exactly one assignment type is selected
         $assignmentFields = ['business_id', 'location_id', 'employee_id', 'department_id', 'job_category_id'];
         $selectedAssignments = array_filter($assignmentFields, fn($field) => !empty($validatedData[$field]));
         if (count($selectedAssignments) !== 1) {
@@ -202,7 +198,6 @@ class KPIsController extends Controller
                 'job_category_id' => $validatedData['job_category_id'] ?? null,
             ]);
 
-            // Send email notification
             $this->notifyKpiAssignment($kpi, $assignmentLabel);
 
             return response()->json([
@@ -279,7 +274,6 @@ class KPIsController extends Controller
             'job_category_id' => 'nullable|exists:job_categories,id',
         ]);
 
-        // Ensure exactly one assignment type is selected
         $assignmentFields = ['business_id', 'location_id', 'employee_id', 'department_id', 'job_category_id'];
         $selectedAssignments = array_filter($assignmentFields, fn($field) => !empty($validatedData[$field]));
         if (count($selectedAssignments) !== 1) {
@@ -349,7 +343,6 @@ class KPIsController extends Controller
                 'job_category_id' => $validatedData['job_category_id'] ?? null,
             ]);
 
-            // Send email notification if assignment changed
             $this->notifyKpiAssignment($kpi, $assignmentLabel);
 
             return response()->json([
@@ -426,9 +419,9 @@ class KPIsController extends Controller
     {
         $validated = $request->validate([
             'kpi_id' => 'required|exists:kpis,id',
-            'rating_value' => 'required|numeric|between:-9999999999999.99,9999999999999.99', // Matches decimal(15,2)
-            'comment' => 'nullable|string|max:65535', // Matches text after migration
-            'review_id' => 'nullable|exists:kpi_results,id', // Corrected table name
+            'rating_value' => 'required|numeric|between:-9999999999999.99,9999999999999.99',
+            'comment' => 'nullable|string|max:65535',
+            'review_id' => 'nullable|exists:kpi_results,id',
         ]);
 
         return $this->handleTransaction(function () use ($validated) {
@@ -438,16 +431,15 @@ class KPIsController extends Controller
                 : new KpiResult();
 
             $result->kpi_id = $validated['kpi_id'];
-            $result->model_type = $kpi->model_type; // Required
-            $result->model_id = $kpi->id; // Assuming model_id references kpi_id
-            $result->result_value = $validated['rating_value']; // Nullable
-            $result->comment = $validated['comment'] ?? null; // Nullable
-            $result->measured_at = today(); // Required, date
-            $result->meets_target = $this->checkTargetMet($kpi, $validated['rating_value']) ?? 0; // Required, default 0
+            $result->model_type = $kpi->model_type;
+            $result->model_id = $kpi->id;
+            $result->result_value = $validated['rating_value'];
+            $result->comment = $validated['comment'] ?? null;
+            $result->measured_at = today();
+            $result->meets_target = $this->checkTargetMet($kpi, $validated['rating_value']) ?? 0;
 
             $result->save();
 
-            // Notify stakeholders
             $this->notifyKpiReview($kpi, $result->result_value, $result->meets_target ? 'Met' : 'Not Met', $result->comment);
 
             return response()->json([
@@ -479,7 +471,7 @@ class KPIsController extends Controller
     protected function checkTargetMet($kpi, $ratingValue)
     {
         if (!$kpi->target_value || !$kpi->comparison_operator) {
-            return null; // No target or operator set, so no check
+            return null;
         }
 
         switch ($kpi->comparison_operator) {
@@ -510,7 +502,6 @@ class KPIsController extends Controller
                 ->with(['results', 'employee.user', 'location', 'business', 'department', 'jobCategory'])
                 ->get();
 
-            // Render KPI cards view
             $cardsHtml = view('kpis._kpi_cards', ['kpis' => $kpis])->render();
 
             return response()->json([

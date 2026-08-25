@@ -177,7 +177,7 @@
 </head>
 
 <body>
-    <!-- Header -->
+
     <div class="header">
         <div class="left">
             @php
@@ -190,7 +190,7 @@
             $ext = pathinfo($filePath, PATHINFO_EXTENSION);
             $logoBase64 = 'data:image/' . $ext . ';base64,' . base64_encode(file_get_contents($filePath));
             }
-            @endphp
+@endphp
 
             @if($logoBase64)
             <img src="{{ $logoBase64 }}" alt="{{ $payroll->business->company_name }} Logo"
@@ -213,7 +213,6 @@
         </div>
     </div>
 
-    <!-- Table -->
     @php
     $data = isset($data) ? $data : $payroll->employeePayrolls->map(function ($ep) {
     return [
@@ -226,13 +225,13 @@
     'account_number' => $ep->employee->paymentDetails->account_number ?? 'N/A',
     'status' => $ep->employee->paymentDetails->payment_mode ?? 'N/A',
     'currency' => $ep->employee->paymentDetails->currency ?? 'N/A',
-    'net_pay' => $ep->employee->paymentDetails->basic_salary ?? 0, // Unformatted for calculation
-    'net_pay_formatted' => number_format($ep->employee->paymentDetails->basic_salary ?? 0, 2), // Formatted for display
+    'net_pay' => $ep->employee->paymentDetails->basic_salary ?? 0,
+    'net_pay_formatted' => number_format($ep->employee->paymentDetails->basic_salary ?? 0, 2),
     ];
     })->toArray();
     $business = $business ?? $payroll->business;
     $totals = isset($totals) ? $totals : ['totalNetPay' => array_sum(array_column($data, 'net_pay'))];
-    @endphp
+@endphp
 
     @if(empty($data))
     <p>No payment details available for this payroll.</p>
@@ -259,12 +258,10 @@
             <td>{{ $row['employee_code'] }}</td>
             <td>{{ $row['net_pay_formatted'] }}</td>
 
-            <!-- Manual entry fields -->
             <td>{{ $manualDebitAccount ?? '' }}</td>
             <td>{{ $manualDebitBank ?? '' }}</td>
             <td>{{ $manualDebitBranch ?? '' }}</td>
 
-            <!-- Employee details -->
             <td>{{ $row['account_number'] }}</td>
             <td>{{ $row['bank_name'] }}</td>
             <td>{{ $row['bank_branch'] }}</td>
@@ -284,7 +281,6 @@
 
     @endif
 
-    <!-- Footer -->
     <div class="footer">
         <p class="text-muted">Generated on: {{ now()->format('F d, Y H:i:s') }}</p>
         <p class="text-muted">For official use only.</p>

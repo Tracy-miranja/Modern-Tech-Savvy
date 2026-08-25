@@ -13,16 +13,6 @@ use App\Traits\HandleTransactions;
 use App\Http\RequestResponse;
 use Illuminate\Http\Request;
 
-/**
- * Company-mandated leave (e.g. a Dec 24-28 office shutdown): HR declares a
- * date range + leave type + scope (whole org / departments / locations),
- * and every affected employee's balance for that leave type is deducted
- * automatically via LeaveEntitlement::applyAdjustment() - see
- * MandatoryLeavePeriodDeduction for why a per-employee audit row is kept
- * (needed to correctly reverse exactly this period's own contribution on
- * edit/delete, without touching other manual adjustments on the same
- * entitlement).
- */
 class MandatoryLeavePeriodController extends Controller
 {
     use HandleTransactions;
@@ -178,12 +168,6 @@ class MandatoryLeavePeriodController extends Controller
         });
     }
 
-    /**
-     * Shared validation for store()/update(). Returns the validated array,
-     * or a RequestResponse (via RequestResponse::badRequest) on cross-field
-     * failures the validator rules alone can't express (leave type /
-     * department / location must belong to the active business).
-     */
     private function validatePeriod(Request $request, Business $business)
     {
         $validated = $request->validate([
@@ -219,12 +203,6 @@ class MandatoryLeavePeriodController extends Controller
         return $validated;
     }
 
-    /**
-     * Applies the deduction to every affected employee's matching
-     * entitlement (skipping anyone without one, same pattern as
-     * LeaveEntitlementController::processCarryover()) and records a
-     * MandatoryLeavePeriodDeduction row per application for later reversal.
-     */
     private function applyDeductions(MandatoryLeavePeriod $period): array
     {
         $employees = $period->resolveAffectedEmployees()->get();
@@ -285,12 +263,6 @@ class MandatoryLeavePeriodController extends Controller
         ];
     }
 
-    /**
-     * Adds each deduction's days back to its entitlement (cumulative,
-     * same applyAdjustment() used to deduct) and removes the audit rows -
-     * called before both update() (to cleanly reapply with new params) and
-     * destroy().
-     */
     private function reverseDeductions(MandatoryLeavePeriod $period): void
     {
         foreach ($period->deductions as $deduction) {

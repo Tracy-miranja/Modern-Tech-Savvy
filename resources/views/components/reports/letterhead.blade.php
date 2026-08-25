@@ -1,12 +1,4 @@
-{{--
-    Shared report letterhead - logo, company details, report title/period/
-    generated-at. Table-based layout (not flexbox/inline-block) because
-    DomPDF renders <table> far more reliably; pattern lifted from
-    resources/views/payroll/reports/company_payslip.blade.php.
 
-    Expects: $business, $reportTitle, $periodLabel (nullable), $meta (array
-    of extra "label: value" lines shown under the period, e.g. record count).
---}}
 <table class="header-table">
     <tr>
         <td width="50%">
@@ -20,7 +12,7 @@
                         $logoBase64 = 'data:image/' . $ext . ';base64,' . base64_encode(file_get_contents($filePath));
                     }
                 } catch (\Exception $e) {}
-            @endphp
+@endphp
 
             @if($logoBase64)
                 <img src="{{ $logoBase64 }}" alt="{{ $business->company_name ?? 'Company' }} Logo" class="logo">

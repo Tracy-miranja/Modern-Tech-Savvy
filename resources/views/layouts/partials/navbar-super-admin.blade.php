@@ -18,7 +18,6 @@
 
                 @include('layouts.partials.switch-role')
 
-                <!-- Dashboard -->
                 <li class="slide {{ request()->routeIs('business.index') ? 'active' : '' }}">
                     <a href="{{ route('business.index', $currentBusiness->slug) }}"
                         class="sidebar__menu-item {{ request()->routeIs('business.index') ? 'active' : '' }}">
@@ -27,7 +26,6 @@
                     </a>
                 </li>
 
-                <!-- Clients -->
                 <li class="slide {{ request()->routeIs('business.clients.*') ? 'active' : '' }}">
                     <a href="{{ route('business.clients.index', $currentBusiness->slug) }}"
                         class="sidebar__menu-item {{ request()->routeIs('business.clients.*') ? 'active' : '' }}">
@@ -36,7 +34,6 @@
                     </a>
                 </li>
 
-                <!-- Platform Admins -->
                 <li class="slide {{ request()->routeIs('business.platform-admins.*') ? 'active' : '' }}">
                     <a href="{{ route('business.platform-admins.index', $currentBusiness->slug) }}"
                         class="sidebar__menu-item {{ request()->routeIs('business.platform-admins.*') ? 'active' : '' }}">
@@ -45,7 +42,6 @@
                     </a>
                 </li>
 
-                <!-- System Health -->
                 <li class="slide {{ request()->routeIs('business.system-health.*') ? 'active' : '' }}">
                     <a href="{{ route('business.system-health.index', $currentBusiness->slug) }}"
                         class="sidebar__menu-item {{ request()->routeIs('business.system-health.*') ? 'active' : '' }}">

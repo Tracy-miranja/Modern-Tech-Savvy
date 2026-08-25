@@ -8,26 +8,9 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
 
-/**
- * Single source of truth for "where does this role belong" and "what
- * permission does that page need" - used by the new 403 redirect-to-
- * somewhere-useful behavior. Three OTHER places in this codebase already
- * answer a similar question independently (AuthenticatedSessionController
- * ::getRedirectUrlForRole() at login, RoleSwitchController
- * ::getRedirectRoute() when switching active_role, BusinessController
- * ::redirectToDashboard() as the generic /dashboard fallback) and have
- * drifted out of sync with each other before (business-hr correctly sent
- * to business.employees.index in one, still to business.index - which
- * 403s, since business-hr lacks access.dashboard - in another). This
- * class is deliberately NOT a fourth copy of that same login/switch
- * logic; it's scoped to the 403 fallback only, which didn't exist before.
- */
 class RoleHomeRouteService
 {
-    /**
-     * Route name -> Spatie permission required to view it. Mirrors
-     * EnsureCorrectRole's own permission map.
-     */
+
     public const ROUTE_PERMISSIONS = [
         'business.index' => 'access.dashboard',
         'business.employees.index' => 'access.employees',
@@ -60,11 +43,6 @@ class RoleHomeRouteService
         'business.roles.index' => 'access.roles',
     ];
 
-    /**
-     * Role -> home route name, once a business context is known. Kept in
-     * sync with AuthenticatedSessionController::getRedirectUrlForRole()
-     * by hand for now (see class docblock).
-     */
     private const ROLE_ROUTES = [
         'super-admin' => 'business.index',
         'business-admin' => 'business.index',
@@ -76,25 +54,11 @@ class RoleHomeRouteService
         'business-employee' => 'myaccount.index',
     ];
 
-    /**
-     * The route name a role lands on once a business is known - exposed
-     * for BusinessSwitchController, which needs "stay on the same kind of
-     * page, just for the newly-active business" rather than the full
-     * homeFor() fallback chain.
-     */
     public function routeNameForRole(string $role): ?string
     {
         return self::ROLE_ROUTES[$role] ?? null;
     }
 
-    /**
-     * Best-effort "somewhere this user can actually land" - tries their
-     * current active_role first, then falls back through every other
-     * role they hold. Returns null only if nothing works (caller should
-     * fall back to the login page or a static message).
-     *
-     * @return array{route: string, business: Business}|null
-     */
     public function homeFor(User $user): ?array
     {
         $activeRole = session('active_role');
@@ -113,13 +77,6 @@ class RoleHomeRouteService
         return null;
     }
 
-    /**
-     * Turns a 403 into either a JSON error (AJAX/XHR - a redirect would be
-     * meaningless there) or, for a normal page load, a redirect to
-     * somewhere the user CAN go via homeFor() - only falling back to a
-     * bare 403 page when no accessible role/business could be resolved at
-     * all (e.g. a role with no matching business record).
-     */
     public function forbiddenResponse(Request $request, ?User $user, string $message = "You don't have permission to view that page."): Response
     {
         if ($request->expectsJson() || $request->ajax()) {
@@ -140,6 +97,17 @@ class RoleHomeRouteService
     private function resolveForRole(User $user, string $role): ?array
     {
         $routeName = self::ROLE_ROUTES[$role] ?? null;
+
+        if (!$routeName) {
+
+            foreach (\Database\Seeders\ModuleActionPermissionSeeder::MODULE_HOME_ROUTES as $module => $candidateRoute) {
+                if ($user->hasPermissionTo("module.{$module}.view", 'web')) {
+                    $routeName = $candidateRoute;
+                    break;
+                }
+            }
+        }
+
         if (!$routeName) {
             return null;
         }

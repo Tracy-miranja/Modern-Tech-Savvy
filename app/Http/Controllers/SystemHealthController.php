@@ -8,13 +8,6 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
-/**
- * Read-only platform diagnostics - super-admin only. Every check is
- * live/computed, nothing is faked: if there's no way to know something
- * (e.g. true scheduler last-run time, since no Horizon/Telescope is
- * installed) that's stated explicitly rather than presenting a plausible
- * but fabricated value.
- */
 class SystemHealthController extends Controller
 {
     public function index(Business $business)
@@ -62,7 +55,7 @@ class SystemHealthController extends Controller
                 $failedCount = DB::table('failed_jobs')->count();
             }
         } catch (\Throwable $e) {
-            // leave $failedCount null - not fatal to the rest of the page
+
         }
 
         return [
@@ -179,7 +172,7 @@ class SystemHealthController extends Controller
 
         try {
             $size = filesize($logPath);
-            $readSize = min($size, 200000); // last ~200KB - avoid loading a huge log file into memory
+            $readSize = min($size, 200000);
             $handle = fopen($logPath, 'r');
             fseek($handle, -$readSize, SEEK_END);
             $content = fread($handle, $readSize);

@@ -2,7 +2,7 @@
     <div class="container py-5">
         <div class="row justify-content-center">
             <div class="col-lg-12">
-                <!-- KPI Creation Form -->
+
                 <div class="card shadow-sm mb-5 border-0 rounded-3">
                     <div class="card-body p-4">
                         <h4 class="fw-semibold text-dark mb-4">Create New KPI</h4>
@@ -29,7 +29,6 @@
                         </div>
                     </div>
 
-                    <!-- Existing KPIs -->
                     <h4 class="fw-semibold text-dark mb-4">Existing KPIs</h4>
                     <div id="kpiCardsContainer">
                         @include('kpis._kpi_cards', ['kpis' => $kpis])

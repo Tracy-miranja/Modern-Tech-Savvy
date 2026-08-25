@@ -8,12 +8,6 @@ use App\Services\Reports\ReportFilters;
 use App\Services\Reports\ReportPdfService;
 use Illuminate\Http\Request;
 
-/**
- * Disciplinary reports - Phase 3 of the GUIDE plan, built on the same
- * shared report engine as Attendance/Leave: cases filtered by
- * employee/department/period/stage/status, plus a per-case
- * escalation-trail printout.
- */
 class DisciplinaryReportController extends Controller
 {
     // ---- Cases -------------------------------------------------------
@@ -81,8 +75,6 @@ class DisciplinaryReportController extends Controller
             abort(404);
         }
 
-        // Walk back to the root of the chain, then forward through every
-        // escalation from there - the trail is always printed oldest-first.
         $root = $warning;
         $seen = [];
         while ($root->previous_case_id && !in_array($root->previous_case_id, $seen, true)) {

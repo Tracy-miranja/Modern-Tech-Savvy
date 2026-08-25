@@ -7,11 +7,7 @@ use Illuminate\Database\Migrations\Migration;
 
 return new class extends Migration
 {
-    /**
-     * The original migration put a table-wide unique constraint on `name`,
-     * so a leave period name was blocked once ANY business used it. It
-     * should only be unique within a single business.
-     */
+
     public function up(): void
     {
         Schema::table('leave_periods', function (Blueprint $table) {

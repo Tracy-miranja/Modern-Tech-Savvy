@@ -12,14 +12,7 @@ use Illuminate\Support\Collection;
 
 class LeaveAccrualService
 {
-    /**
-     * Run accruals across entitlements, optionally scoped by business/period.
-     *
-     * @param Business|null     $business     Scope to a single business (optional)
-     * @param LeavePeriod|null  $leavePeriod  Scope to a single period (recommended)
-     * @param bool              $dryRun       If true, compute without saving
-     * @return array{processed:int, accrued:float, details:array}
-     */
+
     public function run(?Business $business = null, ?LeavePeriod $leavePeriod = null, bool $dryRun = false): array
     {
         $query = LeaveEntitlement::with([
@@ -37,7 +30,6 @@ class LeaveAccrualService
             $query->where('leave_period_id', $leavePeriod->id);
         }
 
-        /** @var Collection<int, LeaveEntitlement> $entitlements */
         $entitlements = $query->get();
 
         $totalAccrued = 0.0;
@@ -55,16 +47,13 @@ class LeaveAccrualService
                 continue;
             }
 
-            // Determine window to accrue within
             $periodStart = Carbon::parse($entitlement->leavePeriod->start_date ?? now()->startOfYear())->startOfDay();
             $periodEnd   = Carbon::parse($entitlement->leavePeriod->end_date   ?? now()->endOfYear())->endOfDay();
 
-            // Anchor start: last accrued or period start, whichever is later
             $anchor = $entitlement->last_accrued_at
                 ? $entitlement->last_accrued_at->copy()->startOfDay()
                 : $periodStart->copy();
 
-            // If anchor is already beyond period end, nothing to do
             if ($anchor->gte($periodEnd)) {
                 $details[] = [
                     'entitlement_id' => $entitlement->id,
@@ -108,9 +97,9 @@ class LeaveAccrualService
 
             if (!$dryRun) {
                 $entitlement->accrued_days = $newAccrued;
-                // Advance last_accrued_at by "intervals" of the policy frequency from anchor
+
                 $entitlement->last_accrued_at = $this->advanceByIntervals($anchor->copy(), $policy->accrual_frequency, $intervals);
-                $entitlement->calculateRemainingDays(); // recomputes total_days and days_remaining
+                $entitlement->calculateRemainingDays();
             }
 
             $totalAccrued += $increment;
@@ -124,13 +113,6 @@ class LeaveAccrualService
         ];
     }
 
-    /**
-     * Try to find a policy that matches the employee (department, job category, gender).
-     * Fallbacks:
-     *  - gender 'all'
-     *  - policy with null dept/category
-     *  - any policy for the leave type (first one)
-     */
     protected function findMatchingPolicy(LeaveEntitlement $entitlement): ?LeavePolicy
     {
         $leaveType = $entitlement->leaveType;
@@ -138,7 +120,7 @@ class LeaveAccrualService
             return null;
         }
 
-        $policies = $leaveType->leavePolicies; // collection
+        $policies = $leaveType->leavePolicies;
         if ($policies->isEmpty()) {
             return null;
         }
@@ -148,7 +130,6 @@ class LeaveAccrualService
         $jobCatId = $employee->job_category_id ?? null;
         $gender = strtolower($employee->gender ?? 'all');
 
-        // 1) exact match
         $match = $policies->first(function (LeavePolicy $p) use ($deptId, $jobCatId, $gender) {
             $g = strtolower($p->gender_applicable ?? 'all');
             return (int)$p->department_id === (int)$deptId
@@ -157,7 +138,6 @@ class LeaveAccrualService
         });
         if ($match) return $match;
 
-        // 2) dept/job exact, gender all
         $match = $policies->first(function (LeavePolicy $p) use ($deptId, $jobCatId) {
             $g = strtolower($p->gender_applicable ?? 'all');
             return (int)$p->department_id === (int)$deptId
@@ -166,7 +146,6 @@ class LeaveAccrualService
         });
         if ($match) return $match;
 
-        // 3) dept null or job_cat null with gender match/all
         $match = $policies->first(function (LeavePolicy $p) use ($deptId, $jobCatId, $gender) {
             $g = strtolower($p->gender_applicable ?? 'all');
             $genderOk = ($g === 'all' || $g === $gender);
@@ -176,13 +155,9 @@ class LeaveAccrualService
         });
         if ($match) return $match;
 
-        // 4) fallback: first policy
         return $policies->first();
     }
 
-    /**
-     * Count how many whole intervals (monthly/quarterly/yearly) are due between $from (exclusive) and $to (inclusive).
-     */
     protected function countIntervalsDue(string $frequency, Carbon $from, Carbon $to): int
     {
         $frequency = strtolower($frequency);
@@ -190,10 +165,9 @@ class LeaveAccrualService
             return 0;
         }
 
-        // Normalize to period boundaries (we accrue on period boundaries after $from)
         switch ($frequency) {
             case 'monthly':
-                // Next month boundary after $from
+
                 $cursor = $from->copy()->startOfDay()->addMonthNoOverflow()->startOfMonth();
                 $count = 0;
                 while ($cursor->lte($to)) {
@@ -203,7 +177,7 @@ class LeaveAccrualService
                 return $count;
 
             case 'quarterly':
-                // Quarters start: Jan/Apr/Jul/Oct
+
                 $cursor = $this->nextQuarterStartAfter($from);
                 $count = 0;
                 while ($cursor->lte($to)) {
@@ -222,14 +196,11 @@ class LeaveAccrualService
                 return $count;
 
             default:
-                // Unknown frequency: do nothing
+
                 return 0;
         }
     }
 
-    /**
-     * Advance a date forward by $intervals intervals of $frequency.
-     */
     protected function advanceByIntervals(Carbon $date, string $frequency, int $intervals): Carbon
     {
         $frequency = strtolower($frequency);
@@ -241,23 +212,18 @@ class LeaveAccrualService
         };
     }
 
-    /**
-     * Get the start of the next quarter after a given date.
-     */
     protected function nextQuarterStartAfter(Carbon $date): Carbon
     {
-        // Determine current quarter (1..4)
+
         $month = (int)$date->month;
         $currentQuarterStartMonth = [1, 4, 7, 10][intdiv($month - 1, 3)];
         $currentQuarterStart = Carbon::create($date->year, $currentQuarterStartMonth, 1)->startOfDay();
 
-        // If we're already at/beyond the start this quarter, move to next quarter start
         if ($date->gte($currentQuarterStart)) {
             $nextStart = $currentQuarterStart->copy()->addMonthsNoOverflow(3);
             return $nextStart->startOfMonth()->startOfDay();
         }
 
-        // Otherwise accrual boundary is the current quarter start (since date is before it)
         return $currentQuarterStart->startOfDay();
     }
 }

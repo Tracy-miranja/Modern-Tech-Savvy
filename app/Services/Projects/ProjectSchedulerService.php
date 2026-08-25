@@ -7,14 +7,6 @@ use App\Mail\ProjectTaskOverdueMail;
 use App\Models\ProjectTask;
 use Illuminate\Support\Facades\Mail;
 
-/**
- * Daily housekeeping for Project Management (see project:sync command):
- * sends the "due soon" reminder N days before due_date (N = per-business
- * Business::project_task_due_reminder_days) and the "overdue" reminder
- * exactly once the day it first crosses into overdue - each guarded by its
- * own *_reminder_sent_at timestamp on project_tasks, same pattern as
- * Learning Management's course_enrollments reminders.
- */
 class ProjectSchedulerService
 {
     public function sendDueReminders(): int

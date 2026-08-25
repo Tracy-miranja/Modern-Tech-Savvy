@@ -126,7 +126,7 @@
                     $ext = pathinfo($filePath, PATHINFO_EXTENSION);
                     $logoBase64 = 'data:image/' . $ext . ';base64,' . base64_encode(file_get_contents($filePath));
                 }
-            @endphp
+@endphp
 
             @if($logoBase64)
                 <img src="{{ $logoBase64 }}" alt="{{ $business->company_name }} Logo" class="logo">

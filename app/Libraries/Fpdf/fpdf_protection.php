@@ -1,14 +1,4 @@
 <?php
-/****************************************************************************
-* Software: FPDF_Protection                                                 *
-* Version:  1.06                                                            *
-* Date:     2023-01-01                                                      *
-* Author:   Klemen VODOPIVEC                                                *
-* License:  FPDF                                                            *
-*                                                                           *
-* Thanks:  Cpdf (http://www.ros.co.nz/pdf) was my working sample of how to  *
-*          implement protection in pdf.                                     *
-****************************************************************************/
 
 require('fpdf.php');
 
@@ -64,21 +54,11 @@ class FPDF_Protection extends FPDF
 	protected $encrypted = false;
 	protected $padding;
 	protected $encryption_key;
-	protected $Uvalue;             //U entry in pdf document
-	protected $Ovalue;             //O entry in pdf document
-	protected $Pvalue;             //P entry in pdf document
-	protected $enc_obj_id;         //encryption object id
+	protected $Uvalue;
+	protected $Ovalue;
+	protected $Pvalue;
+	protected $enc_obj_id;
 
-	/**
-	* Function to set permissions as well as user and owner passwords
-	*
-	* - permissions is an array with values taken from the following list:
-	*   copy, print, modify, annot-forms
-	*   If a value is present it means that the permission is granted
-	* - If a user password is set, user will be prompted before document is opened
-	* - If an owner password is set, document can be opened in privilege mode with no
-	*   restriction if that password is entered
-	*/
 	function SetProtection($permissions=array(), $user_pass='', $owner_pass=null)
 	{
 		$options = array('print' => 4, 'modify' => 8, 'copy' => 16, 'annot-forms' => 32 );
@@ -97,12 +77,6 @@ class FPDF_Protection extends FPDF
 		$this->_generateencryptionkey($user_pass, $owner_pass, $protection);
 	}
 
-/****************************************************************************
-*                                                                           *
-*                              Private methods                              *
-*                                                                           *
-****************************************************************************/
-
 	function _putstream($s)
 	{
 		if ($this->encrypted)
@@ -119,9 +93,6 @@ class FPDF_Protection extends FPDF
 		return '('.$this->_escape($s).')';
 	}
 
-	/**
-	* Compute key depending on object number where the encrypted data is stored
-	*/
 	function _objectkey($n)
 	{
 		return substr($this->_md5_16($this->encryption_key.pack('VXxx',$n)),0,10);
@@ -159,17 +130,11 @@ class FPDF_Protection extends FPDF
 		}
 	}
 
-	/**
-	* Get MD5 as binary string
-	*/
 	function _md5_16($string)
 	{
 		return md5($string, true);
 	}
 
-	/**
-	* Compute O value
-	*/
 	function _Ovalue($user_pass, $owner_pass)
 	{
 		$tmp = $this->_md5_16($owner_pass);
@@ -177,30 +142,24 @@ class FPDF_Protection extends FPDF
 		return RC4($owner_RC4_key, $user_pass);
 	}
 
-	/**
-	* Compute U value
-	*/
 	function _Uvalue()
 	{
 		return RC4($this->encryption_key, $this->padding);
 	}
 
-	/**
-	* Compute encryption key
-	*/
 	function _generateencryptionkey($user_pass, $owner_pass, $protection)
 	{
-		// Pad passwords
+
 		$user_pass = substr($user_pass.$this->padding,0,32);
 		$owner_pass = substr($owner_pass.$this->padding,0,32);
-		// Compute O value
+
 		$this->Ovalue = $this->_Ovalue($user_pass,$owner_pass);
-		// Compute encyption key
+
 		$tmp = $this->_md5_16($user_pass.$this->Ovalue.chr($protection)."\xFF\xFF\xFF");
 		$this->encryption_key = substr($tmp,0,5);
-		// Compute U value
+
 		$this->Uvalue = $this->_Uvalue();
-		// Compute P value
+
 		$this->Pvalue = -(($protection^255)+1);
 	}
 }

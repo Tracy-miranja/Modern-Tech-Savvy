@@ -6,11 +6,7 @@ use Illuminate\Database\Migrations\Migration;
 
 return new class extends Migration
 {
-    /**
-     * Phase 03 of the OKR strategy: once a cycle starts, its goals lock -
-     * new objectives/key results can no longer be added, only progress
-     * against what was already committed. Default ON per product guidance.
-     */
+
     public function up(): void
     {
         if (Schema::hasColumn('performance_cycles', 'lock_goals_on_start')) {

@@ -20,7 +20,6 @@ class Applicant extends Model
     'age' => 'integer',
 ];
 
-
     protected $fillable = [
         'user_id',
         'idnumber',
@@ -64,7 +63,6 @@ class Applicant extends Model
     {
         return $this->hasMany(Experience::class);
     }
-
 
     public function skills()
     {

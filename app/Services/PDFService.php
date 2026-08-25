@@ -15,9 +15,6 @@ class PDFService
     protected $pdf;
     protected $employee;
 
-    /**
-     * Constructor with optional Employee dependency injection
-     */
     public function __construct(Employee $employee = null)
     {
         $this->pdf = new TCPDF("L", PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
@@ -33,30 +30,23 @@ class PDFService
         $this->pdf->setImageScale(PDF_IMAGE_SCALE_RATIO);
         $this->pdf->setFontSubsetting(true);
 
-        // Set employee model if provided
         $this->employee = $employee;
     }
 
-    /**
-     * Generate a generic PDF report
-     */
     public function generatePdf(Business $business, string $title, array $headers, array $rows, string $filename = "report.pdf")
     {
         $this->pdf->AddPage('L');
         $logoPath = $business->getImageUrl();
 
-        // Company Logo
         if ($logoPath && file_exists($logoPath)) {
             $this->pdf->Image($logoPath, 10, 5, 40);
         }
 
-        // Title & Header
         $this->pdf->SetFont('', 'B', 16);
         $this->pdf->Cell(0, 15, $title, 0, 1, 'C');
         $this->pdf->Ln(5);
         $this->pdf->SetFont('', 'B', 10);
 
-        // Calculate Column Widths Dynamically
         $colWidths = [];
         foreach ($headers as $index => $header) {
             $maxWidth = $this->pdf->GetStringWidth($header) + 8;
@@ -69,8 +59,7 @@ class PDFService
             $colWidths[$index] = $maxWidth;
         }
 
-        // Scale Columns to Fit Page
-        $maxPageWidth = 270; // Approximate max width for A4 landscape minus margins
+        $maxPageWidth = 270;
         $totalWidth = array_sum($colWidths);
         if ($totalWidth > $maxPageWidth) {
             $scaleFactor = $maxPageWidth / $totalWidth;
@@ -79,17 +68,14 @@ class PDFService
             }
         }
 
-        // Table Styling
         $this->pdf->SetFillColor(200, 200, 200);
         $this->pdf->SetTextColor(0, 0, 0);
 
-        // Header Row
         foreach ($headers as $index => $header) {
             $this->pdf->Cell($colWidths[$index], 10, $header, 1, 0, 'C', true);
         }
         $this->pdf->Ln();
 
-        // Table Content
         $this->pdf->SetFont('', '', 9);
         $rowCount = 0;
         foreach ($rows as $row) {
@@ -106,27 +92,15 @@ class PDFService
         return $this->pdf->Output($filename, 'I');
     }
 
-    /**
-     * Generate payroll PDF report from Business and Request objects
-     * To be used with DownloadController
-     *
-     * @param Business $business Business or location instance
-     * @param int $month Payroll month
-     * @param int $year Payroll year
-     * @param string $filename Output filename (optional)
-     * @return mixed PDF output
-     */
     public function generateBusinessPayrollPdf(Business $business, int $month, int $year, string $filename = "payroll_report.pdf")
     {
-        // Set up the PDF
+
         $this->pdf->SetTitle($business->company_name . ' - Payroll');
         $this->pdf->AddPage('L');
 
-        // Company Title
         $this->pdf->SetFont('', 'B', 16);
         $this->pdf->Cell(0, 0, $business->company_name, 0, 1);
 
-        // Payroll details
         $this->pdf->Ln(5);
         $this->pdf->SetFont('', 'B', 12);
         $dateObj = DateTime::createFromFormat('!m', $month);
@@ -136,10 +110,8 @@ class PDFService
         $this->pdf->Cell(100, 0, "YEAR $year");
         $this->pdf->Cell(100, 0, "MONTH {$monthName}", 0, 1);
 
-        // Get employees data
         $employees = $business->employees;
 
-        // Get current payroll
         $payroll = Payroll::where('payrun_year', $year)
             ->where('payrun_month', $month)
             ->where('business_id', $business->id)
@@ -152,13 +124,11 @@ class PDFService
             return $this->pdf->Output($filename, 'I');
         }
 
-        // Pre-fetch employee payroll data
         $employeePayrollData = [];
         foreach ($employees as $employee) {
             $employeePayrollData[$employee->id] = $employee->payrolls;
         }
 
-        // Prepare data for PDF output
         $pdfData = [];
         foreach ($employees as $employee) {
             $employeePayroll = $employeePayrollData[$employee->id];
@@ -170,8 +140,6 @@ class PDFService
             }
 
             $deductions = json_decode($employeePayroll->deductions, true);
-
-            // Log::debug($deductions);
 
             $insuranceRelief = $deductions['insurance_relief'] ?? 0;
             $pension = $deductions['pension'] ?? 0;
@@ -214,7 +182,6 @@ class PDFService
             ];
         }
 
-        // Define row headers
         $rows = [
             'MONTH',
             'DETAILS',
@@ -255,17 +222,15 @@ class PDFService
         $netSum = $total_deduction = 0;
 
         foreach ($rows as $row) {
-            // Set highlighted rows
+
             $fill = ($i == 0 || $i == 7 || $i == 13 || $i == 29);
 
-            // Set bold font for certain rows
             if ($i == 31 || $i == 30 || $i == 0 || $i == 2 || $i == 7 || $i == 8 || $i == 17 || $i == 29) {
                 $this->pdf->SetFont('', 'B');
             } else {
                 $this->pdf->SetFont('', '');
             }
 
-            // Output row header
             if ($i == 6) {
                 $this->pdf->Cell(35, 0, $row, 1, 0, 'R');
             } else {
@@ -358,7 +323,6 @@ class PDFService
                 }
             }
 
-            // Summary column
             $this->pdf->SetFont('', 'B', 10);
 
             if (in_array($i, [1, 2, 5, 6, 8, 9, 10, 11, 12, 15, 16, 17, 22, 23, 24, 25, 26, 27, 28])) {
@@ -399,9 +363,6 @@ class PDFService
         return $this->pdf->Output($filename, 'I');
     }
 
-    /**
-     * Set the Employee model instance
-     */
     public function setEmployeeModel(Employee $employee)
     {
         $this->employee = $employee;

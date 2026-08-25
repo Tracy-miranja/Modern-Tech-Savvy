@@ -18,7 +18,6 @@ use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 
-
 class LeaveTypeController extends Controller
 {
     use HandleTransactions;
@@ -71,7 +70,6 @@ class LeaveTypeController extends Controller
             'effective_date'                    => 'required|date',
             'end_date'                          => 'nullable|date|after_or_equal:effective_date',
 
-            // governance/flow
             'allows_backdating'                 => 'required|boolean',
             'approval_levels'                   => 'required|integer|min:0',
             'approval_chain'                    => 'nullable|array',
@@ -87,8 +85,7 @@ class LeaveTypeController extends Controller
         ]);
 
         return $this->handleTransaction(function () use ($validated, $business) {
-            // The chain (when supplied) is the source of truth for how many
-            // levels there actually are - keeps the two fields from drifting.
+
             $approvalChain = $validated['approval_chain'] ?? null;
             $approvalLevels = $approvalChain ? count($approvalChain) : $validated['approval_levels'];
 
@@ -159,14 +156,9 @@ class LeaveTypeController extends Controller
         });
     }
 
-    /**
-     * Unified edit:
-     * - POST /leave-types/edit (AJAX) -> returns HTML fragment wrapped in JSON
-     * - GET  /business/{business}/leave-types/{slug}/edit -> full page
-     */
     public function edit(Request $request, Business $business = null, $slug = null)
     {
-        // AJAX branch
+
         if ($request->isMethod('post')) {
             $slugFromRequest = $request->input('slug')
                 ?? $request->input('leave')
@@ -196,7 +188,6 @@ class LeaveTypeController extends Controller
             return RequestResponse::ok('Edit form loaded.', $html);
         }
 
-        // Full-page branch
         $leaveType = LeaveType::where('slug', $slug)
             ->where('business_id', $business->id)
             ->with('leavePolicies')
@@ -204,23 +195,19 @@ class LeaveTypeController extends Controller
 
             $policies = $leaveType->leavePolicies;
 
-            // Department
             $departmentIds = $policies->pluck('department_id')->unique()->values();
             $departmentValue = $departmentIds->count() === 1
                 ? optional(Department::find($departmentIds->first()))->slug
                 : 'all';
 
-            // Job Category
             $jobCategoryIds = $policies->pluck('job_category_id')->unique()->values();
             $jobCategoryValue = $jobCategoryIds->count() === 1
                 ? optional(JobCategory::find($jobCategoryIds->first()))->slug
                 : 'all';
 
-            // Gender
             $genderValue = $policies->pluck('gender_applicable')->unique()->count() === 1
                 ? $policies->first()->gender_applicable
                 : 'all';
-
 
             return view('leave.edit', [
                 'leaveType'         => $leaveType,
@@ -266,7 +253,6 @@ class LeaveTypeController extends Controller
 
     $businessId = $leaveType->business_id;
 
-    // PATCH semantics: only validate provided fields
     $rules = [
         'name'   => [
             'sometimes','filled','string','max:190',
@@ -294,7 +280,6 @@ class LeaveTypeController extends Controller
         'exclude_public_holidays' => ['sometimes','in:0,1,true,false'],
         'exclude_non_working_days' => ['sometimes','in:0,1,true,false'],
 
-        // Policy bits
         'department'     => ['sometimes','filled','string'],
         'job_category'   => ['sometimes','filled','string'],
         'gender_applicable' => ['sometimes','in:all,male,female'],
@@ -313,13 +298,11 @@ class LeaveTypeController extends Controller
         'effective_date' => ['sometimes','nullable','date'],
         'end_date'       => ['sometimes','nullable','date','after_or_equal:effective_date'],
 
-        // Optional flag to control pruning
         'sync_policies'  => ['sometimes','in:0,1,true,false'],
     ];
 
     $data = $request->validate($rules);
 
-    // If name changed, update slug (unique per business)
     if (array_key_exists('name', $data) && $data['name'] !== $leaveType->name) {
         $newSlug = Str::slug($data['name']);
         $exists = LeaveType::where('business_id',$businessId)
@@ -334,12 +317,11 @@ class LeaveTypeController extends Controller
 
     DB::beginTransaction();
     try {
-        // Save LeaveType
+
         $leaveType->fill($data);
 
         if (array_key_exists('approval_chain', $data)) {
-            // The chain is the source of truth for how many levels there
-            // are, when supplied - keeps the two fields from drifting.
+
             $leaveType->approval_levels = count($data['approval_chain'] ?? []) ?: ($data['approval_levels'] ?? $leaveType->approval_levels);
         }
 
@@ -349,8 +331,6 @@ class LeaveTypeController extends Controller
             ));
         }
 
-        
-        // Use exists() so an intentionally empty array clears the field
         if ($request->exists('excluded_dates')) {
             $dates = collect((array)$request->input('excluded_dates', []))
                 ->filter()
@@ -359,7 +339,6 @@ class LeaveTypeController extends Controller
                 ->values()
                 ->all();
 
-            // If user cleared all dates, store NULL instead of []
             $leaveType->excluded_dates = !empty($dates) ? $dates : null;
         }
 
@@ -367,7 +346,6 @@ class LeaveTypeController extends Controller
             $leaveType->save();
         }
 
-        // Policy upsert/sync only if relevant keys appeared
         $policyKeysPresent = collect([
             'department','job_category','gender_applicable',
             'prorated_for_new_employees','default_days','accrual_frequency','accrual_amount',
@@ -402,7 +380,6 @@ class LeaveTypeController extends Controller
                     return [$j->id];
                 })();
 
-            // Fields that may be provided (override baseline)
             $policyFill = [];
             foreach ([
                 'prorated_for_new_employees','default_days','accrual_frequency','accrual_amount',
@@ -417,18 +394,6 @@ class LeaveTypeController extends Controller
 
             $today = now()->toDateString();
 
-            // Values that actually change what a policy computes. Editing
-            // any of these versions the policy (close the currently-open
-            // row, insert a new dated one) instead of overwriting it in
-            // place - resolvePolicy() already resolves "the policy as of
-            // date X" by effective_date/end_date, but the old write path
-            // used updateOrCreate() keyed on (leave_type, department,
-            // job_category, gender) only, with no effective_date in the
-            // key, so an edit silently rewrote history: a leave period
-            // already closed out (e.g. carryover computed against 2025)
-            // would start resolving to whatever the CURRENT values are the
-            // moment someone edited them for 2026, not what was actually in
-            // effect when 2025 ran.
             $versionedFields = [
                 'prorated_for_new_employees', 'default_days', 'accrual_frequency',
                 'accrual_amount', 'max_carryover_days', 'carryover_type', 'carryover_value',
@@ -451,7 +416,6 @@ class LeaveTypeController extends Controller
                 'max_encashable_days'           => null,
             ];
 
-            // === UPSERT + SYNC ===
             $targetKeys = [];
             foreach ($deptIds as $dId) {
                 foreach ($jobcIds as $jId) {
@@ -463,9 +427,6 @@ class LeaveTypeController extends Controller
                     ];
                     $targetKeys[] = $key;
 
-                    // The currently-open version for THIS exact scope (not
-                    // just any row for the leave type) - after versioning,
-                    // a scope can have several historical rows.
                     $current = LeavePolicy::where($key)
                         ->where(function ($q) use ($today) {
                             $q->whereNull('end_date')->orWhereDate('end_date', '>=', $today);
@@ -489,9 +450,7 @@ class LeaveTypeController extends Controller
                     );
 
                     if (!$valueChanged) {
-                        // Only the dept/job/gender scope changed (or nothing
-                        // did) - explicit date edits with no value change
-                        // are a deliberate correction, apply directly.
+
                         if (array_key_exists('effective_date', $policyFill) || array_key_exists('end_date', $policyFill)) {
                             $current->effective_date = $attrs['effective_date'];
                             $current->end_date       = $attrs['end_date'];
@@ -505,10 +464,7 @@ class LeaveTypeController extends Controller
                     $newEffectiveDate = $policyFill['effective_date'] ?? $today;
 
                     if (\Carbon\Carbon::parse($newEffectiveDate)->lte(\Carbon\Carbon::parse($current->effective_date))) {
-                        // Can't open a new version before/on the existing
-                        // one's own start without an invalid window - this
-                        // is correcting historic data, not adding a new
-                        // period's rate, so update in place.
+
                         $current->fill($attrs);
                         $current->save();
                         continue;
@@ -524,7 +480,6 @@ class LeaveTypeController extends Controller
                 }
             }
 
-            // Sync policies (prune out-of-scope rows)
             $doSync = filter_var($request->input('sync_policies', '1'), FILTER_VALIDATE_BOOLEAN);
             if ($doSync) {
                 $tuples = collect($targetKeys)->map(fn($k) => implode(':', [
@@ -562,7 +517,6 @@ class LeaveTypeController extends Controller
     return RequestResponse::ok('Leave type updated successfully.');
 }
 
-
     public function destroy(Request $request)
     {
         $validated = $request->validate([
@@ -593,13 +547,7 @@ class LeaveTypeController extends Controller
 
 public function getRemainingDays(Request $request, Business $business)
 {
-    // Was reading $employeeId/$leaveTypeId here before either was ever
-    // assigned in this function - PHP treats that as null, so the
-    // !$leaveTypeId/!$employeeId guards below always tripped and this
-    // endpoint (used by the leave request form's live "days remaining"
-    // display) unconditionally returned 0, regardless of the real
-    // entitlement. Sourcing both from the request, like the sibling
-    // getRemainingDaysAjax() below already does, fixes that.
+
     $business = Business::findBySlug(session('active_business_slug')) ?? $business;
 
     $employeeId  = $request->input('employee_id', auth()->user()?->activeEmployee()?->id);
@@ -627,7 +575,6 @@ public function getRemainingDays(Request $request, Business $business)
 
     $today = now()->toDateString();
 
-    /** @var LeaveEntitlement|null $entitlement */
     $entitlement = LeaveEntitlement::query()
         ->where('business_id', $business->id)
         ->where('employee_id', $employeeId)
@@ -681,7 +628,6 @@ public function getRemainingDaysAjax(Request $request)
 
     $today = now()->toDateString();
 
-    /** @var \App\Models\LeaveEntitlement|null $entitlement */
     $entitlement = \App\Models\LeaveEntitlement::query()
         ->where('business_id', $business->id)
         ->where('employee_id', $employeeId)
@@ -701,7 +647,5 @@ public function getRemainingDaysAjax(Request $request)
 
     return response()->json(['remaining_days' => $remaining]);
 }
-
-
 
 }

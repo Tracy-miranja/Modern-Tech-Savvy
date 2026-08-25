@@ -1,6 +1,6 @@
-<!-- _leave_entitlements_table.blade.php -->
+
 @php
-    // Build a composite slug that can find the record without exposing ID
+
     // slug = base64("business:employee:leaveType:leavePeriod") URL-safe
     function ent_slug($e) {
         $raw = implode(':', [
@@ -30,7 +30,7 @@
     </thead>
     <tbody>
         @forelse ($leaveEntitlements as $entitlement)
-            @php $slug = ent_slug($entitlement); @endphp
+            @php $slug = ent_slug($entitlement);@endphp
             <tr>
                 <td>
                     <a href="#" class="btn btn-sm btn-outline-primary">
@@ -53,7 +53,7 @@
                             data-id="{{ $entitlement->id }}"
                             data-slug="{{ $slug }}"
                             onclick="viewLeaveEntitlements(this)">
-                        <i class="bi bi-eye"></i> 
+                        <i class="bi bi-eye"></i>
                     </button>
 
                     <button type="button"
@@ -62,7 +62,7 @@
                             data-id="{{ $entitlement->id }}"
                             data-slug="{{ $slug }}"
                             onclick="editLeaveEntitlements(this)">
-                        <i class="bi bi-pencil-square me-1"></i> 
+                        <i class="bi bi-pencil-square me-1"></i>
                     </button>
 
                     <button
@@ -93,7 +93,6 @@
     </tbody>
 </table>
 
-<!-- Adjust Entitlement Modal -->
 <div class="modal fade" id="adjustEntitlementModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">

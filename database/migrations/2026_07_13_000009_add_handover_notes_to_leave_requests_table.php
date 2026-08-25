@@ -6,10 +6,7 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Free-text handover summary (e.g. "what I was working on") shown to the
-     * approver and the reliever, alongside the existing single-file attachment.
-     */
+
     public function up(): void
     {
         if (Schema::hasColumn('leave_requests', 'handover_notes')) {

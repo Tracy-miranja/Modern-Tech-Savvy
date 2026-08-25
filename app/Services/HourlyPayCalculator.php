@@ -9,14 +9,7 @@ use Illuminate\Support\Facades\Log;
 
 class HourlyPayCalculator
 {
-    /**
-     * Calculate gross pay for hourly employee
-     *
-     * @param Employee $employee
-     * @param string $startDate
-     * @param string $endDate
-     * @return array
-     */
+
     public function calculateHourlyGrossPay(Employee $employee, string $startDate, string $endDate): array
     {
         $paymentDetail = $employee->paymentDetails;
@@ -54,7 +47,6 @@ class HourlyPayCalculator
             'hourly_rate' => $hourlyRate,
         ]);
 
-        // Get all attendance records
         $attendances = Attendance::where('employee_id', $employee->id)
             ->whereBetween('date', [$startDate, $endDate])
             ->where('is_absent', false)
@@ -73,16 +65,13 @@ class HourlyPayCalculator
 
         foreach ($attendances as $attendance) {
             try {
-                // FIX: Parse date and time separately, then combine
-                // Convert date to Carbon if it's a string, or use as-is if already Carbon
+
                 $dateObj = $attendance->date instanceof Carbon
                     ? $attendance->date
                     : Carbon::parse($attendance->date);
 
-                // Extract just the date portion (Y-m-d)
                 $dateString = $dateObj->format('Y-m-d');
 
-                // Parse clock_in and clock_out times
                 $clockInTime = is_string($attendance->clock_in)
                     ? $attendance->clock_in
                     : Carbon::parse($attendance->clock_in)->format('H:i:s');
@@ -91,15 +80,12 @@ class HourlyPayCalculator
                     ? $attendance->clock_out
                     : Carbon::parse($attendance->clock_out)->format('H:i:s');
 
-                // Now combine date with time strings
                 $clockIn = Carbon::parse($dateString . ' ' . $clockInTime);
                 $clockOut = Carbon::parse($dateString . ' ' . $clockOutTime);
 
-                // Calculate hours worked
                 $hoursWorked = abs($clockOut->diffInMinutes($clockIn)) / 60;
                 $regularHours += $hoursWorked;
 
-                // Add overtime
                 $overtimeHours += floatval($attendance->overtime_hours ?? 0);
 
                 Log::debug('Attendance record processed', [
@@ -123,7 +109,6 @@ class HourlyPayCalculator
             }
         }
 
-        // Calculate pay (overtime typically paid at 1.5x rate)
         $overtimeRate = $hourlyRate * 1.5;
         $regularPay = $regularHours * $hourlyRate;
         $overtimePay = $overtimeHours * $overtimeRate;
@@ -151,14 +136,6 @@ class HourlyPayCalculator
         ];
     }
 
-    /**
-     * Get attendance summary for an employee
-     *
-     * @param Employee $employee
-     * @param string $startDate
-     * @param string $endDate
-     * @return array
-     */
     public function getAttendanceSummary(Employee $employee, string $startDate, string $endDate): array
     {
         $totalDays = Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1;

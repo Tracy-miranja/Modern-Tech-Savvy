@@ -101,7 +101,6 @@
         </div>
     </div>
 
-    <!-- AI Modal -->
     <div class="modal fade" id="aiModal" tabindex="-1" aria-labelledby="aiModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">

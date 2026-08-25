@@ -37,7 +37,6 @@
         </div>
     </div>
 
-    <!-- Download buttons remain the same -->
     <div class="row align-items-center justify-content-center">
         <div class="col-md-6">
             <div class="card">

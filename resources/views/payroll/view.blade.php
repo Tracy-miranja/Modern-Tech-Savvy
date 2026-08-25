@@ -1,13 +1,7 @@
 <x-app-layout title="{{ $page }}">
 
-    {{-- ════════════════════════════════════════════════════════════════
-         PAYROLL VIEW — sticky first 2 cols + sticky Actions col
-         + column-visibility toggle + scroll arrows
-         ════════════════════════════════════════════════════════════════ --}}
-
     <div class="container py-5" id="payroll-document">
 
-        <!-- ── Invoice Header ──────────────────────────────── -->
         <div class="invoice-header mb-4 p-4 bg-white shadow-sm rounded">
             <div class="row align-items-center">
                 <div class="col-md-6 d-flex align-items-center">
@@ -45,21 +39,17 @@
             </div>
         </div>
 
-        <!-- ── Payroll Details Section ──────────────────────────────────── -->
         <div class="invoice-body">
 
-            <!-- toolbar -->
             <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                 <h4 class="h5 fw-bold mb-0 text-dark">Payroll Details</h4>
                 <div class="d-flex gap-2 flex-wrap">
 
-                    <!-- Variance & AI Analysis -->
                     <a href="{{ route('business.payroll.variance', ['business' => $business->slug]) }}"
                        class="btn btn-outline-secondary modern-btn flex-shrink-0">
                         <i class="bi bi-graph-up-arrow me-1"></i> Variance & AI Analysis
                     </a>
 
-                    <!-- NSSF dropdown -->
                     <div class="dropdown d-inline-flex">
                         <button class="btn btn-outline-secondary modern-btn dropdown-toggle flex-shrink-0"
                             type="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -99,7 +89,6 @@
                         </ul>
                     </div>
 
-                    <!-- Export Reports -->
                     <div class="dropdown">
                         <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button"
                             id="exportReportsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
@@ -114,25 +103,22 @@
                         </ul>
                     </div>
 
-                    <!-- Column Visibility Toggle -->
                     <div class="dropdown">
                         <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button"
                             id="colVisDropdown" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
                             <i class="bi bi-layout-three-columns me-1"></i> Columns
                         </button>
                         <ul class="dropdown-menu px-2 py-2" style="min-width:200px;" aria-labelledby="colVisDropdown" id="colVisMenu">
-                            <!-- populated by JS -->
+
                         </ul>
                     </div>
 
-                    <!-- Payroll Analytics -->
                     <button class="btn btn-outline-info modern-btn" data-bs-toggle="modal" data-bs-target="#analyticsModal">
                         <i class="bi bi-bar-chart-line me-1"></i> Payroll Analytics
                     </button>
                 </div>
             </div>
 
-            <!-- scroll hint banner -->
             <div id="scrollHint" class="d-flex align-items-center gap-2 text-muted small mb-2 px-1" style="opacity:1;transition:opacity .4s;">
                 <i class="bi bi-arrow-left-right"></i>
                 <span>Scroll the table left / right — <strong>#</strong> and <strong>Employee</strong> columns and <strong>Actions</strong> stay pinned.</span>
@@ -261,9 +247,8 @@
                             </tr>
                         </tfoot>
                     </table>
-                </div><!-- /payroll-scroll -->
+                </div>
 
-            <!-- Scroll arrows -->
             <div class="d-flex justify-content-end gap-2 mt-2" id="scrollArrows">
                 <button class="btn btn-outline-secondary btn-sm px-2" id="scrollLeft" title="Scroll left">
                     <i class="bi bi-chevron-left"></i>
@@ -272,9 +257,8 @@
                     <i class="bi bi-chevron-right"></i>
                 </button>
             </div>
-        </div><!-- /invoice-body -->
+        </div>
 
-        <!-- ── Footer & Action Buttons ──────────────────────────────── -->
         <div class="invoice-footer mt-5 p-4 bg-white shadow-sm rounded">
             <div class="row">
                 <div class="col-md-6">
@@ -308,7 +292,6 @@
                 <i class="bi bi-file-earmark-pdf me-1"></i> Download Totals PDF
             </button>
 
-            <!-- Bank Advice -->
             <div class="dropdown">
                 <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button"
                     id="exportBankAdviceDropdown" data-bs-toggle="dropdown" aria-expanded="false">Bank Advice</button>
@@ -319,7 +302,6 @@
                 </ul>
             </div>
 
-            <!-- Master Roll -->
             <div class="dropdown d-inline-flex">
                 <button class="btn btn-outline-secondary modern-btn dropdown-toggle flex-shrink-0"
                     type="button" data-bs-toggle="dropdown" data-bs-auto-close="false" aria-expanded="false">
@@ -352,7 +334,6 @@
                 </ul>
             </div>
 
-            <!-- Export P9 -->
             <div class="dropdown">
                 <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="exportP9Dropdown"
                     data-bs-toggle="dropdown" aria-expanded="false">Export P9</button>
@@ -363,7 +344,6 @@
             </div>
         </div>
 
-        <!-- ── Analytics Modal ──────────────────────────────────────────── -->
         <div class="modal fade" id="analyticsModal" tabindex="-1" aria-labelledby="analyticsModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-lg">
                 <div class="modal-content">
@@ -398,7 +378,6 @@
             </div>
         </div>
 
-        <!-- ── Payslip Modal ────────────────────────────────────────────── -->
         <div class="modal fade" id="payslipModal" tabindex="-1" aria-labelledby="payslipModalLabel" aria-hidden="true">
             <div class="modal-dialog" style="max-width: 550px;">
                 <div class="modal-content">
@@ -415,7 +394,7 @@
             </div>
         </div>
 
-    </div><!-- /container -->
+    </div>
 
     @push('styles')
     <style>

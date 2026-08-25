@@ -84,7 +84,6 @@
     <link rel="stylesheet" href="{{ asset('assets/css/org-chart.css') }}">
     @endpush
 
-    <!-- Assign Manager Modal -->
     <div class="modal fade" id="assignManagerModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -122,7 +121,6 @@
         </div>
     </div>
 
-    <!-- Employee Detail Side Panel -->
     <div class="orgDetailPanel" id="orgDetailPanel">
         <div class="orgDetailPanelHeader">
             <h2 id="orgDetailPanelTitle">Details</h2>

@@ -31,17 +31,11 @@ class LeaveDelegation extends Model
         return $this->belongsTo(Business::class);
     }
 
-    /**
-     * The employee going on leave (delegating their duties).
-     */
     public function employee()
     {
         return $this->belongsTo(Employee::class, 'employee_id');
     }
 
-    /**
-     * The reliever covering for the employee.
-     */
     public function delegate()
     {
         return $this->belongsTo(Employee::class, 'delegate_id');

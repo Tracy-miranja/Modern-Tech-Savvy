@@ -42,7 +42,7 @@
                 </button>
             </td>
         </tr>
-        <!-- Remarks Modal for Verify/Deactivate -->
+
         <div class="modal fade" id="remarksModal-{{ $biz->slug }}" tabindex="-1" role="dialog">
             <div class="modal-dialog" role="document">
                 <div class="modal-content">

@@ -10,9 +10,7 @@ class ShiftSeeder extends Seeder
 {
     public function run()
     {
-        // Resolve the platform business dynamically - hardcoding an id
-        // here silently seeds orphaned rows if that id doesn't exist in
-        // this database.
+
         $businessId = \App\Models\Business::where('slug', config('business.main_slug'))->value('id')
             ?? \App\Models\Business::query()->value('id');
 

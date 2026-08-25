@@ -3,7 +3,6 @@
         <div class="col-md-10 offset-md-1">
             <h4 class="mb-4">My Profile</h4>
 
-            {{-- Success & Error Messages --}}
             @if (session('success'))
                 <div class="alert alert-success">{{ session('success') }}</div>
             @endif
@@ -22,7 +21,6 @@
                 @csrf
                 @method('PUT')
 
-                {{-- Personal Information --}}
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-white text-white">
                         <h5 class="mb-0">Personal Information</h5>
@@ -56,7 +54,6 @@
                     </div>
                 </div>
 
-                {{-- Employment Information --}}
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-white text-white">
                         <h5 class="mb-0">Employment Details</h5>
@@ -84,7 +81,6 @@
                     </div>
                 </div>
 
-                {{-- Bank Details --}}
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-white text-white">
                         <h5 class="mb-0">Banking Details</h5>
@@ -103,7 +99,6 @@
                     </div>
                 </div>
 
-                {{-- Emergency Contact --}}
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-white text-white">
                         <h5 class="mb-0">Emergency Contact</h5>

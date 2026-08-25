@@ -39,12 +39,9 @@
 
     <div class="row g-20">
 
-        {{-- ------------------------------------------------ --}}
-        {{-- 1. BUSINESS EMPLOYEES CARD (Dark background)     --}}
-        {{-- ------------------------------------------------ --}}
         @php
             $businessCard = collect($cards)->first(fn($c) => strtolower($c['title']) === 'business employees');
-        @endphp
+@endphp
 
         @if ($businessCard)
             <div class="col-xxl-3 col-xl-6 col-lg-6 col-md-6 col-sm-6 pb-4">
@@ -52,7 +49,6 @@
                 <div class="p-3 rounded-4 shadow-sm d-flex flex-column justify-content-between"
                      style="background:#27303b; min-height:240px;">
 
-                    {{-- Header --}}
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h6 class="m-0 d-flex align-items-center gap-2 text-white">
                             <span class="d-inline-flex justify-content-center align-items-center rounded-circle"
@@ -75,7 +71,6 @@
                         {{ $businessCard['value'] ?? 0 }}
                     </h1>
 
-                    {{-- Buttons --}}
                     <div class="d-flex gap-2 mb-3">
                         <button class="btn fw-semibold px-3 py-2"
                                 style="background:#F4A12E; color:#fff; border-radius:10px;">
@@ -100,12 +95,6 @@
             </div>
         @endif
 
-
-
-        {{-- ------------------------------------------------ --}}
-        {{-- 2. ON LEAVE EMPLOYEES (White background + green) --}}
-        {{-- ------------------------------------------------ --}}
-
         <div class="col-xxl-3 col-xl-6 col-lg-6 col-md-6 col-sm-6 pb-4">
 
             <div class="p-3 rounded-4 shadow-sm d-flex flex-column justify-content-between"
@@ -127,7 +116,6 @@
                     {{ $onLeaveCount ?? 0 }}
                 </h1>
 
-                {{-- Progress --}}
                 <div class="mb-3">
                     <div class="d-flex justify-content-between">
                         <span class="d-flex align-items-center gap-2">
@@ -150,26 +138,18 @@
     View Leave Report
 </a>
 
-
             </div>
 
         </div>
 
-
-
-        {{-- ------------------------------------------------ --}}
-        {{-- 3. OTHER CARDS (White background)                --}}
-        {{-- ------------------------------------------------ --}}
         @foreach ($cards as $card)
 
-            @php $title = strtolower($card['title']); @endphp
+            @php $title = strtolower($card['title']);@endphp
 
-            {{-- Skip Business Employees & On Leave Employees --}}
             @if (in_array($title, ['business employees', 'on leave employees']))
                 @continue
             @endif
 
-            {{-- Skip restricted menus --}}
             @if ($hidePayrollMenus &&
                 in_array($title, ['payroll', 'total clients', 'payroll trends', 'loan trends', 'active loans', 'active advances']))
                 @continue
@@ -208,15 +188,6 @@
 
         @endforeach
 
-
-
-        {{-- ------------------------------------------------ --}}
-        {{-- REMAINING SECTIONS DIRECTLY BELOW                --}}
-        {{-- ------------------------------------------------ --}}
-
-
-
-        {{-- PAYROLL TRENDS --}}
         @if (!$hidePayrollMenus)
             <div class="col-xxl-8 col-xl-6 col-lg-8">
                 <div class="card__wrapper height-equal" style="min-height: 459px;">
@@ -232,7 +203,6 @@
             </div>
         @endif
 
-          {{-- USER ACTIVITIES --}}
         <div class="col-xxl-4 col-xl-6 col-lg-8">
             <div class="card__wrapper height-equal" style="min-height: 459px;">
                 <div class="card__title-wrap d-flex align-items-center justify-content-between mb-20">
@@ -245,7 +215,6 @@
             </div>
         </div>
 
-        {{-- ATTENDANCE --}}
         <div class="col-md-4">
             <div class="card__wrapper height-equal" style="min-height: 459px;">
                 <div class="card-header border-0">
@@ -259,7 +228,6 @@
             </div>
         </div>
 
-        {{-- LEAVE --}}
         <div class="col-md-4">
             <div class="card__wrapper height-equal" style="min-height: 459px;">
                 <div class="card-header border-0">
@@ -273,7 +241,6 @@
             </div>
         </div>
 
-        {{-- LOAN --}}
         @if (!$hidePayrollMenus)
             <div class="col-md-4">
                 <div class="card__wrapper height-equal" style="min-height: 459px;">

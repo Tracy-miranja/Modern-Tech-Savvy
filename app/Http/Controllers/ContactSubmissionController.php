@@ -74,7 +74,6 @@ class ContactSubmissionController extends Controller
                     'status' => 'new',
                 ]);
 
-                // Create a corresponding Lead with business_id
                 Lead::create([
                     'business_id' => $business->id,
                     'contact_submission_id' => $submission->id,

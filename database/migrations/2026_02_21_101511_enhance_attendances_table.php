@@ -9,20 +9,17 @@ return new class extends Migration
     public function up()
     {
         Schema::table('attendances', function (Blueprint $table) {
-            // Work day classification
+
             $table->boolean('is_working_day')->default(true)->after('is_absent');
             $table->boolean('is_holiday')->default(false)->after('is_working_day');
-            
-            // Time calculations
+
             $table->decimal('regular_hours', 5, 2)->default(0)->after('overtime_hours');
             $table->decimal('late_minutes', 5, 2)->default(0)->after('regular_hours');
             $table->decimal('early_departure_minutes', 5, 2)->default(0)->after('late_minutes');
-            
-            // Overtime breakdown
-            $table->decimal('overtime_regular', 5, 2)->default(0)->after('overtime_hours'); // OT on working days
-            $table->decimal('overtime_holiday', 5, 2)->default(0)->after('overtime_regular'); // OT on non-working days
-            
-            // Expected shift times for this day
+
+            $table->decimal('overtime_regular', 5, 2)->default(0)->after('overtime_hours');
+            $table->decimal('overtime_holiday', 5, 2)->default(0)->after('overtime_regular');
+
             $table->time('expected_clock_in')->nullable()->after('clock_in');
             $table->time('expected_clock_out')->nullable()->after('clock_out');
         });

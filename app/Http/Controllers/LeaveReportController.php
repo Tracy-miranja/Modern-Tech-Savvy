@@ -13,19 +13,9 @@ use App\Services\Reports\ReportFilters;
 use App\Services\Reports\ReportPdfService;
 use Illuminate\Http\Request;
 
-/**
- * Leave reports - Phase 2 of the GUIDE plan, built on the same shared
- * report engine as AttendanceReportController: each report builds its
- * view/data once via a private *ViewData() method, then preview and
- * download both render that exact same view+data.
- */
 class LeaveReportController extends Controller
 {
-    /**
-     * Trigger page for the Leave Reports nav item - previously this button
-     * lived inline on leave/index.blade.php; promoted to its own page/route
-     * so Leave Reports is directly reachable from the sidebar.
-     */
+
     public function index(Business $business)
     {
         $departments = Department::where('business_id', $business->id)->orderBy('name')->get(['id', 'name']);
@@ -71,9 +61,7 @@ class LeaveReportController extends Controller
 
         $query = LeaveEntitlement::where('business_id', $business->id)
             ->where('leave_period_id', $leavePeriod->id)
-            // Guards against orphaned entitlement rows whose employee_id no
-            // longer resolves to a real Employee (mirrors the original
-            // LeaveEntitlementController::exportPdf this report replaces).
+
             ->whereHas('employee');
 
         $filters->applyToEmployeeScopedQuery($query);
@@ -201,9 +189,7 @@ class LeaveReportController extends Controller
 
     private function perMemberViewData(Request $request, Business $business): array
     {
-        // Full history across periods by default - only narrowed if the
-        // caller explicitly supplies a date range (unlike Full/Types, which
-        // default to the current year).
+
         $filters = ReportFilters::fromRequest($request);
 
         [$view, $data] = $this->rowReportViewData($business, $filters, 'Per-Member Leave Report');
@@ -282,11 +268,6 @@ class LeaveReportController extends Controller
         return $filters;
     }
 
-    /**
-     * Row-level report (one line per leave request): Full and Per-member
-     * share this - they only differ by the employee filter and whether a
-     * default period is applied.
-     */
     private function rowReportViewData(Business $business, ReportFilters $filters, string $title): array
     {
         $query = LeaveRequest::where('business_id', $business->id)

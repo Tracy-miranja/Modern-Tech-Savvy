@@ -12,10 +12,7 @@ use Illuminate\Http\Request;
 
 class LeaveCalendarController extends Controller
 {
-    /**
-     * Employee-facing calendar: their own approved leave, their direct
-     * reports' (if any), and business holidays.
-     */
+
     public function employeeCalendar(Business $business)
     {
         return view('leave.calendar', [
@@ -26,10 +23,6 @@ class LeaveCalendarController extends Controller
         ]);
     }
 
-    /**
-     * HR-facing calendar: every approved leave request in the business,
-     * optionally filtered by department, plus holidays.
-     */
     public function businessCalendar(Business $business)
     {
         $locations = Location::where('business_id', $business->id)->orderBy('name')->get(['id', 'name', 'country']);
@@ -51,9 +44,6 @@ class LeaveCalendarController extends Controller
     {
         $employee = auth()->user()->activeEmployee();
 
-        // AJAX data endpoint - an empty result set is the graceful
-        // equivalent of the empty-state pattern used on the actual pages
-        // (see OrganogramController::myTeam()), not a 403.
         if (!$employee || (int) $employee->business_id !== (int) $business->id) {
             return response()->json([]);
         }
@@ -71,7 +61,7 @@ class LeaveCalendarController extends Controller
 
     public function businessEvents(Request $request, Business $business)
     {
-        $employeeIds = null; // no restriction - all employees in the business
+        $employeeIds = null;
 
         if ($request->filled('department_id') || $request->filled('location_id')) {
             $employeeQuery = \App\Models\Employee::where('business_id', $business->id);
@@ -92,13 +82,6 @@ class LeaveCalendarController extends Controller
         return response()->json($this->buildEvents($request, $business, $employeeIds, $locationId, $departmentId));
     }
 
-    /**
-     * Headcount for whichever department/location scope the Planner's
-     * capacity strip is currently filtered to - the denominator for "X% of
-     * the team is out today". Mirrors businessEvents()'s exact same
-     * department_id/location_id filtering so the numerator (people on
-     * leave) and denominator (team size) are always scoped identically.
-     */
     public function teamHeadcount(Request $request, Business $business)
     {
         $query = \App\Models\Employee::where('business_id', $business->id);
@@ -113,16 +96,6 @@ class LeaveCalendarController extends Controller
         return response()->json(['count' => $query->count()]);
     }
 
-    /**
-     * Builds a FullCalendar-compatible event list for approved leave requests
-     * (optionally restricted to a set of employee ids), holidays, and
-     * company-mandated leave days, within the [start, end] range FullCalendar
-     * requests. $locationId/$departmentId double as both the holiday
-     * location scope AND the mandatory-leave-period visibility scope: null
-     * means "show everything" (an unfiltered HR view, or an employee with no
-     * department/location set), a value narrows to that scope - see
-     * MandatoryLeavePeriod's scope_type/scope_ids.
-     */
     private function buildEvents(Request $request, Business $business, $employeeIds = null, ?int $locationId = null, ?int $departmentId = null): array
     {
         $start = $request->filled('start') ? Carbon::parse($request->input('start')) : now()->startOfMonth();
@@ -144,15 +117,12 @@ class LeaveCalendarController extends Controller
                 'id' => 'leave-' . $leave->id,
                 'title' => (optional($leave->employee->user)->name ?? 'N/A') . ' - ' . (optional($leave->leaveType)->name ?? 'Leave'),
                 'start' => $leave->start_date->toDateString(),
-                'end' => $leave->end_date->copy()->addDay()->toDateString(), // FullCalendar end is exclusive
+                'end' => $leave->end_date->copy()->addDay()->toDateString(),
                 'color' => '#0d6efd',
                 'extendedProps' => [
                     'type' => 'leave',
                     'reference_number' => $leave->reference_number,
-                    // Structured fields for the Planner's row-per-employee
-                    // timeline (title above stays a single formatted string
-                    // for the existing month-view calendar) - same query,
-                    // no new backend call needed to build the timeline.
+
                     'employee_id' => $leave->employee_id,
                     'employee_name' => optional($leave->employee->user)->name ?? 'N/A',
                     'department_id' => $leave->employee->department_id ?? null,
@@ -183,7 +153,7 @@ class LeaveCalendarController extends Controller
                 if ($period->scope_type === MandatoryLeavePeriod::SCOPE_LOCATION) {
                     return $locationId === null || in_array($locationId, (array) ($period->scope_ids ?? []), true);
                 }
-                return true; // organization-wide always shows
+                return true;
             })
             ->map(function (MandatoryLeavePeriod $period) {
                 return [

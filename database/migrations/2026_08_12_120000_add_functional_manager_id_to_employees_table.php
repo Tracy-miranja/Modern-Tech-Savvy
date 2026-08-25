@@ -6,13 +6,7 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Optional dotted-line/matrix manager, distinct from manager_id (the
-     * primary line-manager reporting edge used for the org chart, "my
-     * team", and leave approval). Always a direct manual assignment - no
-     * "override" boolean like manager_id has, since there's no template
-     * this could conflict with.
-     */
+
     public function up(): void
     {
         if (Schema::hasColumn('employees', 'functional_manager_id')) {

@@ -9,9 +9,6 @@ class Warning extends Model
 {
     use HasFactory;
 
-    /**
-     * Ordered disciplinary stages, used to suggest the next escalation step.
-     */
     public const STAGES = ['verbal_warning', 'written_warning', 'final_warning', 'suspension', 'termination'];
 
     protected $fillable = [
@@ -77,11 +74,6 @@ class Warning extends Model
         return $this->belongsTo(DisciplinaryStageType::class, 'stage_type_id');
     }
 
-    /**
-     * Not every warning rises to the level of a formal disciplinary case -
-     * only those whose stage is flagged is_disciplinary_case (see the
-     * Configure tab). A warning with no stage assigned is never a case.
-     */
     public function scopeDisciplinaryCases($query)
     {
         return $query->whereHas('stageType', fn ($q) => $q->where('is_disciplinary_case', true));
@@ -97,9 +89,6 @@ class Warning extends Model
         return $this->hasMany(DisciplinaryMinutes::class);
     }
 
-    /**
-     * How many stages deep this case is in its escalation chain (1 = first case).
-     */
     public function getEscalationLevelAttribute(): int
     {
         $level = 1;
@@ -111,13 +100,6 @@ class Warning extends Model
         return $level;
     }
 
-    /**
-     * The next stage after this one, or null if already at the end. Prefers
-     * the business's own configured stage order (DisciplinaryStageType) when
-     * this case has one; falls back to the hardcoded STAGES ladder for
-     * legacy cases that predate business-configurable stages (stage_type_id
-     * still null) - see GUIDE plan Phase 3.
-     */
     public function suggestedNextStage(): ?string
     {
         if ($this->stage_type_id) {
@@ -131,11 +113,6 @@ class Warning extends Model
         return self::STAGES[$index + 1];
     }
 
-    /**
-     * Same as suggestedNextStage() but returns the actual configured stage
-     * (or null for legacy cases with no stage_type_id) - what Escalate
-     * actually needs to build the next case with the right stage_type_id.
-     */
     public function suggestedNextStageType(): ?DisciplinaryStageType
     {
         if (!$this->stage_type_id) {

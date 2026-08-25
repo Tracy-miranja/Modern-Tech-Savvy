@@ -6,11 +6,7 @@ use Illuminate\Database\Migrations\Migration;
 
 return new class extends Migration
 {
-    /**
-     * An optional grouping inside a department (e.g. a squad with its own
-     * line manager) - purely additive, departments without any teams work
-     * exactly as they did before this existed.
-     */
+
     public function up(): void
     {
         if (Schema::hasTable('teams')) {

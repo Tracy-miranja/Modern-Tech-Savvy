@@ -19,9 +19,7 @@ use Illuminate\Validation\ValidationException;
 class ProfileController extends Controller
 {
     use HandleTransactions;
-    /**
-     * Display the user's profile form.
-     */
+
     public function edit(Request $request)
     {
         return view('profile.edit', [

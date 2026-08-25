@@ -9,7 +9,7 @@ class KpiSeeder extends Seeder
 {
     public function run()
     {
-        // 1. Employee Attendance Rate (Attendance)
+
         Kpi::create([
             'name' => 'Employee Attendance Rate',
             'slug' => 'employee-attendance-rate',
@@ -20,7 +20,6 @@ class KpiSeeder extends Seeder
             'comparison_operator' => '>=',
         ]);
 
-        // 2. Job Application Count (Application)
         Kpi::create([
             'name' => 'Job Application Count',
             'slug' => 'job-application-count',
@@ -31,7 +30,6 @@ class KpiSeeder extends Seeder
             'comparison_operator' => '>=',
         ]);
 
-        // 3. Average Net Pay (EmployeePayroll)
         Kpi::create([
             'name' => 'Average Net Pay',
             'slug' => 'average-net-pay',
@@ -42,7 +40,6 @@ class KpiSeeder extends Seeder
             'comparison_operator' => '>=',
         ]);
 
-        // 4. Overtime Utilization (Overtime)
         Kpi::create([
             'name' => 'Overtime Utilization',
             'slug' => 'overtime-utilization',
@@ -53,7 +50,6 @@ class KpiSeeder extends Seeder
             'comparison_operator' => '<=',
         ]);
 
-        // 5. Leave Days Taken (LeaveRequest)
         Kpi::create([
             'name' => 'Leave Days Taken',
             'slug' => 'leave-days-taken',
@@ -64,7 +60,6 @@ class KpiSeeder extends Seeder
             'comparison_operator' => '<=',
         ]);
 
-        // 6. Task Completion Rate (Task)
         Kpi::create([
             'name' => 'Task Completion Rate',
             'slug' => 'task-completion-rate',
@@ -75,7 +70,6 @@ class KpiSeeder extends Seeder
             'comparison_operator' => '>=',
         ]);
 
-        // 7. Average Advance Amount (Advance)
         Kpi::create([
             'name' => 'Average Advance Amount',
             'slug' => 'average-advance-amount',
@@ -86,7 +80,6 @@ class KpiSeeder extends Seeder
             'comparison_operator' => '<=',
         ]);
 
-        // 8. Average Loan Amount (Loan)
         Kpi::create([
             'name' => 'Average Loan Amount',
             'slug' => 'average-loan-amount',
@@ -97,7 +90,6 @@ class KpiSeeder extends Seeder
             'comparison_operator' => '<=',
         ]);
 
-        // 9. Job Post Application-to-Hire Ratio (JobPost)
         Kpi::create([
             'name' => 'Application-to-Hire Ratio',
             'slug' => 'application-to-hire-ratio',

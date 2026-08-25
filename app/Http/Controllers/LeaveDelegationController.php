@@ -14,15 +14,10 @@ class LeaveDelegationController extends Controller
 {
     use HandleTransactions;
 
-    /**
-     * Delegations where the current employee is the reliever.
-     */
     public function myDelegations(Business $business)
     {
         $employee = auth()->user()->activeEmployee();
 
-        // See OrganogramController::myTeam() for why this doesn't hard
-        // 403 on a missing employee record anymore.
         $delegations = ($employee && (int) $employee->business_id === (int) $business->id)
             ? LeaveDelegation::where('business_id', $business->id)
                 ->where('delegate_id', $employee->id)

@@ -6,15 +6,7 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Recreates a migration that ran against existing databases (recorded in
-     * the `migrations` table as batch 37) but whose file was never committed
-     * to the repo. Guarded so it stays a no-op where already applied.
-     *
-     * Replaces the original `carry_forward` column (created with no default,
-     * causing insert failures under strict SQL mode and never wired into the
-     * model/controllers) with `carryover_days` (NOT NULL, default 0.00).
-     */
+
     public function up(): void
     {
         if (!Schema::hasColumn('leave_entitlements', 'carryover_days')) {

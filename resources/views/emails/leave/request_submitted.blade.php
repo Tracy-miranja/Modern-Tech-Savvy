@@ -14,7 +14,6 @@
         $user        = $employee?->user;
         $department  = $employee?->department?->name ?? 'N/A';
 
-        // Remaining days for THIS employee + leave type (best-effort)
         $remainingDays = 'N/A';
         try {
             $entitlement = \App\Models\LeaveEntitlement::query()
@@ -32,7 +31,7 @@
         }
 
         $appliedAt = optional($leaveRequest->created_at)->format('d M Y H:i');
-    @endphp
+@endphp
 
     <ul>
         <li>
@@ -59,7 +58,7 @@
     @isset($showUrl)
         <p style="margin:24px 0;">
             <a href="{{ $showUrl }}"
-               style="display:inline-block;padding:10px 16px;background:#0d6efd;color:#fff;text-decoration:none;border-radius:6px;">
+               style="display:inline-block;padding:10px 16px;background:#f89616;color:#fff;text-decoration:none;border-radius:6px;">
                 View Request
             </a>
         </p>

@@ -26,7 +26,7 @@
                         </div>
                     </div>
                     <div class="card-body">
-                        <!-- Breadcrumb -->
+
                         <nav aria-label="breadcrumb">
                             <ol class="breadcrumb">
                                 <li class="breadcrumb-item">
@@ -37,18 +37,15 @@
                             </ol>
                         </nav>
 
-                        <!-- Search Bar -->
                         <div class="mb-3">
                             <input type="text" id="contactFilter" class="form-control"
                                 placeholder="Filter by name, email, or message...">
                         </div>
 
-                        <!-- Contacts Table -->
                         <div id="contactsTable">
                             <div class="text-muted"><i class="fa fa-spinner fa-spin"></i> Loading contacts...</div>
                         </div>
 
-                        <!-- Toast Notification -->
                         <div class="toast-container position-fixed bottom-0 end-0 p-3">
                             <div id="contactToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
                                 <div class="toast-header">

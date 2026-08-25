@@ -24,7 +24,7 @@ class Interview extends Model
         'scheduled_at',
         'status',
         'feedback',
-        'created_by', // Ensure this is fillable
+        'created_by',
     ];
 
     protected $casts = [

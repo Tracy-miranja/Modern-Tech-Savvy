@@ -10,7 +10,6 @@ return new class extends Migration {
         Schema::table('attendances', function (Blueprint $table) {
             $table->string('device_mac', 64)->nullable()->after('updated_at');
 
-            // where the punch happened
             $table->decimal('punch_latitude', 10, 7)->nullable()->after('device_mac');
             $table->decimal('punch_longitude', 10, 7)->nullable()->after('punch_latitude');
         });

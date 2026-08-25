@@ -5,10 +5,6 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-/**
- * Business-configurable task categories/labels (e.g. Bug, Feature, Design) -
- * same shape as Learning Management's course_categories.
- */
 return new class extends Migration
 {
     public function up(): void

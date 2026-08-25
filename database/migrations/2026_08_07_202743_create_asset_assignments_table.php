@@ -7,10 +7,6 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-/**
- * Check-in/check-out history for an asset - hasMany per asset (an asset
- * gets reassigned over time), one active row (returned_at null) at a time.
- */
 return new class extends Migration
 {
     public function up(): void

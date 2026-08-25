@@ -31,7 +31,7 @@
         $otH = (float) $r->total_ot_holiday;
         $otT = $otR + $otH;
         $grand = $reg + $otT;
-      @endphp
+@endphp
       <tr>
         <td>{{ $name }}</td>
         <td>{{ $hm($reg) }}</td>

@@ -6,18 +6,7 @@ use Illuminate\Database\Migrations\Migration;
 
 return new class extends Migration
 {
-    /**
-     * Replaces the old strict numeric `level` ladder (which couldn't
-     * express peers or non-linear structures, e.g. an ED who outranks or
-     * is a peer of the MD) with an explicit "this role reports to that
-     * role" edge. `level` is left in place (still useful as a rough
-     * display-order hint) but is no longer authoritative for manager
-     * resolution - see Employee::computeTemplateManagerId().
-     *
-     * spatie_role_name maps this organogram position to a real Spatie
-     * permission role, so holding the position grants the matching
-     * system permissions instead of the two systems being unrelated.
-     */
+
     public function up(): void
     {
         if (Schema::hasColumn('organogram_roles', 'reports_to_role_id')) {

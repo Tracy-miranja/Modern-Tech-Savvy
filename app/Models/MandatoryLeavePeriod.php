@@ -63,12 +63,6 @@ class MandatoryLeavePeriod extends Model
         return $this->hasMany(MandatoryLeavePeriodDeduction::class);
     }
 
-    /**
-     * Employees this period applies to, based on scope_type/scope_ids.
-     * No status filtering beyond business_id, matching how the rest of the
-     * leave module (e.g. the calendar's department filter) resolves
-     * affected employees.
-     */
     public function resolveAffectedEmployees(): Builder
     {
         $query = Employee::where('business_id', $this->business_id);

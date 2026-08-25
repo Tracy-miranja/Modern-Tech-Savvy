@@ -30,7 +30,7 @@ class DownloadController extends Controller
                 $this->payrollReport($request);
                 break;
             default:
-                // Handle other cases or return an error
+
                 break;
         }
     }
@@ -49,7 +49,6 @@ class DownloadController extends Controller
         }
         $employees = $business->employees;
 
-        // Define headers
         $headers = [
             "EMPLOYEE NAME",
             "ACCOUNT NUMBER",

@@ -32,7 +32,7 @@
         <label for="overtime_type">Overtime Type:</label>
         <select name="overtime_type" id="overtime_type" class="form-control" required>
             <option value="">Select Overtime Type</option>
-            @php $type = old('overtime_type', $overtime->overtime_type ?? '') @endphp
+            @php $type = old('overtime_type', $overtime->overtime_type ?? '')@endphp
             <option value="regular" {{ $type === 'regular' ? 'selected' : '' }}>Regular</option>
             <option value="holiday" {{ $type === 'holiday' ? 'selected' : '' }}>Holiday</option>
             <option value="manual"  {{ $type === 'manual'  ? 'selected' : '' }}>Manual</option>

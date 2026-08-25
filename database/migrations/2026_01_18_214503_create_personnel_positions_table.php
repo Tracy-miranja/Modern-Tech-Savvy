@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('personnel_positions', function (Blueprint $table) {
-            $table->id(); // BIGINT UNSIGNED PRIMARY KEY
+            $table->id();
             $table->string('name', 150);
             $table->text('description')->nullable();
             $table->boolean('is_active')->default(true);

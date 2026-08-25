@@ -16,19 +16,12 @@ use Illuminate\View\View;
 
 class NewPasswordController extends Controller
 {
-    /**
-     * Display the password reset view.
-     */
+
     public function create(Request $request): View
     {
         return view('auth.reset-password', ['request' => $request]);
     }
 
-    /**
-     * Handle an incoming new password request.
-     *
-     * @throws \Illuminate\Validation\ValidationException
-     */
     // public function store(Request $request): RedirectResponse
     public function store(Request $request): RedirectResponse|\Illuminate\Http\JsonResponse
 {
@@ -84,10 +77,6 @@ class NewPasswordController extends Controller
         ->withErrors(['email' => $this->getErrorMessage($status)]);
 }
 
-
-    /**
-     * Get a user-friendly error message based on the reset status.
-     */
     protected function getErrorMessage(string $status): string
     {
         return match ($status) {

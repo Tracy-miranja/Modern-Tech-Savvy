@@ -12,16 +12,13 @@ class VerifyBusiness
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $param = $request->route('business'); // may be string slug or Business model
+        $param = $request->route('business');
         $slug  = is_object($param) ? ($param->slug ?? null) : $param;
 
         if (!$slug) {
             $slug = session('active_business_slug');
         }
 
-        // Business::findBySlug() throws (not returns null) when missing -
-        // reuse it (also picks up its request-scoped memoization) instead
-        // of a second, separate uncached lookup for the same slug.
         try {
             $business = Business::findBySlug($slug);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {

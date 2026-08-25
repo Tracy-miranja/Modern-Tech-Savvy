@@ -4,11 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-/**
- * A business-configurable disciplinary stage (Verbal, Written, Final,
- * Suspension, Termination by default, but fully editable/extendable per
- * business) - see GUIDE plan Phase 3 and the create migration's docblock.
- */
 class DisciplinaryStageType extends Model
 {
     protected $fillable = [
@@ -48,11 +43,6 @@ class DisciplinaryStageType extends Model
         return $query->orderBy('sequence_order');
     }
 
-    /**
-     * The next stage in this business's configured order after this one,
-     * or null if this is already the last stage - the configurable
-     * replacement for Warning::suggestedNextStage()'s old hardcoded STAGES walk.
-     */
     public function nextStage(): ?self
     {
         return static::where('business_id', $this->business_id)

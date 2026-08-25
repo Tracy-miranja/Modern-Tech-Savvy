@@ -47,7 +47,7 @@
         $latVal = old('latitude', $location->latitude ?? '');
         $lngVal = old('longitude', $location->longitude ?? '');
         $radVal = old('radius_m', $location->radius_m ?? 150);
-    @endphp
+@endphp
 
     @if($enforceGeofence)
         <div class="border rounded p-3 mb-3">
@@ -63,7 +63,6 @@
                 </div>
             </div>
 
-            {{-- Search + Paste row --}}
             <div class="row g-2 mt-2">
                 <div class="col-md-8">
                     <label class="form-label">Search building/address</label>
@@ -94,7 +93,6 @@
                 </div>
             </div>
 
-            {{-- Map picker (optional; form still works if the map fails) --}}
             <div class="mt-3">
                 <div id="locationPickerMap" style="height: 300px; border-radius: .5rem;"></div>
                 <small class="text-muted d-block mt-2">

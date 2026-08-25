@@ -17,12 +17,10 @@ class EnsureCorrectRole
         $user = Auth::user();
         $activeRole = session('active_role');
 
-        // Check if user is authenticated
         if (!$user) {
             return response()->json(['message' => 'Unauthorized: No authenticated user'], 401);
         }
 
-        // Set default role if none exists
         if (!$activeRole) {
             if ($user->hasRole('business-admin')) {
                 $activeRole = 'business-admin';
@@ -37,7 +35,7 @@ class EnsureCorrectRole
             } elseif ($user->hasRole('business-employee')) {
                 $activeRole = 'business-employee';
             } else {
-                // Fallback to the first role the user has
+
                 $userRoles = $user->getRoleNames()->toArray();
                 $activeRole = !empty($userRoles) ? $userRoles[0] : null;
             }
@@ -51,41 +49,22 @@ class EnsureCorrectRole
             }
         }
 
-        // Validate active role
         if (!$activeRole || !is_string($activeRole)) {
             return app(RoleHomeRouteService::class)->forbiddenResponse($request, $user, 'Unauthorized: Invalid or missing role');
         }
 
-        // While a super-admin is impersonating a client business,
-        // active_role is set to the impersonated role (e.g. business-admin)
-        // which they don't personally hold - let them through anyway so
-        // they can operate exactly as that business's own admin would.
-        // Only applies during an active impersonation session (see
-        // ClientController::impersonateManagedBusiness()).
         $isImpersonating = session()->has('original_business_slug');
         $isSuperAdmin = $user->hasRole('super-admin');
 
-        // Mirrors RoleOrImpersonation's "super-admin operates the platform
-        // business" bypass - without this, switching active_role to
-        // something the super-admin doesn't personally hold (e.g.
-        // previewing the employee portal via Switch Account) would 403
-        // here before RoleOrImpersonation's own equivalent check is ever
-        // reached, even though the business in play is the platform
-        // business itself, not a client.
         $isOperatingOwnPlatformBusiness = $isSuperAdmin && session('active_business_slug') === config('business.main_slug');
 
         if (!$user->hasRole($activeRole) && !($isImpersonating && $isSuperAdmin) && !$isOperatingOwnPlatformBusiness) {
             return app(RoleHomeRouteService::class)->forbiddenResponse($request, $user, 'Unauthorized: User does not have the required role');
         }
 
-        // Restrict `restricted-hr`, `head-of-department`, `chief-of-staff`, and `business-hr` for specific conditions
         if (in_array($activeRole, ['restricted-hr', 'head-of-department', 'chief-of-staff', 'business-hr'])) {
             $restrictedRoutes = [
-                // 'business.payroll.index' alone only matches the "Run
-                // Payroll" page (str_contains substring match below) -
-                // every other payroll-family route name (advances, loans,
-                // payroll-settings sub-pages, pay grades) needs its own
-                // explicit entry or it silently stays reachable.
+
                 'restricted-hr' => [
                     'business.payroll.index',
                     'business.payroll.all',
@@ -100,7 +79,7 @@ class EnsureCorrectRole
                 ],
                 'head-of-department' => [
                     'business.index',
-                    // 'business.clients.index',
+
                     'business.locations.index',
                     'business.organization-setup',
                     'business.employees.index',
@@ -130,7 +109,7 @@ class EnsureCorrectRole
                 ],
                 'chief-of-staff' => [
                     'business.index',
-                    // 'business.clients.index',
+
                     'business.locations.index',
                     'business.organization-setup',
                     'business.employees.index',
@@ -170,14 +149,12 @@ class EnsureCorrectRole
                 }
             }
 
-            // Check permissions
             $requiredPermission = $this->getRequiredPermissionForRoute($currentRoute);
             if ($requiredPermission && !$user->hasPermissionTo($requiredPermission, 'web')) {
                 return app(RoleHomeRouteService::class)->forbiddenResponse($request, $user, 'Unauthorized: Missing required permission');
             }
         }
 
-        // Verify business account scoping
         if ($user->business_id && str_contains($request->path(), 'business')) {
             $businessId = $request->route('business_id') ?? $request->input('business_id');
             if ($businessId && $businessId != $user->business_id) {

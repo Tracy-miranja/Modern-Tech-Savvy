@@ -4,7 +4,7 @@
     <div class="card-body">
         <div class="d-flex align-items-center">
             <div class="icon me-3">
-                <i class="bi bi-briefcase text-primary" style="font-size: 24px;"></i> <!-- Replace with an appropriate icon -->
+                <i class="bi bi-briefcase text-primary" style="font-size: 24px;"></i>
             </div>
             <div>
                 <h5 class="card-title mb-0">{{ $department->name }}</h5>

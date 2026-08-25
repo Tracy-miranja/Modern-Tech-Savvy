@@ -8,12 +8,6 @@ use App\Http\RequestResponse;
 use App\Traits\HandleTransactions;
 use Illuminate\Http\Request;
 
-/**
- * Manual client payment ledger - see the client_payments migration's
- * docblock for the "why manual, not a gateway" rationale. Recording a
- * payment extends business_modules.subscription_ends_at for the module(s)
- * it covers, which Business::hasModule() now actually checks.
- */
 class ClientPaymentController extends Controller
 {
     use HandleTransactions;
@@ -68,9 +62,6 @@ class ClientPaymentController extends Controller
                 'recorded_by_user_id' => auth()->id(),
             ]);
 
-            // A specific module if chosen, otherwise every module this
-            // client currently has attached - a payment usually covers the
-            // whole subscription bundle in one go, not module-by-module.
             $moduleIds = !empty($validated['module_id'])
                 ? [$validated['module_id']]
                 : $clientBusiness->modules()->pluck('modules.id')->all();

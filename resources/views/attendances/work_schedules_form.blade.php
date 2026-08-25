@@ -44,8 +44,8 @@
                     5 => 'Friday',
                     6 => 'Saturday',
                 ];
-                $selectedDays = isset($schedule) ? $schedule->working_days : [1, 2, 3, 4, 5]; // Default Mon-Fri
-            @endphp
+                $selectedDays = isset($schedule) ? $schedule->working_days : [1, 2, 3, 4, 5]; 
+@endphp
             @foreach($days as $value => $label)
                 <div class="col-md-6 col-lg-4 mb-2">
                     <div class="form-check">

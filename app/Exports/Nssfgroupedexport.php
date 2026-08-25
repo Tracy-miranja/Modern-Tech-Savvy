@@ -16,14 +16,10 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Font;
 
-/**
- * NSSF Grouped Export — groups employees by department, location, or job_category
- * Inserts a bold group header row before each group and a subtotal row after.
- */
 class NssfGroupedExport implements FromCollection, WithHeadings, WithStyles, WithColumnWidths, WithEvents
 {
     protected Payroll $payroll;
-    protected string  $groupBy; // 'department' | 'location' | 'job_category'
+    protected string  $groupBy;
     protected array   $groupRows = []; // tracks row indices for group headers & subtotals
 
     public function __construct(Payroll $payroll, string $groupBy = 'department')
@@ -44,7 +40,6 @@ class NssfGroupedExport implements FromCollection, WithHeadings, WithStyles, Wit
             ])
             ->get();
 
-        // Group employees
         $grouped = $employeePayrolls->groupBy(function ($ep) {
             $employee = $ep->employee;
             return match ($this->groupBy) {
@@ -57,10 +52,10 @@ class NssfGroupedExport implements FromCollection, WithHeadings, WithStyles, Wit
 
         $rows        = collect();
         $grandTotal  = 0;
-        $rowIndex    = 2; // Row 1 = headings
+        $rowIndex    = 2;
 
         foreach ($grouped as $groupName => $eps) {
-            // Group header row
+
             $this->groupRows['headers'][] = $rowIndex;
             $rows->push([
                 'no'          => '',
@@ -115,7 +110,6 @@ class NssfGroupedExport implements FromCollection, WithHeadings, WithStyles, Wit
                 $rowIndex++;
             }
 
-            // Subtotal row
             $this->groupRows['subtotals'][] = $rowIndex;
             $rows->push([
                 'no'          => '',
@@ -133,7 +127,6 @@ class NssfGroupedExport implements FromCollection, WithHeadings, WithStyles, Wit
             $rowIndex++;
         }
 
-        // Grand total
         $this->groupRows['grand_total'] = $rowIndex;
         $rows->push([
             'no'          => '',
@@ -186,7 +179,6 @@ class NssfGroupedExport implements FromCollection, WithHeadings, WithStyles, Wit
             AfterSheet::class => function (AfterSheet $event) {
                 $sheet = $event->sheet->getDelegate();
 
-                // Style group headers
                 foreach ($this->groupRows['headers'] ?? [] as $row) {
                     $sheet->getStyle("A{$row}:K{$row}")->applyFromArray([
                         'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 11],
@@ -195,7 +187,6 @@ class NssfGroupedExport implements FromCollection, WithHeadings, WithStyles, Wit
                     $sheet->mergeCells("B{$row}:K{$row}");
                 }
 
-                // Style subtotals
                 foreach ($this->groupRows['subtotals'] ?? [] as $row) {
                     $sheet->getStyle("A{$row}:K{$row}")->applyFromArray([
                         'font' => ['bold' => true, 'italic' => true],
@@ -203,7 +194,6 @@ class NssfGroupedExport implements FromCollection, WithHeadings, WithStyles, Wit
                     ]);
                 }
 
-                // Style grand total
                 if (isset($this->groupRows['grand_total'])) {
                     $row = $this->groupRows['grand_total'];
                     $sheet->getStyle("A{$row}:K{$row}")->applyFromArray([

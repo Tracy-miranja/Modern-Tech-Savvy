@@ -27,7 +27,7 @@
     </div>
 
     @push('scripts')
-    {{-- @include('modals.payroll-formula') --}}
+
     <script src="{{ asset('js/main/interviews.js') }}" type="module"></script>
     <script>
     $(document).ready(() => {

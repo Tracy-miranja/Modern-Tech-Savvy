@@ -68,9 +68,6 @@ class EmployeeController extends Controller
         return view('employees.index', compact('employees', 'departments', 'locations', 'jobCategories', 'business', 'page'));
     }
 
-    /**
-     * Show edit form for employee payment details
-     */
     public function editPaymentDetails(Request $request, $businessSlug, $employeeId)
     {
         try {
@@ -101,9 +98,6 @@ class EmployeeController extends Controller
         }
     }
 
-    /**
-     * Store or update employee payment details (including hourly rate)
-     */
     public function storePaymentDetails(Request $request, $businessSlug, $employeeId)
     {
         $validated = $request->validate([
@@ -123,7 +117,6 @@ class EmployeeController extends Controller
         try {
             DB::beginTransaction();
 
-    // DataTables pagination params
     $start  = $request->input('start', 0);
     $length = $request->input('length', 10);
 
@@ -152,7 +145,6 @@ class EmployeeController extends Controller
 
             $employee = Employee::where('business_id', $business->id)->findOrFail($employeeId);
 
-            // Prepare payment data
             $paymentData = [
                 'payment_type' => $validated['payment_type'],
                 'currency' => $validated['currency'],
@@ -165,10 +157,9 @@ class EmployeeController extends Controller
                 'bank_branch_code' => $validated['bank_branch_code'] ?? null,
             ];
 
-            // Set salary or hourly rate based on payment type
             if ($validated['payment_type'] === 'hourly') {
                 $paymentData['hourly_rate'] = $validated['hourly_rate'];
-                $paymentData['basic_salary'] = 0; // Set salary to 0 for hourly employees
+                $paymentData['basic_salary'] = 0;
 
                 Log::info('Storing hourly payment details', [
                     'employee_id' => $employeeId,
@@ -176,7 +167,7 @@ class EmployeeController extends Controller
                 ]);
             } else {
                 $paymentData['basic_salary'] = $validated['basic_salary'];
-                $paymentData['hourly_rate'] = 0; // Set hourly rate to 0 for salaried employees
+                $paymentData['hourly_rate'] = 0;
 
                 Log::info('Storing salary payment details', [
                     'employee_id' => $employeeId,
@@ -184,7 +175,6 @@ class EmployeeController extends Controller
                 ]);
             }
 
-            // Check for duplicate account number (excluding current employee)
             $duplicateAccount = EmployeePaymentDetail::where('account_number', $validated['account_number'])
                 ->where('employee_id', '!=', $employeeId)
                 ->first();
@@ -193,7 +183,6 @@ class EmployeeController extends Controller
                 return RequestResponse::badRequest('Account number already exists for another employee.');
             }
 
-            // Update or create payment details
             $employee->paymentDetails()->updateOrCreate(
                 ['employee_id' => $employee->id],
                 $paymentData
@@ -233,10 +222,9 @@ class EmployeeController extends Controller
                 'department',
                 'location',
                 'employmentDetails.jobCategory',
-                'paymentDetails'  // already correct
+                'paymentDetails'
             ]);
 
-        // Your filters...
         if ($search = $request->input('search.value')) {
             $query->where(function ($q) use ($search) {
                 $q->whereHas('user', fn($q) => $q->where('name', 'like', "%{$search}%"))
@@ -284,8 +272,8 @@ class EmployeeController extends Controller
                 'department'     => $employee->department?->name ?? 'N/A',
                 'job_category'   => optional($employee->employmentDetails?->jobCategory)->name ?? 'N/A',
                 'location'       => $employee->location?->name ?? ($employee->business?->company_name ?? 'Main'),
-                'monthly_salary' => $monthly,   // for Monthly Salary column
-                'hourly_rate'    => $hourly,    // for Hourly Rate column
+                'monthly_salary' => $monthly,
+                'hourly_rate'    => $hourly,
                 'actions'        => '<div class="btn-group">'
                     . '<button class="btn btn-sm btn-outline-primary" onclick="viewEmployee(' . $employee->id . ')"><i class="fa fa-eye"></i> View</button>'
                     . '<button class="btn btn-sm btn-outline-warning" onclick="editEmployee(' . $employee->id . ')"><i class="fa fa-edit"></i> Edit</button>'
@@ -316,7 +304,6 @@ class EmployeeController extends Controller
                 'user'
             ]);
 
-            // Filter: Locations
             $locations = $request->input('locations');
             if ($locations) {
                 $locations = is_string($locations) ? json_decode($locations, true) : $locations;
@@ -327,7 +314,6 @@ class EmployeeController extends Controller
                 }
             }
 
-            // Filter: Departments
             $departments = $request->input('departments');
             if ($departments) {
                 $departments = is_string($departments) ? json_decode($departments, true) : $departments;
@@ -338,7 +324,6 @@ class EmployeeController extends Controller
                 }
             }
 
-            // Filter: Job Categories
             $jobCategories = $request->input('job_categories');
             if ($jobCategories) {
                 $jobCategories = is_string($jobCategories) ? json_decode($jobCategories, true) : $jobCategories;
@@ -349,7 +334,6 @@ class EmployeeController extends Controller
                 }
             }
 
-            // Filter: Employment Terms
             $employmentTerms = $request->input('employment_terms');
             if ($employmentTerms) {
                 $employmentTerms = is_string($employmentTerms) ? json_decode($employmentTerms, true) : $employmentTerms;
@@ -375,7 +359,6 @@ class EmployeeController extends Controller
         }
     }
 
-
     public function store(Request $request)
     {
         $business = Business::findBySlug(session('active_business_slug'));
@@ -383,21 +366,13 @@ class EmployeeController extends Controller
             return RequestResponse::badRequest('Business not found.');
         }
 
-        // Identity fields (employee_code/national_id/tax_no/nhif_no/nssf_no/
-        // passport_no) are unique per business, not across the whole
-        // system - the same real person can legitimately be an employee at
-        // more than one business under the same account (see the email
-        // reuse handling below), so their national ID/tax PIN must be
-        // allowed to repeat across businesses, just not within one.
         $uniquePerBusiness = fn (string $column) => \Illuminate\Validation\Rule::unique('employees', $column)
             ->where(fn ($q) => $q->where('business_id', $business->id));
 
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
-            // No unique:users,email here - an email already belonging to a
-            // User is handled below (reuse the existing account for a
-            // second business) rather than rejected outright.
+
             'email' => 'required|email',
             'gender' => 'required|string|max:20',
             'employee_code' => ['required', 'string', 'max:50', $uniquePerBusiness('employee_code')],
@@ -406,7 +381,7 @@ class EmployeeController extends Controller
             'job_category_id' => 'nullable|exists:job_categories,id',
             'organogram_role_id' => 'nullable|exists:organogram_roles,id',
             'location_id' => 'nullable|exists:locations,id',
-            // 'basic_salary' => 'required|numeric|min:0',
+
             'payment_type' => 'required|in:salary,hourly',
             'basic_salary' => 'required_if:payment_type,salary|nullable|numeric|min:0',
             'hourly_rate' => 'required_if:payment_type,hourly|nullable|numeric|min:0',
@@ -455,12 +430,6 @@ class EmployeeController extends Controller
             'pwd_exemption_limit'       => 'nullable|numeric|min:0|max:150000',
         ]);
 
-        // An email already belonging to a User is reused rather than
-        // rejected - the same real person can legitimately be an employee
-        // at more than one business under one account (mirrors
-        // PlatformAdminController::store()'s super-admin-grant pattern).
-        // Guard against the one thing that must still be blocked: being
-        // added as an employee TWICE at the SAME business.
         $existingUser = User::where('email', $validated['email'])->first();
         if ($existingUser) {
             $alreadyEmployeeHere = Employee::where('user_id', $existingUser->id)
@@ -487,19 +456,10 @@ class EmployeeController extends Controller
                 $user->sendPasswordResetNotification($token);
                 $user->notify(new WelcomeEmployeeNotification($user, $token));
             } else {
-                // Existing account - no password reset, just a plain
-                // notice that they've been added here too.
+
                 $user->notify(new WelcomeEmployeeNotification($user, null, $business->company_name));
             }
 
-            // 'business-employee' is a global role (not per-business) -
-            // most roles in this table have a null business_id, but a
-            // handful of legacy rows (from before multi-tenancy) were
-            // pinned to a single business_id. Filtering by business_id
-            // here meant every OTHER business's new employees silently
-            // got no role at all, since no matching row existed for them.
-            // firstOrCreate is a self-healing fallback in case the role
-            // row is ever missing entirely.
             $role = Role::firstOrCreate(['name' => 'business-employee', 'guard_name' => 'web']);
             $user->assignRole($role);
 
@@ -549,18 +509,6 @@ class EmployeeController extends Controller
                 'second_probation_end_date' => $request->second_probation_end_date,
             ]);
 
-            // $employee->paymentDetails()->create([
-            //     'basic_salary' => $validated['basic_salary'],
-            //     'currency' => $validated['currency'],
-            //     'payment_mode' => $validated['payment_mode'],
-            //     'account_name' => $validated['account_name'],
-            //     'account_number' => $validated['account_number'],
-            //     'bank_name' => $validated['bank_name'],
-            //     'bank_code' => $validated['bank_code'] ?? null,
-            //     'bank_branch' => $validated['bank_branch'] ?? null,
-            //     'bank_branch_code' => $validated['bank_branch_code'] ?? null,
-            // ]);
-
             $paymentDetailsData = [
                 'payment_type' => $validated['payment_type'],
                 'currency' => $validated['currency'],
@@ -580,7 +528,7 @@ class EmployeeController extends Controller
                 $paymentDetailsData['basic_salary'] = $validated['basic_salary'];
                 $paymentDetailsData['hourly_rate'] = 0;
             }
-            // ── WHT fields ──────────────────────────────────────────────
+
             $isConsultant = in_array($validated['employment_term'], ['consultant', 'locum']);
             $paymentDetailsData['is_consultant']               = $isConsultant;
             $paymentDetailsData['wht_payment_type']            = $isConsultant ? ($request->wht_payment_type ?? 'professional_fees') : null;
@@ -592,7 +540,7 @@ class EmployeeController extends Controller
             $paymentDetailsData['consultant_nssf_covered']     = $isConsultant && $request->has('consultant_nssf_covered');
             $paymentDetailsData['consultant_nssf_basis']       = $isConsultant ? $request->consultant_nssf_basis : null;
             $paymentDetailsData['consultant_nssf_fixed_amount'] = $isConsultant ? $request->consultant_nssf_fixed_amount : null;
-            // ────────────────────────────────────────────────────────────
+
             $employee->paymentDetails()->create($paymentDetailsData);
             $employee->payrollDetail()->updateOrCreate(
                 ['employee_id' => $employee->id],
@@ -610,7 +558,6 @@ class EmployeeController extends Controller
                 Log::info('Profile picture uploaded for new employee ID: ' . $employee->id);
             }
 
-            // Handle document upload (optional)
             $documents = $request->file('documents');
             if ($documents && is_array($documents)) {
                 $documentTypes = $request->input('document_types', []);
@@ -630,7 +577,7 @@ class EmployeeController extends Controller
                     Log::info('Documents uploaded successfully for employee ID: ' . $employee->id);
                 } catch (\Exception $e) {
                     Log::error('Failed to upload documents: ' . $e->getMessage());
-                    // Notify via toastr but continue with employee creation
+
                     return RequestResponse::created('Employee created successfully, but some documents failed to upload.', $employee->id)
                         ->withHeaders(['X-Toastr-Message' => 'Some documents failed to upload. Please try again.']);
                 }
@@ -639,7 +586,6 @@ class EmployeeController extends Controller
             DB::commit();
             Log::debug('Employee created successfully.', ['employee_id' => $employee->id]);
 
-            // Populate this employee's default reporting line from the org-structure template.
             $employee->fresh()->syncManagerFromTemplate();
 
             return RequestResponse::created('Employee created successfully.', $employee->id);
@@ -676,13 +622,7 @@ class EmployeeController extends Controller
 
     public function update(Request $request, $id)
     {
-        // Same business_id/employee_code/national_id/tax_no/nhif_no/nssf_no/
-        // passport_no scoping as store() - two DIFFERENT businesses can
-        // legitimately reuse the same employee_code/national_id, so
-        // uniqueness must only ever be checked within the ONE business this
-        // employee actually belongs to, never across all of them. ignore($id)
-        // excludes the row being edited itself, same as the old inline
-        // "unique:employees,column,{id},id" rules did.
+
         $employee = Employee::findOrFail($id);
         $uniquePerBusiness = fn (string $column) => \Illuminate\Validation\Rule::unique('employees', $column)
             ->where(fn ($q) => $q->where('business_id', $employee->business_id))
@@ -703,7 +643,7 @@ class EmployeeController extends Controller
             'payment_type' => 'required|in:salary,hourly',
             'basic_salary' => 'required_if:payment_type,salary|nullable|numeric|min:0',
             'hourly_rate' => 'required_if:payment_type,hourly|nullable|numeric|min:0',
-            // 'basic_salary' => 'required|numeric|min:0',
+
             'currency' => 'required|string|size:3',
             'payment_mode' => 'required|string|in:bank,cash,cheque,mpesa',
             'account_name' => 'required|string|max:255',
@@ -830,7 +770,7 @@ class EmployeeController extends Controller
                 $paymentDetailsData['basic_salary'] = $validated['basic_salary'];
                 $paymentDetailsData['hourly_rate'] = 0;
             }
-            // ── WHT fields — MUST be set before updateOrCreate ──────────
+
             $isConsultant = in_array($validated['employment_term'], ['consultant', 'locum']);
             $paymentDetailsData['is_consultant']                = $isConsultant;
             $paymentDetailsData['wht_payment_type']             = $isConsultant ? ($request->wht_payment_type ?? 'professional_fees') : null;
@@ -843,7 +783,6 @@ class EmployeeController extends Controller
             $paymentDetailsData['consultant_nssf_basis']        = $isConsultant ? $request->consultant_nssf_basis : null;
             $paymentDetailsData['consultant_nssf_fixed_amount'] = $isConsultant ? $request->consultant_nssf_fixed_amount : null;
 
-
             $employee->paymentDetails()->updateOrCreate(
                 ['employee_id' => $employee->id],
                 $paymentDetailsData
@@ -852,7 +791,7 @@ class EmployeeController extends Controller
             $employee->payrollDetail()->updateOrCreate(
                 ['employee_id' => $employee->id],
                 [
-                    // 'business_id'              => $business->id,
+
                     'has_disability_exemption' => $validated['has_disability_exemption'] ?? false,
                     'pwd_certificate_no'       => $validated['pwd_certificate_no'] ?? null,
                     'pwd_ncpwd_membership_no'  => $validated['pwd_ncpwd_membership_no'] ?? null,
@@ -866,7 +805,6 @@ class EmployeeController extends Controller
                 Log::info('Profile picture updated for employee ID: ' . $id);
             }
 
-            // Handle document upload (optional)
             $documents = $request->file('documents');
             if ($documents && is_array($documents)) {
                 $documentTypes = $request->input('document_types', []);
@@ -886,7 +824,7 @@ class EmployeeController extends Controller
                     Log::info('Documents uploaded successfully for employee ID: ' . $id);
                 } catch (\Exception $e) {
                     Log::error('Failed to upload documents: ' . $e->getMessage());
-                    // Notify via toastr but continue with update
+
                     return RequestResponse::ok('Employee updated successfully, but some documents failed to upload.')
                         ->withHeaders(['X-Toastr-Message' => 'Some documents failed to upload. Please try again.']);
                 }
@@ -895,7 +833,6 @@ class EmployeeController extends Controller
             DB::commit();
             Log::info('Employee update transaction committed.', ['employee_id' => $id]);
 
-            // Re-sync this employee's default reporting line (no-op if manually overridden).
             $employee->fresh()->syncManagerFromTemplate();
 
             return RequestResponse::ok('Employee updated successfully.');
@@ -929,15 +866,6 @@ class EmployeeController extends Controller
         }
     }
 
-    /**
-     * Logs the caller in AS this employee's own account (a real Auth
-     * session swap, not just a business-context switch like
-     * ClientController::impersonateManagedBusiness()) - used to see
-     * exactly what the employee portal looks like for them. Restricted to
-     * admin/HR roles, and only ever "downward" onto a plain
-     * business-employee - never onto another admin/HR/HOD account, which
-     * would otherwise let one admin quietly take over another's session.
-     */
     public function loginAsEmployee(Request $request, $id)
     {
         $adminUser = $request->user();
@@ -993,10 +921,6 @@ class EmployeeController extends Controller
         ]);
     }
 
-    /**
-     * Reverses loginAsEmployee() - restores the original admin's own Auth
-     * session and business context.
-     */
     public function stopImpersonatingEmployee(Request $request)
     {
         $originalUserId = session('impersonating_original_user_id');
@@ -1032,12 +956,6 @@ class EmployeeController extends Controller
         ]);
     }
 
-    /**
-     * Re-sends the same account-setup email issued at creation time
-     * (store()) - a fresh Password::createToken() each time, since the
-     * original link expires and there's otherwise no way to re-issue it
-     * once the new hire says they never got it / let it lapse.
-     */
     public function sendWelcomeEmail(Request $request, $id)
     {
         try {
@@ -1236,7 +1154,6 @@ class EmployeeController extends Controller
                     'document_type' => $documentTypes[$index],
                 ]);
 
-                // Store the file using Spatie Media Library
                 $document->addMedia($file)->toMediaCollection('employeeDocuments');
             }
 
@@ -1255,7 +1172,6 @@ class EmployeeController extends Controller
         try {
             $document = EmployeeDocument::where('employee_id', $employeeId)->findOrFail($documentId);
 
-            // Delete associated media
             $document->clearMediaCollection('employeeDocuments');
             $document->delete();
 
@@ -1314,15 +1230,12 @@ class EmployeeController extends Controller
         $errors = [];
         $successful = 0;
 
-        // Same per-business scoping as store()/update() - employee_code/
-        // national_id/tax_no/nhif_no/nssf_no/passport_no only need to be
-        // unique WITHIN this business, never across all of them.
         $uniquePerBusiness = fn (string $column) => \Illuminate\Validation\Rule::unique('employees', $column)
             ->where(fn ($q) => $q->where('business_id', $business->id));
 
         $departments = $business->departments()->pluck('id', 'name')->toArray();
         $locations = $business->locations()->pluck('id', 'name')->toArray();
-        $locations[$business->company_name] = null; // Add main business as a location (nullable ID)
+        $locations[$business->company_name] = null;
         $jobCategories = $business->job_categories()->pluck('id', 'name')->toArray();
 
         try {
@@ -1355,9 +1268,7 @@ class EmployeeController extends Controller
                     $validator = Validator::make($row, [
                         'first_name' => 'required|string|max:255',
                         'last_name' => 'required|string|max:255',
-                        // No unique:users,email - an email already belonging
-                        // to a User is reused (new Employee row at this
-                        // business) rather than rejected, same as store().
+
                         'email' => 'required|email|max:255',
                         'phone' => 'required|string|max:20',
                         'gender' => 'required|string|max:20',
@@ -1422,10 +1333,6 @@ class EmployeeController extends Controller
                         continue;
                     }
 
-                    // Same existing-user reuse as store(): an email already
-                    // belonging to a User is added as an employee at THIS
-                    // business rather than rejected, unless they're already
-                    // an employee here too.
                     $existingUser = User::where('email', $row['email'])->first();
                     if ($existingUser && Employee::where('user_id', $existingUser->id)->where('business_id', $business->id)->exists()) {
                         $errors[] = "Row " . ($index + 2) . ": {$row['email']} already belongs to an employee at this business.";
@@ -1448,9 +1355,6 @@ class EmployeeController extends Controller
                         $user->notify(new WelcomeEmployeeNotification($user, null, $business->company_name));
                     }
 
-                    // See EmployeeController::store() for why this isn't
-                    // filtered by business_id - 'business-employee' is a
-                    // global role, not per-business.
                     $role = Role::firstOrCreate(['name' => 'business-employee', 'guard_name' => 'web']);
                     $user->assignRole($role);
 
@@ -1505,7 +1409,7 @@ class EmployeeController extends Controller
                         'bank_branch_code' => $row['bank_branch_code'] ?? null,
                     ]);
 
-                    $successful++; // Ensure this is incremented after all creations
+                    $successful++;
                     Log::info('Employee imported successfully.', ['row' => $index + 2, 'employee_id' => $employee->id]);
                 } catch (\Exception $e) {
                     $errors[] = "Row " . ($index + 2) . ": " . $e->getMessage();
@@ -1574,7 +1478,7 @@ class EmployeeController extends Controller
 
         $departments = $business->departments()->pluck('name')->toArray();
         $locations = $business->locations()->pluck('name')->toArray();
-        $locations[] = $business->company_name; // Add main business as a location
+        $locations[] = $business->company_name;
         $jobCategories = $business->job_categories()->pluck('name')->toArray();
 
         $headers = [
@@ -1657,14 +1561,14 @@ class EmployeeController extends Controller
                 'P.O. Box 456, Nairobi',
                 '+254723456789',
                 'A+',
-                '0', // False
+                '0',
                 'Resident',
                 'Primary Employee',
                 '2023-01-01',
                 'permanent',
-                '', // Nullable
-                '', // Nullable
-                '', // Nullable
+                '',
+                '',
+                '',
                 'Manage HR operations',
             ]
         ];
@@ -1700,7 +1604,6 @@ class EmployeeController extends Controller
                     AfterSheet::class => function (AfterSheet $event) {
                         $sheet = $event->sheet->getDelegate();
 
-                        // Style headers: bold and background color
                         $sheet->getStyle('A1:AR1')->applyFromArray([
                             'font' => ['bold' => true],
                             'fill' => [
@@ -1709,16 +1612,14 @@ class EmployeeController extends Controller
                             ],
                         ]);
 
-                        // Set column widths for readability
                         foreach (range('A', 'AR') as $col) {
                             $sheet->getColumnDimension($col)->setWidth(15);
                         }
-                        $sheet->getColumnDimension('C')->setWidth(25); // Email
-                        $sheet->getColumnDimension('M')->setWidth(20); // Account Name
-                        $sheet->getColumnDimension('V')->setWidth(25); // Permanent Address
-                        $sheet->getColumnDimension('AR')->setWidth(25); // Job Description
+                        $sheet->getColumnDimension('C')->setWidth(25);
+                        $sheet->getColumnDimension('M')->setWidth(20);
+                        $sheet->getColumnDimension('V')->setWidth(25);
+                        $sheet->getColumnDimension('AR')->setWidth(25);
 
-                        // Define helper function to apply validation to a range
                         $applyValidation = function ($range, $options) use ($sheet) {
                             $validation = $sheet->getDataValidation($range);
                             $validation->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST);
@@ -1734,7 +1635,6 @@ class EmployeeController extends Controller
                             $validation->setFormula1($options['formula']);
                         };
 
-                        // Apply validations to ranges (rows 2 to 1000)
                         $applyValidation('E2:E1000', [
                             'promptTitle' => 'Gender',
                             'prompt' => 'Select gender',
@@ -1822,15 +1722,15 @@ class EmployeeController extends Controller
             public function rules(): array
             {
                 return [
-                    'E' => 'required|in:male,female', // Column E (gender)
-                    'G' => 'nullable|in:' . implode(',', $this->departments), // Column G (department)
-                    'H' => 'nullable|in:' . implode(',', $this->jobCategories), // Column H (job_category)
-                    'I' => 'nullable|in:' . implode(',', $this->locations), // Column I (location)
-                    'L' => 'required|in:bank,cash,cheque,mpesa', // Column L (payment_mode)
-                    'V' => 'required|in:single,married,divorced,widowed', // Column V (marital_status)
-                    'AE' => 'nullable|in:0,1', // Column AE (is_exempt_from_payroll)
-                    'AG' => 'nullable|in:Primary Employee,Secondary Employee', // Column AG (kra_employee_status)
-                    'AI' => 'required|in:permanent,contract,temporary,internship', // Column AI (employment_term)
+                    'E' => 'required|in:male,female',
+                    'G' => 'nullable|in:' . implode(',', $this->departments),
+                    'H' => 'nullable|in:' . implode(',', $this->jobCategories),
+                    'I' => 'nullable|in:' . implode(',', $this->locations),
+                    'L' => 'required|in:bank,cash,cheque,mpesa',
+                    'V' => 'required|in:single,married,divorced,widowed',
+                    'AE' => 'nullable|in:0,1',
+                    'AG' => 'nullable|in:Primary Employee,Secondary Employee',
+                    'AI' => 'required|in:permanent,contract,temporary,internship',
                 ];
             }
         }, 'employees_template.xlsx');
@@ -1844,11 +1744,9 @@ class EmployeeController extends Controller
                 return RequestResponse::badRequest('Business not found.');
             }
 
-            // Eager-load all necessary relationships
             $query = Employee::where('business_id', $business->id)
                 ->with(['user', 'department', 'location', 'paymentDetails', 'employmentDetails.jobCategory']);
 
-            // Apply filters
             if ($search = $request->input('search')) {
                 $query->where(function ($q) use ($search) {
                     $q->whereHas('user', fn($q) => $q->where('name', 'like', "%{$search}%"))
@@ -1873,7 +1771,6 @@ class EmployeeController extends Controller
                 return RequestResponse::badRequest('No employees found with the applied filters.');
             }
 
-            // Define headers for all fields from validation rules
             $headers = [
                 'Name',
                 'Employee Code',
@@ -1918,7 +1815,6 @@ class EmployeeController extends Controller
                 'Is Exempt from Payroll',
             ];
 
-            // Map employee data to include all fields
             $data = $employees->map(function ($employee) {
                 return [
                     $employee->user->name ?? 'N/A',
@@ -2016,125 +1912,6 @@ class EmployeeController extends Controller
         }
     }
 
-    // public function export(Request $request)
-    // {
-    //     try {
-    //         $business = Business::findBySlug(session('active_business_slug'));
-    //         if (!$business) {
-    //             return RequestResponse::badRequest('Business not found.');
-    //         }
-
-    //         $query = Employee::where('business_id', $business->id)
-    //             ->with(['user', 'department', 'location', 'paymentDetails', 'employmentDetails.jobCategory']);
-
-    //         if ($search = $request->input('search')) {
-    //             $query->where(function ($q) use ($search) {
-    //                 $q->whereHas('user', fn($q) => $q->where('name', 'like', "%{$search}%"))
-    //                     ->orWhere('employee_code', 'like', "%{$search}%");
-    //             });
-    //         }
-    //         if ($department = $request->input('department')) {
-    //             $query->where('department_id', $department);
-    //         }
-    //         if ($location = $request->input('location')) {
-    //             $query->where('location_id', $location);
-    //         }
-    //         if ($jobCategory = $request->input('job_category')) {
-    //             $query->whereHas('employmentDetails', function ($q) use ($jobCategory) {
-    //                 $q->where('job_category_id', $jobCategory);
-    //             });
-    //         }
-
-    //         $employees = $query->get();
-
-    //         if ($employees->isEmpty()) {
-    //             return RequestResponse::badRequest('No employees found with the applied filters.');
-    //         }
-
-    //         $headers = [
-    //             'Name',
-    //             'Employee Code',
-    //             'Email',
-    //             'Phone',
-    //             'Gender',
-    //             'National ID',
-    //             'Date of Birth',
-    //             'Marital Status',
-    //             'Department',
-    //             'Job Category',
-    //             'Location',
-    //             'Basic Salary',
-    //             'Currency',
-    //             'Payment Mode',
-    //         ];
-
-    //         $data = $employees->map(function ($employee) {
-    //             return [
-    //                 $employee->user->name ?? 'N/A',
-    //                 $employee->employee_code ?? 'N/A',
-    //                 $employee->user->email ?? 'N/A',
-    //                 $employee->user->phone ?? 'N/A',
-    //                 $employee->gender ?? 'N/A',
-    //                 $employee->national_id ?? 'N/A',
-    //                 $employee->date_of_birth ?? 'N/A',
-    //                 $employee->marital_status ?? 'N/A',
-    //                 $employee->department->name ?? 'N/A',
-    //                 optional($employee->employmentDetails)->jobCategory->name ?? 'N/A',
-    //                 $employee->location ? $employee->location->name : $employee->business->company_name,
-    //                 number_format((float) (optional($employee->paymentDetails)->basic_salary ?? 0), 2),
-    //                 optional($employee->paymentDetails)->currency ?? 'N/A',
-    //                 optional($employee->paymentDetails)->payment_mode ?? 'N/A',
-    //             ];
-    //         })->toArray();
-
-    //         return Excel::download(new class($headers, $data) implements
-    //             \Maatwebsite\Excel\Concerns\FromArray,
-    //             \Maatwebsite\Excel\Concerns\WithHeadings,
-    //             \Maatwebsite\Excel\Concerns\WithEvents
-    //         {
-    //             private $headers;
-    //             private $data;
-
-    //             public function __construct(array $headers, array $data)
-    //             {
-    //                 $this->headers = $headers;
-    //                 $this->data = $data;
-    //             }
-
-    //             public function array(): array
-    //             {
-    //                 return $this->data; // Only return data, not headers
-    //             }
-
-    //             public function headings(): array
-    //             {
-    //                 return $this->headers;
-    //             }
-
-    //             public function registerEvents(): array
-    //             {
-    //                 return [
-    //                     AfterSheet::class => function (AfterSheet $event) {
-    //                         $sheet = $event->sheet->getDelegate();
-    //                         $sheet->getStyle('A1:N1')->applyFromArray([
-    //                             'font' => ['bold' => true],
-    //                             'fill' => [
-    //                                 'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
-    //                                 'startColor' => ['argb' => 'FFCCCCCC'],
-    //                             ],
-    //                         ]);
-
-    //                         foreach (range('A', 'N') as $col) {
-    //                             $sheet->getColumnDimension($col)->setAutoSize(true);
-    //                         }
-    //                     }
-    //                 ];
-    //             }
-    //         }, 'employees_export_' . now()->format('Ymd_His') . '.xlsx');
-    //     } catch (\Exception $e) {
-    //         Log::error('Failed to export employees: ' . $e->getMessage());
-    //         return RequestResponse::badRequest('Failed to export employees: ' . $e->getMessage());
-    //     }
     // }
 
     public function contracts(Request $request)
@@ -2145,7 +1922,6 @@ class EmployeeController extends Controller
             return redirect()->back()->with('error', 'Business not found.');
         }
 
-        // Employees nearing contract or license expiry (within 30 days)
         $employees = Employee::where('business_id', $business->id)
             ->whereHas('employmentDetails', function ($query) {
                 $query->where(function ($q) {
@@ -2167,10 +1943,9 @@ class EmployeeController extends Controller
             ])
             ->get();
 
-        // Paginated employees for termination section
         $terminationEmployees = Employee::where('business_id', $business->id)
             ->whereHas('employmentDetails', function ($query) {
-                $query->where('status', '!=', 'terminated'); // Exclude already terminated
+                $query->where('status', '!=', 'terminated');
             })
             ->with([
                 'user:id,name',
@@ -2298,10 +2073,6 @@ class EmployeeController extends Controller
                     $employee->employmentDetails()->update(['status' => 'terminated']);
                     $employee->update(['is_exempt_from_payroll' => true]);
 
-                    // Auto-create the offboarding checklist here (not inside
-                    // the letter try/catch below) so it always starts even
-                    // if PDF generation happens to fail - the termination
-                    // itself already took effect above.
                     app(\App\Services\OffboardingChecklistService::class)
                         ->createForTermination($employee, $contractAction);
 

@@ -27,17 +27,6 @@ class OrganogramController extends Controller
         return view('organogram.index', ['business' => $business]);
     }
 
-    /**
-     * One level of the business's employee tree - lazy-loaded, not the
-     * whole company at once (a 1000+-employee business would otherwise
-     * mean one huge JSON payload and one huge synchronous DOM build, see
-     * GUIDE plan org-structure redesign). No `parent_id` returns the root
-     * nodes only (no manager, or an out-of-business/orphaned manager
-     * reference); with `parent_id`, returns just that employee's direct
-     * reports. Each node carries `has_children`/`direct_reports_count` so
-     * the frontend knows whether to show an expand toggle without having
-     * fetched the children yet.
-     */
     public function fetch(Business $business, Request $request, OrganizationOwnershipService $ownershipService)
     {
         $ownership = $ownershipService->computeDepartmentOwnership($business);
@@ -49,10 +38,6 @@ class OrganogramController extends Controller
                 ->with(self::NODE_RELATIONS)
                 ->get(self::NODE_COLUMNS);
 
-            // Orphaned reference: manager_id is set but doesn't resolve to an
-            // employee actually in this business - rare, but without this a
-            // stale manager_id would silently vanish the employee from the
-            // chart instead of surfacing them as a root.
             $orphans = Employee::where('business_id', $business->id)
                 ->whereNotNull('manager_id')
                 ->whereNotExists(function ($q) use ($business) {
@@ -82,15 +67,6 @@ class OrganogramController extends Controller
         return RequestResponse::ok('Organogram fetched successfully.', $this->nodesWithChildCounts($business, $directReports, $ownership));
     }
 
-    /**
-     * Employees matching $request->q (name) and/or the department/
-     * executive-owner filters, each with its ancestor_ids chain (root-
-     * first) so the frontend can expand every ancestor along the path and
-     * land on the match, without ever loading the whole tree to do it.
-     * The executive-owner filter is resolved via OrganizationOwnershipService
-     * (a role has no direct FK to employees - it's whichever departments
-     * that role is the derived executive owner of).
-     */
     public function search(Business $business, Request $request)
     {
         $q = trim((string) $request->input('q', ''));
@@ -119,9 +95,6 @@ class OrganogramController extends Controller
             $query->whereIn('department_id', $ownedDepartmentIds);
         }
 
-        // A free-text search is meant to be a handful of matches; a bare
-        // filter (no text typed) can reasonably reveal more of the tree at
-        // once since it's an explicit, deliberate narrowing action.
         $matches = $query->limit($q !== '' ? 10 : 200)->get(['id', 'user_id', 'manager_id']);
 
         $results = $matches->map(function (Employee $employee) use ($business) {
@@ -145,14 +118,6 @@ class OrganogramController extends Controller
         return RequestResponse::ok('Search results.', $results->values());
     }
 
-    /**
-     * One DB query for direct-report counts across every given employee
-     * (not N+1) - lets the frontend show an expand toggle for a node
-     * without having fetched its children yet. $ownership is
-     * OrganizationOwnershipService::computeDepartmentOwnership()'s result,
-     * computed once per request (not per node) and passed in - it reflects
-     * the whole business's role/position structure, not just these nodes.
-     */
     private function nodesWithChildCounts(Business $business, $employees, array $ownership = []): array
     {
         if ($employees->isEmpty()) {
@@ -192,23 +157,12 @@ class OrganogramController extends Controller
         })->values()->all();
     }
 
-    /**
-     * job_category_id isn't a real column on employees at all -
-     * Employee::getJobCategoryIdAttribute() is a pure accessor falling
-     * back to employmentDetails->job_category_id, so jobCategory() can't
-     * be eager-loaded directly (nothing to collect FK values from up
-     * front); it lazy-loads through the accessor once employmentDetails
-     * is available, which NODE_RELATIONS already eager-loads.
-     */
     private function jobCategoryName(Employee $employee): ?string
     {
         return optional($employee->jobCategory)->name
             ?? optional(optional($employee->employmentDetails)->jobCategory)->name;
     }
 
-    /**
-     * Flat employee list for the "assign manager" dropdown.
-     */
     public function employeeOptions(Business $business)
     {
         $employees = Employee::where('business_id', $business->id)
@@ -222,12 +176,6 @@ class OrganogramController extends Controller
         return RequestResponse::ok('Employees fetched successfully.', $employees);
     }
 
-    /**
-     * Options for the toolbar's "Executive owner" / "Department" filter
-     * dropdowns - executive owners come from OrganizationOwnershipService
-     * (derived from the role chain, not a stored list), departments are
-     * only the ones actually covered by at least one position.
-     */
     public function filterOptions(Business $business, OrganizationOwnershipService $ownership)
     {
         $cards = $ownership->executiveCards($business);
@@ -247,12 +195,6 @@ class OrganogramController extends Controller
         ]);
     }
 
-    /**
-     * Flat (not lazy) employee list for the Table View - a table
-     * inherently needs the whole filtered set at once, unlike the tree's
-     * on-demand branch loading. Bounded by the same q/department_id/
-     * executive_role_id filters search() uses.
-     */
     public function table(Business $business, Request $request, OrganizationOwnershipService $ownershipService)
     {
         $q = trim((string) $request->input('q', ''));
@@ -310,9 +252,7 @@ class OrganogramController extends Controller
         $validated = $request->validate([
             'employee_id' => 'required|integer|exists:employees,id',
             'manager_id' => 'nullable|integer|exists:employees,id',
-            // Optional dotted-line/matrix manager, set in the same request
-            // as the line manager since both live on the same "Assign
-            // Manager" modal - see functionalManager()'s docblock.
+
             'functional_manager_id' => 'nullable|integer|exists:employees,id',
         ]);
 
@@ -354,15 +294,8 @@ class OrganogramController extends Controller
                     return RequestResponse::badRequest('Selected functional manager is not in this business.', 422);
                 }
 
-                // A flat dotted-line pointer, not a hierarchy edge - no
-                // wouldCreateCycle() check needed the way the line-manager
-                // chain requires one.
             }
 
-            // A manual reassignment here always wins over the org-structure
-            // template - it stays pinned even if the template's default for
-            // this employee's department/role later changes, and it never
-            // affects anyone else's reporting line.
             $employee->manager_id = $managerId;
             $employee->manager_override = true;
             $employee->functional_manager_id = $functionalManagerId;
@@ -372,10 +305,6 @@ class OrganogramController extends Controller
         });
     }
 
-    /**
-     * Clears a manual override and re-derives the manager from the
-     * org-structure template (department + organogram role).
-     */
     public function resetManagerToTemplate(Request $request, Business $business)
     {
         $validated = $request->validate([
@@ -399,19 +328,10 @@ class OrganogramController extends Controller
         });
     }
 
-    /**
-     * An employee's own reporting line - used by the leave/portal side so a
-     * line manager can see who they manage without needing HR-level access.
-     */
     public function myTeam(Business $business)
     {
         $employee = auth()->user()->activeEmployee();
 
-        // No hard 403 here: an account with no Employee record for this
-        // business (e.g. a platform admin previewing the portal via
-        // Switch Account) just has nothing to show - same graceful-empty
-        // pattern every other myaccount page already follows, rather than
-        // being the one page that hard-aborts.
         $directReports = ($employee && (int) $employee->business_id === (int) $business->id)
             ? $employee->directReports()->with('user:id,name', 'department:id,name')->get()
             : collect();

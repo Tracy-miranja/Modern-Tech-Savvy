@@ -20,15 +20,9 @@ class TerminationNotification extends Notification
         $this->pdfContent = $pdfContent;
     }
 
-    /**
-     * Get the notification's delivery channels.
-     *
-     * @param  mixed  $notifiable
-     * @return array
-     */
     public function via($notifiable)
     {
-        return ['mail', 'database']; // Specify delivery channels: email and database
+        return ['mail', 'database'];
     }
 
     public function toMail($notifiable)

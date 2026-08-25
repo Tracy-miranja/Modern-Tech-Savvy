@@ -20,12 +20,10 @@
 
     <input type="hidden" name="date" id="date" value="{{ now('Africa/Nairobi')->format('Y-m-d') }}">
 
-    {{-- NEW: punch meta (populated by JS) --}}
     <input type="hidden" name="latitude" id="clockin_latitude">
     <input type="hidden" name="longitude" id="clockin_longitude">
     <input type="hidden" name="device_mac" id="clockin_device_mac">
 
-    {{-- Optional MAC input (only shown if business enforces MAC; JS toggles visibility) --}}
     <div id="clockin_mac_wrapper" class="mb-3 d-none">
         <label for="clockin_device_mac_input" class="form-label fw-semibold text-dark">
             Device MAC (e.g. 10:9A:DD:01:23:45)
@@ -50,6 +48,5 @@
     </button>
 </form>
 
-{{-- Let JS know the business flags --}}
 <meta name="enforce_geofence" content="{{ (int)($currentBusiness->enforce_geofence ?? 0) }}">
 <meta name="enforce_mac" content="{{ (int)($currentBusiness->enforce_mac ?? 0) }}">

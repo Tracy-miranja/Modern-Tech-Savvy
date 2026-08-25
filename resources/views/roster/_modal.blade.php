@@ -1,9 +1,8 @@
-<!-- Trigger Button -->
+
 <button type="button" class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#rosterModal">
     <i class="fas fa-plus"></i> {{ isset($roster) ? 'Edit Roster' : 'Create New Roster' }}
 </button>
 
-<!-- Modal -->
 <div class="modal fade" id="rosterModal" tabindex="-1" aria-labelledby="rosterModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
@@ -13,7 +12,6 @@
             </div>
             <div class="modal-body">
 
-                <!-- Start of Form -->
                 <form id="rostersForm" method="post">
                     @csrf
                     @if (isset($roster))
@@ -51,7 +49,7 @@
 
                     <h6 class="mt-4 mb-3">Assignments</h6>
                     <div id="assignmentsContainer">
-                        <!-- You can include your assignment fields partial here if needed -->
+
                         @include('partials._assignment_fields', ['roster' => $roster ?? null])
                     </div>
 
@@ -64,14 +62,12 @@
                         </button>
                     </div>
                 </form>
-                <!-- End of Form -->
 
             </div>
         </div>
     </div>
 </div>
 
-<!-- Scripts -->
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script>

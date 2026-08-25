@@ -1,6 +1,5 @@
 <?php
 
-// app/Console/Commands/RunLeaveAccruals.php
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;

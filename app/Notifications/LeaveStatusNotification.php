@@ -34,7 +34,6 @@ class LeaveStatusNotification extends Notification implements ShouldQueue
             ->subject($subject)
             ->greeting($greeting);
 
-        // Build email content based on status
         switch ($status) {
             case 'approved':
                 $mailMessage = $this->buildApprovedEmail($mailMessage);
@@ -127,13 +126,13 @@ class LeaveStatusNotification extends Notification implements ShouldQueue
         $requiredLevels = optional($this->leave->leaveType)->approval_levels ?? 1;
 
         if ($currentLevel > 0 && $currentLevel < $requiredLevels) {
-            // Partial approval
+
             $mailMessage = $mailMessage
                 ->line("Your leave request has received partial approval and is progressing through the approval process.")
                 ->line("**Current Status:** Level {$currentLevel} of {$requiredLevels} approvals completed")
                 ->line("**Next Step:** Waiting for final approval from HR");
         } else {
-            // Initial submission or document upload
+
             $mailMessage = $mailMessage
                 ->line("Your leave request status has been updated.")
                 ->line("**Current Status:** Under review");
@@ -186,7 +185,7 @@ class LeaveStatusNotification extends Notification implements ShouldQueue
 
     protected function getActionRequired($status, $notifiable)
     {
-        // Check if this is the employee and documentation is required
+
         if ($status === 'pending' &&
             $this->leave->requires_documentation &&
             !$this->leave->attachment &&

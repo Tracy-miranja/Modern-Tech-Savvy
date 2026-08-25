@@ -13,28 +13,9 @@ use App\Services\Reports\ReportFilters;
 use App\Services\Reports\ReportPdfService;
 use Illuminate\Http\Request;
 
-/**
- * Performance reports - Phase 5 (final phase) of the GUIDE plan, built on
- * the same shared report engine as Attendance/Leave/Disciplinary/Offboarding:
- * a Cycle roster report (kpi/okr/competency/overall scores + grade band per
- * employee) and a 360 report (one employee's full scorecard + compiled
- * feedback from every reviewer). Scores are computed live via
- * PerformanceReview::compute*Score() rather than read off a persisted
- * PerformanceReview row - most employees never get one created until
- * someone opens their performance page (fetchReview() is firstOrCreate,
- * called lazily), so reading only existing rows would silently omit anyone
- * nobody has looked at yet.
- */
 class PerformanceReportController extends Controller
 {
-    /**
-     * Trigger page for the general Performance Reports nav item - previously
-     * this button lived inline on performance/cycles.blade.php, which also
-     * never actually passed real $departments/$jobCategories to the modal
-     * (those filters silently did nothing) - fixed here while relocating.
-     * The per-employee 360/cycle report button on performance/employee.blade.php
-     * stays where it is, scoped to that one employee.
-     */
+
     public function index(Business $business)
     {
         $departments = Department::where('business_id', $business->id)->orderBy('name')->get(['id', 'name']);
@@ -171,13 +152,6 @@ class PerformanceReportController extends Controller
             ->first();
     }
 
-    /**
-     * Live-computed kpi/okr/overall scores + a display-only grade band for
-     * one employee in one cycle - never persisted, so it's always current
-     * and never depends on a PerformanceReview row actually existing yet.
-     * competency_score has no compute*() method (it's manager-entered), so
-     * it's pulled from the real row when one exists, else 0.
-     */
     private function scoreRowFor($employee, PerformanceCycle $cycle): array
     {
         $existingReview = PerformanceReview::where('performance_cycle_id', $cycle->id)

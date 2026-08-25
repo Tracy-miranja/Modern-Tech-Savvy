@@ -14,16 +14,6 @@ use App\Http\RequestResponse;
 use App\Traits\HandleTransactions;
 use Spatie\Permission\Models\Role as SpatieRole;
 
-/**
- * The "main organogram" template, configured in Organization Setup:
- * company-defined roles (HOD, Supervisor, ED, ...) with explicit
- * reporting edges (not a numeric ladder, since real orgs have peers and
- * non-linear structures), optionally mapped to a Spatie permission role.
- * A Position is the actual assignment - an employee holding a role,
- * covering one or more departments and/or teams. The employee-level
- * organogram (OrganogramController) uses all of this to compute each
- * employee's default reporting line.
- */
 class OrganizationStructureController extends Controller
 {
     use HandleTransactions;
@@ -35,12 +25,6 @@ class OrganizationStructureController extends Controller
         return view('organization-structure.index', ['business' => $business, 'departments' => $departments]);
     }
 
-    /**
-     * Stats + executive-ownership diagram for the new Overview tab - see
-     * OrganizationOwnershipService's docblock for how "executive owner"
-     * and "HOD" are derived (purely from the existing role reporting
-     * chain + position coverage, no new "department owner" field).
-     */
     public function fetchOverview(Business $business, OrganizationOwnershipService $ownership)
     {
         $stats = [
@@ -57,10 +41,6 @@ class OrganizationStructureController extends Controller
         ]);
     }
 
-    /* ----------------
-       Roles (catalog + reporting edges)
-    -----------------*/
-
     public function fetchRoles(Business $business)
     {
         $roles = OrganogramRole::where('business_id', $business->id)
@@ -72,14 +52,6 @@ class OrganizationStructureController extends Controller
         return RequestResponse::ok('Roles fetched successfully.', $roles);
     }
 
-    /**
-     * The role hierarchy (reports_to_role_id edges) as a nested tree, each
-     * role carrying its own position holders (with department/team
-     * coverage) - powers the visual "Organization Tree" tab. Mirrors
-     * OrganogramController::fetch()'s same "roots = no parent, or a parent
-     * outside this set" pattern, just built from roles instead of
-     * employees.
-     */
     public function fetchRoleTree(Business $business)
     {
         $roles = OrganogramRole::where('business_id', $business->id)
@@ -213,10 +185,6 @@ class OrganizationStructureController extends Controller
         return RequestResponse::ok('Role deleted successfully.');
     }
 
-    /* ----------------
-       Teams (optional grouping inside a department)
-    -----------------*/
-
     public function fetchTeams(Business $business)
     {
         $teams = Team::where('business_id', $business->id)
@@ -260,14 +228,6 @@ class OrganizationStructureController extends Controller
         return RequestResponse::ok('Team deleted successfully.');
     }
 
-    /* ----------------
-       Positions (the actual assignments)
-    -----------------*/
-
-    /**
-     * Every department, its teams, and whoever holds a position covering
-     * each - powers the visual org tree and the assignment panel.
-     */
     public function fetchAssignments(Business $business)
     {
         $departments = Department::where('business_id', $business->id)->orderBy('name')->get(['id', 'name']);
@@ -317,13 +277,6 @@ class OrganizationStructureController extends Controller
         ]);
     }
 
-    /**
-     * Assigns an employee to a role, covering one or more departments
-     * and/or teams. Also sets the employee's own rung (organogram_role_id)
-     * to this role if it differs, grants any Spatie permission role
-     * mapped to it, and resyncs everyone whose default manager depends on
-     * this slot (a newly-filled or reassigned position).
-     */
     public function storePosition(Request $request, Business $business)
     {
         $validated = $request->validate([
@@ -384,11 +337,6 @@ class OrganizationStructureController extends Controller
         });
     }
 
-    /**
-     * Removes a position entirely, then resyncs anyone who was reporting
-     * through it so they fall back to whoever else (if anyone) now holds
-     * that role over their department/team.
-     */
     public function destroyPosition(Business $business, OrganogramPosition $position)
     {
         if ((int) $position->business_id !== (int) $business->id) {
@@ -408,17 +356,6 @@ class OrganizationStructureController extends Controller
         });
     }
 
-    /**
-     * Recomputes manager_id for every employee in the business who hasn't
-     * been manually reassigned - run after editing roles/reporting edges
-     * or position assignments so the tree catches up with the template.
-     *
-     * Only touches employees who have an organogram_role_id (their own
-     * rung on the ladder) - without one, computeTemplateManagerId() has
-     * nothing to resolve from and is a no-op anyway. Regular employees get
-     * a rung via bulkAssignRole() (department/team-wide), not by editing
-     * each one individually.
-     */
     public function syncAll(Business $business)
     {
         $employees = Employee::where('business_id', $business->id)
@@ -433,16 +370,6 @@ class OrganizationStructureController extends Controller
         return RequestResponse::ok("Synced {$employees->count()} employee(s) to the organization structure.");
     }
 
-    /**
-     * Assigns an organogram role (the employee's own rung, e.g. "Staff")
-     * to every employee in a department (optionally narrowed to a team)
-     * in one go, then resyncs their manager_id - this is how rank-and-file
-     * employees actually get onto the org structure, since nobody sets
-     * organogram_role_id on hundreds of people one at a time via the
-     * employee form. By default only fills employees with no role yet, so
-     * it never clobbers a position holder's own rung or a previous manual
-     * choice unless "overwrite_existing" is explicitly set.
-     */
     public function bulkAssignRole(Request $request, Business $business)
     {
         $validated = $request->validate([
@@ -528,22 +455,6 @@ class OrganizationStructureController extends Controller
             ->each(fn (Employee $employee) => $employee->syncManagerFromTemplate());
     }
 
-    /* ----------------
-       Structure canvas (Figma-style drag/connect blueprint editor - see
-       GUIDE plan org-structure redesign). Deliberately scoped to the small
-       template graph (departments, roles, job categories - dozens of
-       nodes), never the 1000+-employee organogram - see
-       OrganogramCanvasNode's migration docblock for the full rationale.
-    -----------------*/
-
-    /**
-     * Nodes + edges for the canvas. Auto-syncs a node for every
-     * department/role/job-category that doesn't have one yet (so newly
-     * created departments/roles/job categories always show up without a
-     * manual "add to canvas" step), then returns everything with role-role
-     * edges materialized from reports_to_role_id merged alongside any
-     * custom-drawn edges.
-     */
     public function canvasGraph(Business $business)
     {
         $this->syncCanvasNodes($business);
@@ -575,8 +486,6 @@ class OrganizationStructureController extends Controller
 
         $nodesByRoleRefId = $nodes->where('node_type', 'role')->keyBy('ref_id');
 
-        // Role-role edges mirror the real reports_to_role_id - always
-        // present on the canvas, not just when someone happened to draw them.
         $roleEdges = $roles->filter(fn ($r) => $r->reports_to_role_id && $nodesByRoleRefId->has($r->id) && $nodesByRoleRefId->has($r->reports_to_role_id))
             ->map(fn ($r) => [
                 'id' => 'role-' . $r->id,
@@ -658,10 +567,6 @@ class OrganizationStructureController extends Controller
                 return RequestResponse::badRequest('Both nodes must belong to this business.', 404);
             }
 
-            // Role -> role edges ARE the real reporting line, not just a
-            // picture of one - drawing this connection sets
-            // reports_to_role_id (from = child, to = the role it reports
-            // to), same direction the tree view already renders top-down.
             if ($from->node_type === 'role' && $to->node_type === 'role') {
                 $childRole = OrganogramRole::where('business_id', $business->id)->find($from->ref_id);
                 $parentRole = OrganogramRole::where('business_id', $business->id)->find($to->ref_id);
@@ -690,9 +595,7 @@ class OrganizationStructureController extends Controller
 
     public function destroyCanvasEdge(Request $request, Business $business, string $edgeId)
     {
-        // Role-role edges are addressed as "role-{roleId}" (see canvasGraph()) -
-        // removing one clears reports_to_role_id, same field a real drawn
-        // connection sets, rather than deleting a row that doesn't exist.
+
         if (str_starts_with($edgeId, 'role-')) {
             $roleId = (int) substr($edgeId, 5);
             $role = OrganogramRole::where('business_id', $business->id)->find($roleId);

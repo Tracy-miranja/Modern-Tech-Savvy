@@ -19,15 +19,6 @@ use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use Illuminate\Support\Collection;
 
-/**
- * Payroll Variance Export — Period vs Period (no budget required)
- *
- * MODE: year   → compare two full years
- *   new PayrollVarianceExport($business, ['mode'=>'year','year1'=>2024,'year2'=>2025])
- *
- * MODE: month  → compare two specific months
- *   new PayrollVarianceExport($business, ['mode'=>'month','year1'=>2025,'month1'=>1,'year2'=>2025,'month2'=>2])
- */
 class PayrollVarianceExport implements WithMultipleSheets
 {
     protected Business $business;
@@ -48,9 +39,6 @@ class PayrollVarianceExport implements WithMultipleSheets
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Shared helper trait
-// ─────────────────────────────────────────────────────────────────────────────
 trait VarianceHelper
 {
     protected function fetchYearData(Business $business, int $year): array
@@ -127,9 +115,6 @@ trait VarianceHelper
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SHEET 1: High-level metric comparison (gross, net, paye, nssf, shif, hl)
-// ─────────────────────────────────────────────────────────────────────────────
 class VarianceSummarySheet implements
     FromCollection, WithHeadings, WithStyles, WithColumnWidths, WithEvents, WithTitle
 {
@@ -245,9 +230,6 @@ class VarianceSummarySheet implements
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SHEET 2: Detail — month-by-month (year mode) or per-employee (month mode)
-// ─────────────────────────────────────────────────────────────────────────────
 class VarianceDetailSheet implements
     FromCollection, WithHeadings, WithStyles, WithColumnWidths, WithEvents, WithTitle
 {
@@ -302,7 +284,7 @@ class VarianceDetailSheet implements
             $rows->push(['TOTAL', $tot1, $tot2, $tv, $this->variancePct($tot1, $tot2), '', '']);
 
         } else {
-            // Employee-level comparison between two months
+
             $payroll1 = Payroll::where('business_id', $this->business->id)
                 ->where('payrun_year', $p['year1'])->where('payrun_month', $p['month1'])->first();
             $payroll2 = Payroll::where('business_id', $this->business->id)

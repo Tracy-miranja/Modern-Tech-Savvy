@@ -13,8 +13,8 @@
     </thead>
 
     @php
-    // show($job_posts);
-    @endphp
+
+@endphp
     <tbody>
         @foreach ($job_posts as $index => $job)
         <tr>

@@ -4,12 +4,6 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-/**
- * Leave Encashment - a per-leave-type policy setting, same tier as the
- * carryover fields. is_encashable defaults false (opt-in, non-breaking);
- * max_encashable_days caps how many days can be cashed out per request,
- * separately from max_carryover_days.
- */
 return new class extends Migration
 {
     public function up(): void

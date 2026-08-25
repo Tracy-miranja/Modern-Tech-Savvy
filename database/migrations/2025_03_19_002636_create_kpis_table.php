@@ -10,13 +10,13 @@ class CreateKpisTable extends Migration
     {
         Schema::create('kpis', function (Blueprint $table) {
             $table->id();
-            $table->string('name'); // e.g., "Employee Attendance Rate"
-            $table->string('slug')->unique(); // e.g., "employee-attendance-rate"
-            $table->string('model_type'); // e.g., "App\Models\Attendance"
-            $table->text('description')->nullable(); // Description of the KPI
-            $table->string('calculation_method'); // e.g., "percentage", "count", "average"
-            $table->string('target_value'); // e.g., "95" (for 95% attendance)
-            $table->string('comparison_operator'); // e.g., ">=", "<=", "="
+            $table->string('name');
+            $table->string('slug')->unique();
+            $table->string('model_type');
+            $table->text('description')->nullable();
+            $table->string('calculation_method');
+            $table->string('target_value');
+            $table->string('comparison_operator');
             $table->timestamps();
         });
     }

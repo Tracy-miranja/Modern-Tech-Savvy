@@ -55,7 +55,7 @@
 
                     @php
                         $shifts = \App\Models\Shift::where('business_id', $currentBusiness->id)->get(['id','name']);
-                    @endphp
+@endphp
 
                     <ul class="nav nav-tabs mb-3" id="shiftTabs" role="tablist">
                         <li class="nav-item" role="presentation">
@@ -86,7 +86,7 @@
                         {{ loader() }}
                     </div>
                     <div id="scheduleTimelineContainer" class="mt-4">
-                        {{-- JS injects timeline --}}<button class="btn btn-outline-secondary" onclick="loadScheduleTimelineFromFilteredEmployee()">
+                        <button class="btn btn-outline-secondary" onclick="loadScheduleTimelineFromFilteredEmployee()">
                             <i class="bi bi-clock-history me-1"></i> View Schedule Timeline 
                         </button>
                     </div>
@@ -95,7 +95,7 @@
         </div>
     </div>
 
-    {{-- Modal --}}
+    
     <div class="modal fade" id="addWorkScheduleModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -104,13 +104,13 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body" id="workScheduleFormContainer">
-                    {{-- JS injects form --}}
+                    
                 </div>
             </div>
         </div>
     </div>
 
-    {{-- Bulk Assign Modal --}}
+    
     <div class="modal fade" id="bulkAssignModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -122,22 +122,22 @@
 
                 <div class="modal-body">
 
-                    {{-- Shifts selector --}}
+                    
                     <div class="mb-3">
                         <label class="form-label">Select Shifts</label>
                         <div id="shiftPicker"></div>
                     </div>
 
-                    {{-- Employees selector + filters --}}
+                    
                     <div class="mb-3">
                         <label class="form-label">Select Employees</label>
                         <div id="employeePicker"></div>
                     </div>
 
-                    {{-- Working days --}}
+                    
                     <div class="mb-3">
                         <label class="form-label">Working Days</label><br/>
-                        @php $days = [0=>'Sun',1=>'Mon',2=>'Tue',3=>'Wed',4=>'Thu',5=>'Fri',6=>'Sat']; @endphp
+                        @php $days = [0=>'Sun',1=>'Mon',2=>'Tue',3=>'Wed',4=>'Thu',5=>'Fri',6=>'Sat'];@endphp
                         @foreach($days as $v=>$l)
                             <label class="me-2">
                                 <input type="checkbox" class="bulk-days" value="{{ $v }}" {{ in_array($v,[1,2,3,4,5])?'checked':'' }}>
@@ -146,7 +146,7 @@
                         @endforeach
                     </div>
 
-                    {{-- Dates --}}
+                    
                     <div class="row">
                         <div class="col-md-6 mb-2">
                             <label class="form-label">Effective From</label>
@@ -183,7 +183,7 @@
         </script>
     @php
     $employeesList = \App\Models\Employee::where('business_id', $currentBusiness->id)
-    ->with(['user:id,name', 'department:id,name']) // adjust relationship name if different
+    ->with(['user:id,name', 'department:id,name']) 
     ->get()
     ->map(function($e){
         return [
@@ -202,7 +202,7 @@
     ->get()
     ->map(fn($s)=> ['id'=>$s->id,'name'=>$s->name])
     ->values();
-    @endphp
+@endphp
 
     <script>
     window.allEmployees = @json($employeesList);

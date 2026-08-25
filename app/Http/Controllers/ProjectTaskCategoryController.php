@@ -8,10 +8,6 @@ use App\Http\RequestResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
-/**
- * Settings: business-configurable task categories/labels. Mirrors
- * CourseCategoryController.
- */
 class ProjectTaskCategoryController extends Controller
 {
     public function fetch(Request $request, Business $business)

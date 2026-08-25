@@ -415,15 +415,11 @@
                 </div>
             </div>
 
-
-
         </div>
     </div>
-
 
     @push('scripts')
         <script src="{{ asset('js/main/downloads.js') }}" type="module"></script>
     @endpush
-
 
 </x-app-layout>

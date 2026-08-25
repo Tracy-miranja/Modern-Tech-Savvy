@@ -22,7 +22,7 @@
     @php
         $grouped = $rows->groupBy(fn ($row) => optional(optional($row->employee)->department)->name ?? 'No Department')
             ->sortKeys();
-    @endphp
+@endphp
 <table class="table">
     <thead>
         <tr>
@@ -50,7 +50,7 @@
                     <td class="center">{{ \App\Support\TimeFmt::hoursToHm($row->regular_hours ?? 0) }}</td>
                     <td class="center">{{ \App\Support\TimeFmt::hoursToHm($row->overtime_hours ?? 0) }}</td>
                     <td class="center">{{ $row->late_minutes > 0 ? round($row->late_minutes) . 'm' : '—' }}</td>
-                    <td class="center">{{ $row->is_absent ? 'Absent' : 'Present' }}</td>
+                    <td class="center">{{ $row->is_on_leave ? 'On Leave' : ($row->is_absent ? 'Absent' : 'Present') }}</td>
                 </tr>
             @endforeach
         @empty

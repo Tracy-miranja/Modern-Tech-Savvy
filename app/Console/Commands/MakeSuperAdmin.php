@@ -8,13 +8,6 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
 
-/**
- * Creates (or upgrades an existing) platform-operator account with the
- * super-admin role - the account that manages Clients (other businesses on
- * this platform): verifying, deactivating, assigning modules, and
- * impersonating them. Deliberately a CLI command rather than a seeder, so
- * no real credentials ever sit in a file committed to the repo.
- */
 class MakeSuperAdmin extends Command
 {
     protected $signature = 'make:super-admin {email} {--name=} {--password=}';

@@ -7,12 +7,6 @@ use App\Models\Business;
 use Illuminate\Http\Request;
 use App\Http\RequestResponse;
 
-/**
- * CRUD for Expected Working Hours policies (GUIDE plan, Phase 1c) - the
- * same specificity-scoped shape as leave policies: a business-wide
- * default, optionally overridden per department, per job category, or per
- * individual employee. Resolution itself lives in AttendancePolicyService.
- */
 class AttendancePolicyController extends Controller
 {
     public function fetch(Business $business)

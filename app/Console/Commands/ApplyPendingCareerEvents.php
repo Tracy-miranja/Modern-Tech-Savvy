@@ -5,11 +5,6 @@ namespace App\Console\Commands;
 use App\Services\EmployeeCareerEventService;
 use Illuminate\Console\Command;
 
-/**
- * Applies any promotion/salary-increment career event whose effective_date
- * has arrived - see the employee_career_events migration's docblock.
- * Scheduled daily in routes/console.php, mirroring leave:run-accruals.
- */
 class ApplyPendingCareerEvents extends Command
 {
     protected $signature = 'career-events:apply-pending';

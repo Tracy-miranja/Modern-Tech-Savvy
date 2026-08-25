@@ -50,7 +50,7 @@
                                             @php
                                             $answer = $response->answers->where('survey_question_id',
                                             $question->id)->first();
-                                            @endphp
+@endphp
                                             {{ $answer ? ($answer->option ? $answer->option->option_text : ($answer->answer_text ?? 'N/A')) : 'N/A' }}
                                         </td>
                                         @endforeach

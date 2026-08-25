@@ -41,7 +41,7 @@ class ApplicationController extends Controller
     public function create()
     {
         $business = Business::findBySlug(session('active_business_slug'));
-        // show applicants for this business (including externals with null user)
+
         $applicants = Applicant::query()
             ->where(function ($q) use ($business) {
                 $q->whereHas('applications', function ($aq) use ($business) {
@@ -71,7 +71,6 @@ class ApplicationController extends Controller
             ->with(['applicant.user', 'jobPost', 'interviews', 'createdBy'])
             ->firstOrFail();
 
-        // load external parts (no models required)
         $academics = DB::table('application_academics')
             ->where('application_id', $application->id)->orderBy('id')->get();
 
@@ -97,7 +96,6 @@ class ApplicationController extends Controller
             ->where('business_id', $business->id)
             ->with(['applicant.user', 'jobPost', 'createdBy', 'interviews']);
 
-        // general filter (works with OR without user)
         if ($request->filled('filter')) {
             $filter = trim($request->input('filter'));
 
@@ -123,7 +121,7 @@ class ApplicationController extends Controller
         }
 
         if ($request->filled('job_post_id')) {
-            // UI uses job id; applications.job_post_id stores FK id
+
             $query->where('job_post_id', (int) $request->job_post_id);
         }
 
@@ -222,7 +220,6 @@ class ApplicationController extends Controller
 
             $application->setStatus(Status::APPLIED);
 
-            // attachments
             if ($request->hasFile('attachments')) {
                 foreach ($request->file('attachments') as $file) {
                     $application->addMedia($file)->toMediaCollection('applications');
@@ -231,7 +228,6 @@ class ApplicationController extends Controller
                 Log::info('Application created for applicant without user', ['applicant_id' => $applicant->id]);
             }
 
-            // send email only if applicant has a user + email
             $applicant = Applicant::with('user')->findOrFail((int)$request->applicant_id);
             if ($applicant->user && $applicant->user->email) {
                 Mail::to($applicant->user->email)->send(new ApplicationReceived($application));
@@ -241,12 +237,6 @@ class ApplicationController extends Controller
         });
     }
 
-    /**
-     * EXTERNAL STORE (Option B): Applicant may have NO user
-     * - We store applicant info in applicants table (user_id nullable)
-     * - We store academics/work/memberships/docs in separate tables (DB::table)
-     * - We prevent duplicates per job by applicant idnumber + job_post_id
-     */
     public function externalStore(Request $request)
     {
         try {
@@ -254,7 +244,6 @@ class ApplicationController extends Controller
                 'api_token' => 'required|string',
                 'jobId'     => ['required', 'exists:job_posts,slug'],
 
-                // Part 1
                 'full_name'   => ['required','string','max:255','regex:/^[\p{L}\s\'.-]+$/u'],
                 'id_number'   => ['required','string','max:50'],
                 'email'       => ['required','email','max:255'],
@@ -266,7 +255,6 @@ class ApplicationController extends Controller
                 'home_county' => ['nullable','string','max:100'],
                 'city'        => ['nullable','string','max:100'],
 
-                // Part 2
                 'academics'                           => ['required','array','min:1'],
                 'academics.*.qualification_level'     => ['required','string','max:80'],
                 'academics.*.institution_name'        => ['required','string','max:255'],
@@ -279,7 +267,6 @@ class ApplicationController extends Controller
                 'academics_attachments.*'             => ['required','array','min:1'],
                 'academics_attachments.*.*'           => ['file','mimes:pdf,jpg,jpeg,png','max:5120'],
 
-                // Part 3
                 'work_experiences'                    => ['required','array','min:1'],
                 'work_experiences.*.employer_name'    => ['required','string','max:255'],
                 'work_experiences.*.employer_contact' => ['nullable','string','max:255'],
@@ -290,7 +277,6 @@ class ApplicationController extends Controller
                 'work_experiences.*.is_current'       => ['nullable','boolean'],
                 'work_experiences.*.achievements'     => ['nullable','string'],
 
-                // Part 4
                 'memberships'                         => ['nullable','array'],
                 'memberships.*.organization_name'     => ['required_with:memberships','string','max:255'],
                 'memberships.*.membership_number'     => ['required_with:memberships','string','max:120'],
@@ -300,7 +286,6 @@ class ApplicationController extends Controller
                 'membership_certificate'              => ['nullable','array'],
                 'membership_certificate.*'            => ['file','mimes:pdf,jpg,jpeg,png','max:5120'],
 
-                // Part 5
                 'cv'           => ['required','file','mimes:pdf,doc,docx','max:5120'],
                 'national_id'  => ['required','file','mimes:pdf,jpg,jpeg,png','max:5120'],
                 'other_documents'   => ['nullable','array'],
@@ -314,13 +299,11 @@ class ApplicationController extends Controller
                 'national_id.required' => 'National ID is required.',
             ]);
 
-            // Authorize API token (platform business)
             $business = Business::where('slug', config('business.main_slug'))->first();
             if (!$business || !$business->api_token || !password_verify($validated['api_token'], $business->api_token)) {
                 return RequestResponse::unauthorized('Invalid or unauthorized API token.');
             }
 
-            // Validate job post
             $jobPost = JobPost::where('slug', $validated['jobId'])
                 ->where('business_id', $business->id)
                 ->where('is_public', true)
@@ -337,7 +320,6 @@ class ApplicationController extends Controller
             $nationality = trim((string)$validated['nationality']);
             $isKenya = strcasecmp($nationality, 'kenya') === 0;
 
-            // Kenya / city rule (strict)
             if ($isKenya) {
                 if (!$request->filled('home_county')) {
                     return RequestResponse::badRequest('Home county is required for Kenya applicants.');
@@ -357,7 +339,6 @@ class ApplicationController extends Controller
                 return RequestResponse::badRequest('Date of birth results in invalid age. Applicant must be between 18 and 100.');
             }
 
-            // Work experience date validation
             foreach ($validated['work_experiences'] as $i => $wx) {
                 $isCurrent = (bool)($wx['is_current'] ?? false);
                 $start = Carbon::parse($wx['start_date']);
@@ -374,7 +355,6 @@ class ApplicationController extends Controller
                 }
             }
 
-            // Membership cert required if memberships exist
             $memberships = $validated['memberships'] ?? [];
             if (!empty($memberships)) {
                 foreach ($memberships as $idx => $m) {
@@ -386,9 +366,6 @@ class ApplicationController extends Controller
 
             return DB::transaction(function () use ($validated, $request, $business, $jobPost, $age, $isKenya) {
 
-                // 1) Upsert applicant WITHOUT creating user
-                // Use idnumber as primary natural identifier (best in your use-case).
-                // If you want also to factor email, add it here.
                 $applicant = Applicant::query()->updateOrCreate(
                     ['idnumber' => $validated['id_number']],
                     [
@@ -399,7 +376,7 @@ class ApplicationController extends Controller
                         'dob'         => $validated['dob'],
                         'gender'      => $validated['gender'],
                         'plwd'        => (bool)$validated['plwd'],
-                        'country'     => $validated['nationality'], // nationality stored in country column (your convention)
+                        'country'     => $validated['nationality'],
                         'home_county' => $isKenya ? $request->input('home_county') : null,
                         'city'        => $isKenya ? null : $request->input('city'),
                         'created_by'  => null,
@@ -407,7 +384,6 @@ class ApplicationController extends Controller
                 );
                 $applicant->setStatus(Status::ACTIVE);
 
-                // 2) Prevent duplicate application per job (using applicant_id + job_post_id)
                 $alreadyApplied = Application::where('applicant_id', $applicant->id)
                     ->where('job_post_id', $jobPost->id)
                     ->exists();
@@ -416,7 +392,6 @@ class ApplicationController extends Controller
                     return RequestResponse::badRequest('You have already applied to this job.');
                 }
 
-                // 3) Create application
                 $application = Application::create([
                     'business_id'  => $business->id,
                     'location_id'  => $jobPost->location_id ?? null,
@@ -428,7 +403,6 @@ class ApplicationController extends Controller
                 ]);
                 $application->setStatus(Status::APPLIED);
 
-                // helper: record documents in application_documents
                 $insertDoc = function ($docType, $label, $mediaOrNull, $fileOrNull) use ($application) {
                     $mediaId = $mediaOrNull?->id;
                     $fileName = $mediaOrNull?->file_name ?? $fileOrNull?->getClientOriginalName();
@@ -448,7 +422,6 @@ class ApplicationController extends Controller
                     ]);
                 };
 
-                // 4) Academics + attachments
                 foreach ($validated['academics'] as $idx => $acad) {
                     DB::table('application_academics')->insert([
                         'application_id'      => $application->id,
@@ -474,7 +447,6 @@ class ApplicationController extends Controller
                     }
                 }
 
-                // 5) Work experiences
                 foreach ($validated['work_experiences'] as $wx) {
                     DB::table('application_work_experiences')->insert([
                         'application_id'   => $application->id,
@@ -491,7 +463,6 @@ class ApplicationController extends Controller
                     ]);
                 }
 
-                // 6) Memberships + certs
                 if (!empty($memberships)) {
                     foreach ($memberships as $idx => $m) {
                         DB::table('application_memberships')->insert([
@@ -517,7 +488,6 @@ class ApplicationController extends Controller
                     }
                 }
 
-                // 7) Required docs: CV + National ID + others
                 if ($request->hasFile('cv')) {
                     $f = $request->file('cv');
                     $media = $application->addMedia($f)->toMediaCollection('applications');
@@ -535,9 +505,6 @@ class ApplicationController extends Controller
                     $media = $application->addMedia($f)->toMediaCollection('applications');
                     $insertDoc('other', $f->getClientOriginalName(), $media, $f);
                 }
-
-                // 8) Leads: only if you have a user. Here we don't.
-                // If later you decide to create a user after review, create lead then.
 
                 return RequestResponse::ok('Application submitted successfully', [
                     'application_id' => $application->id,
@@ -571,7 +538,6 @@ class ApplicationController extends Controller
             ->with(['applicant.user', 'jobPost', 'interviews'])
             ->firstOrFail();
 
-        // include extra parts
         $payload = $application->toArray();
         $payload['academics'] = DB::table('application_academics')->where('application_id', $application->id)->get();
         $payload['work_experiences'] = DB::table('application_work_experiences')->where('application_id', $application->id)->get();
@@ -612,7 +578,6 @@ class ApplicationController extends Controller
 
             $application->update($request->only(['cover_letter', 'stage']));
 
-            // email only if applicant has user
             if ($oldStage !== $request->stage && $application->applicant && $application->applicant->user && $application->applicant->user->email) {
                 Mail::to($application->applicant->user->email)->send(new ApplicationStageUpdated($application));
             }
@@ -713,7 +678,6 @@ class ApplicationController extends Controller
 
             $application->update(['stage' => 'in_progress']);
 
-            // Only email if applicant has user
             if ($application->applicant && $application->applicant->user && $application->applicant->user->email) {
                 Mail::to($application->applicant->user->email)->send(new InterviewScheduled($application, $interview));
             }

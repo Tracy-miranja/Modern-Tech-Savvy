@@ -6,22 +6,6 @@ use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
-/**
- * Seeds one Permission row per (module, action) pair, named
- * "module.{module_slug}.{action}" - the vocabulary businesses' own custom
- * roles (see App\Models\Role's is_custom/display_name) are built from,
- * checked via Spatie's role_or_permission middleware alongside the fixed
- * platform roles (see the Leave routes for the first wired example).
- *
- * Deliberately its own module list, not a 1:1 mirror of the `modules`
- * table (App\Models\Module - that's business SUBSCRIPTION gating, a
- * totally separate concern from who-can-do-what within a module a
- * business already has active). This list is the nav-facing areas a
- * business actually recognizes; extend it here (no new migration needed)
- * as more modules get real permission enforcement.
- *
- * Idempotent - firstOrCreate throughout, safe to re-run.
- */
 class ModuleActionPermissionSeeder extends Seeder
 {
     public const MODULES = [
@@ -40,16 +24,20 @@ class ModuleActionPermissionSeeder extends Seeder
 
     public const ACTIONS = ['view', 'create', 'edit', 'delete', 'approve'];
 
-    /**
-     * Which real, subscribable Module (App\Models\Module::slug, the
-     * Business::hasModule() gate) governs each of the finer-grained slugs
-     * above. Most match 1:1; a few of these nav-facing areas (leave,
-     * attendance, employee records, org structure) are all bundled under
-     * the single 'core-hr-management'/'time-attendance' subscriptions
-     * rather than being separately subscribable - RoleController consults
-     * this, never App\Models\Module directly, when deciding whether a
-     * permission is grantable for a business's current subscription.
-     */
+    public const MODULE_HOME_ROUTES = [
+        'leave-management' => 'business.leave.index',
+        'attendance' => 'business.attendances.index',
+        'employee-management' => 'business.employees.index',
+        'organization-structure' => 'business.organization-structure.index',
+        'performance-management' => 'business.performance.tasks.index',
+        'payroll-management' => 'business.payroll.index',
+        'recruitment-onboarding' => 'business.recruitment.jobs.index',
+        'asset-management' => 'business.assets.index',
+        'learning-management' => 'business.learning.index',
+        'project-management' => 'business.projects.index',
+        'crm-integration' => 'business.crm.contacts.index',
+    ];
+
     public const MODULE_SUBSCRIPTION_GATE = [
         'leave-management' => 'core-hr-management',
         'attendance' => 'time-attendance',
@@ -64,23 +52,6 @@ class ModuleActionPermissionSeeder extends Seeder
         'crm-integration' => 'crm-integration',
     ];
 
-    /**
-     * Which modules each fixed/built-in role is granted, purely so Roles
-     * Management has something real to show instead of "no permissions
-     * assigned" (these roles were never permission-driven - actual access
-     * is decided by role NAME checks in routes/web.php's
-     * role_or_permission_or_impersonation:... lists, this just mirrors
-     * that same list back as real Permission grants).
-     *
-     * head-of-department, restricted-hr, and chief-of-staff are listed
-     * here at the same route-group breadth as business-admin/business-hr,
-     * but EnsureCorrectRole::restrictedRoutes then blocks most of the
-     * individual pages within these modules for those three specifically
-     * (payroll/CRM/recruitment/org-setup/employees list, etc.) - that
-     * page-level layer isn't modeled as permissions here, so what's shown
-     * for these three is closer to "nominally has this module" than
-     * "can freely use every page in it".
-     */
     private const ROLE_MODULES = [
         'business-admin' => self::MODULES,
         'business-hr' => self::MODULES,

@@ -1,6 +1,6 @@
 <x-app-layout>
     @php
-        /** @var \App\Models\LeaveRequest $leave */
+
         $statusName = !is_null($leave->rejection_reason)
             ? 'rejected'
             : (!is_null($leave->approved_by) ? 'approved' : 'pending');
@@ -23,7 +23,6 @@
         $levelsCurrent = (int) ($leave->current_approval_level ?? 0);
         $progressPct   = $levelsTotal > 0 ? min(100, round(($levelsCurrent / $levelsTotal) * 100)) : ($statusName === 'approved' ? 100 : 0);
 
-        // Back button fallbacks by role
         $roleFallbacks = [
             'head-of-department' => url('/dashboard'),
             'business-hr'        => url('/dashboard'),
@@ -33,17 +32,14 @@
         ];
         $fallbackBackUrl = $roleFallbacks[$activeRole] ?? url('/');
 
-        // Business slug for business.* routes
         $businessSlug = $currentBusiness->slug ?? session('active_business_slug');
 
-        // Remaining days for this employee + leave type + current period
         $remainingDays = null;
         try {
             $refDate = $leave->start_date
                 ? $leave->start_date->toDateString()
                 : now()->toDateString();
 
-            /** @var \App\Models\LeaveEntitlement|null $ent */
             $ent = \App\Models\LeaveEntitlement::query()
                 ->where('business_id', $currentBusiness->id)
                 ->where('employee_id', $leave->employee_id)
@@ -69,9 +65,8 @@
         $employeeDept  = optional($employee->department)->name ?? null;
         $employeeJob   = optional($employee->jobCategory)->name ?? null;
         $businessName  = $currentBusiness->company_name ?? 'HR / Finance System';
-    @endphp
+@endphp
 
-    {{-- Layout + Print styles --}}
     <style>
         /* Center content on screen as well */
         .leave-print-area {
@@ -201,7 +196,7 @@
     </style>
 
     <div class="leave-print-area">
-        {{-- Top Controls (screen only) --}}
+
         <div class="d-flex justify-content-between align-items-center mb-3 d-print-none">
             <div class="d-flex align-items-center gap-2">
                 <button type="button" class="btn btn-outline-secondary" id="smartBackBtn">
@@ -234,7 +229,6 @@
             </div>
         </div>
 
-        {{-- Document-style header (printed & screen) --}}
         <div class="card mb-3">
             <div class="card-body py-3 leave-doc-header">
                 <div class="d-flex justify-content-between align-items-start flex-wrap">
@@ -285,7 +279,7 @@
         </div>
 
         <div class="row g-3">
-            {{-- Approve / Reject (screen only, not printed) --}}
+
             @if($isApproverRole && $canApprove && $statusName === 'pending')
                 <div class="col-md-4 d-print-none">
                     <div class="card shadow-sm">
@@ -329,7 +323,6 @@
                 </div>
             @endif
 
-            {{-- Revoke / Shorten (screen only) --}}
             @if($isApproverRole && method_exists($leave,'canUserRevoke') && $leave->status === 'approved' && $leave->canUserRevoke(auth()->user()))
                 <div class="col-md-4 d-print-none">
                     <div class="card shadow-sm">
@@ -371,13 +364,12 @@
                 </div>
             @endif
 
-            {{-- Main content column --}}
             <div class="{{ ($isApproverRole && $canApprove && $statusName === 'pending') ? 'col-md-8' : 'col-md-12' }}">
-                {{-- Summary + Attachments --}}
+
                 <div class="card shadow-sm mb-3">
                     <div class="card-body">
                         <div class="row g-3">
-                            {{-- Summary --}}
+
                             <div class="col-md-6">
                                 <div class="border rounded p-2 h-100">
                                     <h6 class="text-muted mb-2">Request Summary</h6>
@@ -421,12 +413,10 @@
                                 </div>
                             </div>
 
-                            {{-- Attachments & final approval --}}
                             <div class="col-md-6">
                                 <div class="border rounded p-2 h-100">
                                     <h6 class="text-muted mb-2">Attachments & Approvals</h6>
 
-                                    {{-- Attachment --}}
                                     @if($leave->attachment)
                                         <div class="mb-2">
                                             <a class="btn btn-outline-primary btn-sm d-print-none"
@@ -442,7 +432,6 @@
                                         <p class="text-muted mb-2 small">No attachment uploaded.</p>
                                     @endif
 
-                                    {{-- Upload later (screen only) --}}
                                     @if($isOwner && $leave->requires_documentation && !$leave->attachment && $statusName !== 'rejected')
                                         <form id="inlineUploadForm"
                                               action="{{ route('leave.upload-document') }}"
@@ -460,7 +449,6 @@
                                         </form>
                                     @endif
 
-                                    {{-- Final approval details --}}
                                     @if($leave->approved_by && $leave->approved_at)
                                         @php
                                             $finalApprover = $leave->approvedBy;
@@ -470,7 +458,7 @@
                                                 ->first();
                                             $finalRole = $finalHist['approver_role'] ?? null;
                                             $finalRoleLabel = $finalRole ? ucfirst(str_replace('-', ' ', $finalRole)) : null;
-                                        @endphp
+@endphp
                                         <hr class="my-2">
                                         <div class="small">
                                             <span class="text-muted d-block">Final Approval</span>
@@ -482,7 +470,6 @@
                                         </div>
                                     @endif
 
-                                    {{-- Rejection reason --}}
                                     @if($statusName === 'rejected' && $leave->rejection_reason)
                                         <hr class="my-2">
                                         <div class="small">
@@ -491,7 +478,6 @@
                                         </div>
                                     @endif
 
-                                    {{-- Download PDF (screen only) --}}
                                     @if($statusName === 'approved' && ($isOwner || $isApproverRole))
                                         <a href="{{ route('business.leave.download', [
                                             'business'  => $businessSlug,
@@ -507,7 +493,6 @@
                             </div>
                         </div>
 
-                        {{-- Approval progress bar (screen + print, compact) --}}
                         @if($levelsTotal > 0)
                             <div class="mt-2">
                                 <small class="text-muted d-block mb-1">
@@ -524,7 +509,6 @@
                     </div>
                 </div>
 
-                {{-- Timeline --}}
                 <div class="card shadow-sm">
                     <div class="card-header py-2">
                         <h6 class="mb-0">Timeline</h6>
@@ -582,7 +566,7 @@
                                     'colorClass' => 'text-success',
                                 ];
                             }
-                        @endphp
+@endphp
 
                         @forelse($timeline as $item)
                             <div class="d-flex align-items-start timeline-item">
@@ -610,7 +594,7 @@
                 </div>
             </div>
         </div>
-    </div> {{-- end .leave-print-area --}}
+    </div>
 
     @push('scripts')
         <script src="{{ asset('js/main/leave.js') }}" type="module"></script>

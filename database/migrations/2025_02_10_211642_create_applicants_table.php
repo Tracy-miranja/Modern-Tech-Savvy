@@ -5,9 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration {
-    /**
-     * Run the migrations.
-     */
+
     public function up(): void
     {
         Schema::create('applicants', function (Blueprint $table) {
@@ -20,23 +18,20 @@ return new class extends Migration {
             $table->string('country')->nullable();
             $table->string('linkedin_profile')->nullable();
             $table->string('portfolio_url')->nullable();
-            $table->text('summary')->nullable(); //about me section
+            $table->text('summary')->nullable();
             $table->string('current_job_title')->nullable();
             $table->string('current_company')->nullable();
-            $table->string('experience_level')->nullable(); // (e.g., Entry-level, Mid-level, Senior)
-            $table->string('education_level')->nullable(); // (e.g., High School, Bachelor's, Master's, PhD)
+            $table->string('experience_level')->nullable();
+            $table->string('education_level')->nullable();
             $table->string('desired_salary')->nullable();
-            $table->string('job_preferences')->nullable(); // (e.g., types of roles, industries)
-            $table->string('source')->nullable(); // How did the applicant hear about the company? (e.g., LinkedIn, Indeed, Referral)
+            $table->string('job_preferences')->nullable();
+            $table->string('source')->nullable();
             $table->unsignedBigInteger('created_by')->nullable();
             $table->foreign('created_by')->references('id')->on('users');
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('applicants');

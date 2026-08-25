@@ -7,10 +7,6 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-/**
- * Team Collaboration - a simple comment thread per task, shown in the
- * task-detail modal on the Kanban board.
- */
 return new class extends Migration
 {
     public function up(): void

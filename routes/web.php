@@ -55,6 +55,8 @@ use App\Http\Controllers\ProjectTaskController;
 use App\Http\Controllers\ProjectTaskStatusController;
 use App\Http\Controllers\ProjectTimeLogController;
 use App\Http\Controllers\AttendancePolicyController;
+use App\Http\Controllers\BiometricDeviceController;
+use App\Http\Controllers\DevicePushController;
 use App\Http\Controllers\WorkScheduleController;
 use App\Http\Controllers\HolidayController;
 use App\Http\Controllers\MandatoryLeavePeriodController;
@@ -64,6 +66,29 @@ use App\Http\Controllers\BusinessCurrencyController;
 use App\Models\Business;
 
 Route::get('api/jobs/openings', [JobPostController::class, 'fetchPublic'])->name('jobs.openings');
+
+Route::get('/', function () {
+    if (auth()->check()) {
+        return redirect()->route('dashboard');
+    }
+
+    $modules = \App\Models\Module::orderBy('id')->get();
+    $coreHrIndex = $modules->search(fn ($m) => $m->slug === 'core-hr-management');
+    $leaveManagement = (object) ['id' => 'leave-management', 'slug' => 'leave-management', 'name' => 'Leave Management'];
+    if ($coreHrIndex === false) {
+        $modules->push($leaveManagement);
+    } else {
+        $modules->splice($coreHrIndex + 1, 0, [$leaveManagement]);
+    }
+
+    return view('welcome', ['modules' => $modules->values()]);
+})->name('welcome');
+
+Route::any('device-webhook/{vendor}/{token}', [DevicePushController::class, 'handle'])->name('device.webhook');
+
+Route::any('iclock/cdata', [DevicePushController::class, 'zktecoCdata'])->name('device.zkteco.cdata');
+Route::any('iclock/getrequest', [DevicePushController::class, 'zktecoGetRequest'])->name('device.zkteco.getrequest');
+Route::any('iclock/devicecmd', [DevicePushController::class, 'zktecoDeviceCmd'])->name('device.zkteco.devicecmd');
 
 Route::get('/business/{businessSlug}/api-token', [BusinessController::class, 'showApiTokenForm'])
     ->middleware('auth')
@@ -76,7 +101,7 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
 
     Route::post('/switch-role', [RoleSwitchController::class, 'switchRole'])->name('switch.role');
     Route::get('/attendance/geocode', [AttendanceController::class, 'geocode'])->name('attendance.geocode');
-    //setup busines & modules
+
     Route::name('setup.')->prefix('setup')->group(function () {
         Route::get('business', [BusinessController::class, 'create'])->name('business');
         Route::get('modules', [ModuleController::class, 'create'])->name('modules');
@@ -99,34 +124,16 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
             Route::post('/attendance/settings', [AttendanceController::class, 'updateSettings'])->name('attendance.settings.update');
             Route::post('/locations/{location}/coords', [AttendanceController::class, 'updateLocationCoords'])->name('business.locations.coords.update');
             Route::post('/employees/{employee}/mac', [AttendanceController::class, 'updateEmployeeMac'])->name('employees.mac.update');
-            //Route::get('/attendance/geocode', [AttendanceController::class, 'geocode'])->name('attendance.geocode');
 
             Route::get('/locations', [DashboardController::class, 'locations'])->name('locations.index');
             Route::get('/organization-setup', [BusinessController::class, 'setup'])->name('organization-setup');
 
-            // Organization Structure + Organogram: moved to their own sibling
-            // group after this one closes, gated by
-            // role_or_permission_or_impersonation instead of this group's
-            // fixed role: list - see "Organization Structure" further down.
             Route::get('/pay-schedule', [DashboardController::class, 'paySchedule'])->name('pay-schedule');
 
             Route::get('/departments', [DashboardController::class, 'departments'])->name('departments.index');
 
     Route::post('roles/update-departments', [RoleController::class, 'updateDepartments'])->name('roles.update-departments');
-            // Performance Management (setup/cycles/objectives/reviews/
-            // reports/feedback + the tasks/kpis block further down) moved
-            // to its own sibling group after this one closes - see
-            // "Performance Management" further down.
-            // Employee Management (list/import/warnings/offboarding/contracts/
-            // career-events) moved to its own sibling group after this one
-            // closes - see "Employee Management" further down.
 
-            // Asset Management, Learning Management, Project Management -
-            // each moved to its own sibling group after this one closes
-            // (still individually gated by their own ensure_module:X inner
-            // middleware, unchanged) - see further down in this file.
-
-            // Disciplinary reports (GUIDE plan Phase 3 - shared preview/download pattern)
             Route::get('/disciplinary/reports/cases/preview', [DisciplinaryReportController::class, 'casesPreview'])->name('disciplinary.reports.cases.preview');
             Route::get('/disciplinary/reports/cases/download', [DisciplinaryReportController::class, 'casesDownload'])->name('disciplinary.reports.cases.download');
             Route::get('/disciplinary/reports/{warning}/escalation-trail/preview', [DisciplinaryReportController::class, 'escalationTrailPreview'])->name('disciplinary.reports.escalation-trail.preview');
@@ -135,58 +142,21 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
             Route::get('/shifts', [DashboardController::class, 'shifts'])->name('shifts.index');
             Route::get('/roster', [DashboardController::class, 'roster'])->name('roster.index');
 
-            // Payroll Management (payroll-formulas/deductions/payroll/
-            // payslips/nssf-shif-nhif downloads/reliefs/allowances/advances/
-            // loans/pay-grades) moved to its own sibling group after this
-            // one closes - see "Payroll Management" further down.
-
-            // Leave routes (calendar, requests, types, periods, entitlements,
-            // reports, encashments) moved to their own sibling group after
-            // this one closes, gated by role_or_permission_or_impersonation
-            // instead of this group's fixed role: list - see "Leave area"
-            // further down in this file.
-
-            // Company-mandated leave days: moved below with the rest of Leave.
-
-
-            // Recruitment/Onboarding (recruitment/applications/applicants)
-            // moved to its own sibling group after this one closes - see
-            // "Recruitment/Onboarding" further down.
-
-            // Attendance (attendances/downloads/overtime/work-schedules/
-            // holidays/clock-in-out/reports) moved to its own sibling group
-            // after this one closes - see "Attendance" further down.
-
-
             Route::get('profile', [ProfileController::class, 'edit'])->name('profile.index');
 
-            // Roles Management (list/detail) - split out below to its own
-            // sibling group, gated by business-admin|business-hr only, not
-            // this group's broader fixed role: list - see "Roles
-            // Management" further down.
-            // Custom-role modules/store/edit/update/destroy already exist as
-            // flat AJAX routes (routes/requests.php `roles.` group) - this
-            // app's established convention (business context resolved via
-            // session('active_business_slug') inside the controller, same
-            // as every other flat CRUD route in that file), previously
-            // dead stubs since store()/update()/destroy() didn't exist yet.
       Route::prefix('settings/currencies')->name('currencies.')->group(function () {
     Route::get('/',              [BusinessCurrencyController::class, 'index'])->name('index');
     Route::get('/list',          [BusinessCurrencyController::class, 'list'])->name('list');
     Route::get('/known',         [BusinessCurrencyController::class, 'knownCurrencies'])->name('known');
     Route::post('/refresh-all',  [BusinessCurrencyController::class, 'refreshAllRates'])->name('refresh-all');
     Route::post('/',             [BusinessCurrencyController::class, 'store'])->name('store');
-    Route::delete('/bulk',       [BusinessCurrencyController::class, 'bulkDestroy'])->name('bulk-destroy'); // ← BEFORE /{id}
+    Route::delete('/bulk',       [BusinessCurrencyController::class, 'bulkDestroy'])->name('bulk-destroy');
     Route::get('/{id}',          [BusinessCurrencyController::class, 'show'])->name('show');
     Route::put('/{id}',          [BusinessCurrencyController::class, 'update'])->name('update');
     Route::delete('/{id}',       [BusinessCurrencyController::class, 'destroy'])->name('destroy');
     Route::post('/{id}/refresh', [BusinessCurrencyController::class, 'refreshRate'])->name('refresh');
 });
 
-            // CRM moved to its own sibling group after this one closes -
-            // see "CRM" further down.
-
-            // Quick session debug
             Route::get('/debug-session', function () {
                 return response()->json([
                     'active_business_slug' => session('active_business_slug'),
@@ -195,12 +165,6 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
             });
         });
 
-    // Roles Management - split out from the group above so it can be
-    // gated by its own narrower role: list. Everyone else in that group
-    // (business-finance, head-of-department, restricted-hr, chief-of-
-    // staff) could otherwise see and manage every business role,
-    // including business-admin/business-hr themselves - role assignment
-    // is meant to stay with the two roles actually running the business.
     Route::middleware(['ensure_role', 'role:business-admin|business-hr'])
         ->name('business.')
         ->prefix('business/{business:slug}')
@@ -209,19 +173,11 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
             Route::get('/roles/{role}', [RoleController::class, 'show'])->name('roles.show');
         });
 
-    // Leave area - split out from the group above so it can be gated by
-    // role_or_permission_or_impersonation (the fixed business roles above,
-    // OR a business-defined custom role holding the matching
-    // module.leave-management.{action} permission, OR a super-admin
-    // impersonation session) instead of that group's fixed role: list.
-    // Same prefix/name as the group above, so every route name/URI here
-    // is byte-identical to before the split (business.leave.*,
-    // business.leave-periods.*, business.leave-entitlements.*).
     Route::middleware(['ensure_role', 'role_or_permission_or_impersonation:business-admin|business-hr|business-finance|head-of-department|restricted-hr|chief-of-staff|module.leave-management.view|module.leave-management.create|module.leave-management.edit|module.leave-management.delete|module.leave-management.approve'])
         ->name('business.')
         ->prefix('business/{business:slug}')
         ->group(function () {
-            // Leave area (business views + a few actions)
+
             Route::prefix('leave')->name('leave.')->group(function () {
                 Route::get('/calendar', [LeaveCalendarController::class, 'businessCalendar'])->name('calendar');
                 Route::get('/calendar/events', [LeaveCalendarController::class, 'businessEvents'])->name('calendar.events');
@@ -237,7 +193,6 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
                 Route::get('/settings', [DashboardController::class, 'leaveSettings'])->name('settings');
                 Route::post('/settings', [DashboardController::class, 'updateLeaveSettings'])->name('settings.update');
 
-                // Leave types
                 Route::post('/revoke', [LeaveRequestController::class, 'revoke'])->name('revoke');
                 Route::get('/{reference}/download', [LeaveRequestController::class, 'downloadPdf'])->name('download')->where('reference', '[A-Za-z0-9\-]+');
                 Route::get('/leave-types/{slug}/edit', [LeaveTypeController::class, 'edit'])->name('leave-types.edit');
@@ -248,8 +203,6 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
                 Route::post('/status', [LeaveRequestController::class, 'status'])->name('status');
             });
 
-            // Company-mandated leave days (e.g. a Dec 24-28 shutdown) - auto-deducts
-            // from affected employees' balances for a chosen leave type.
             Route::prefix('mandatory-leave-days')->name('leave.mandatory-leave-days.')->group(function () {
                 Route::post('/fetch', [MandatoryLeavePeriodController::class, 'fetch'])->name('fetch');
                 Route::post('/create', [MandatoryLeavePeriodController::class, 'create'])->name('create');
@@ -284,7 +237,6 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
                 Route::get('/export-pdf', [LeaveEntitlementController::class, 'exportPdf'])->name('leave-entitlements.export-pdf');
             });
 
-            // Leave reports (see GUIDE plan Phase 2 - shared preview/download pattern)
             Route::prefix('leave')->name('leave.')->group(function () {
                 Route::get('/reports', [LeaveReportController::class, 'index'])->name('reports.index');
                 Route::get('/reports/balance/preview', [LeaveReportController::class, 'balancePreview'])->name('reports.balance.preview');
@@ -298,11 +250,6 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
                 Route::get('/reports/master/preview', [LeaveReportController::class, 'masterPreview'])->name('reports.master.preview');
                 Route::get('/reports/master/download', [LeaveReportController::class, 'masterDownload'])->name('reports.master.download');
 
-                // Leave Encashment - Leave-side only, see LeaveEncashmentController's
-                // docblock. approve/reject/mark-disbursed are further
-                // restricted to HR/admin roles OR a custom role holding
-                // module.leave-management.approve, on top of this whole
-                // section's existing broader role_or_permission_or_impersonation gate.
                 Route::get('/encashments/fetch', [LeaveEncashmentController::class, 'fetch'])->name('encashments.fetch');
                 Route::post('/encashments/store', [LeaveEncashmentController::class, 'store'])->name('encashments.store');
                 Route::middleware(['role_or_permission_or_impersonation:business-admin|business-hr|restricted-hr|module.leave-management.approve'])->group(function () {
@@ -313,11 +260,6 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
             });
         });
 
-    // Organization Structure - split out from the group above so it can be
-    // gated by role_or_permission_or_impersonation instead of that group's
-    // fixed role: list. Same prefix/name, so every route name/URI here is
-    // byte-identical to before the split (business.organization-structure.*,
-    // business.organogram.*).
     Route::middleware(['ensure_role', 'role_or_permission_or_impersonation:business-admin|business-hr|head-of-department|restricted-hr|chief-of-staff|module.organization-structure.view|module.organization-structure.create|module.organization-structure.edit|module.organization-structure.delete|module.organization-structure.approve'])
         ->name('business.')
         ->prefix('business/{business:slug}')
@@ -340,7 +282,6 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
                 Route::post('/positions', [OrganizationStructureController::class, 'storePosition'])->name('positions.store');
                 Route::delete('/positions/{position}', [OrganizationStructureController::class, 'destroyPosition'])->name('positions.destroy');
 
-                // Structure canvas - Figma-style drag/connect blueprint editor.
                 Route::get('/canvas', [OrganizationStructureController::class, 'canvasGraph'])->name('canvas.graph');
                 Route::post('/canvas/nodes/{node}/position', [OrganizationStructureController::class, 'updateCanvasNodePosition'])->name('canvas.nodes.position');
                 Route::post('/canvas/edges', [OrganizationStructureController::class, 'storeCanvasEdge'])->name('canvas.edges.store');
@@ -359,11 +300,6 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
             });
         });
 
-    // Employee Management - split out from the group above so it can be
-    // gated by role_or_permission_or_impersonation instead of that group's
-    // fixed role: list. Same prefix/name, so every route name/URI here is
-    // byte-identical to before the split (business.employees.*,
-    // business.offboarding.*, business.employees.career-events.*).
     Route::middleware(['ensure_role', 'role_or_permission_or_impersonation:business-admin|business-hr|business-finance|head-of-department|restricted-hr|chief-of-staff|module.employee-management.view|module.employee-management.create|module.employee-management.edit|module.employee-management.delete|module.employee-management.approve'])
         ->name('business.')
         ->prefix('business/{business:slug}')
@@ -376,21 +312,17 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
             Route::get('/employees/download-csv-template', [EmployeeController::class, 'downloadCsvTemplate'])->name('employees.downloadCsvTemplate');
             Route::get('/employees/download-xlsx-template', [EmployeeController::class, 'downloadXlsxTemplate'])->name('employees.downloadXlsxTemplate');
 
-            // Career history - promotions/salary increments (structured, deferred-effective-date).
             Route::prefix('employees/{employee}/career-events')->name('employees.career-events.')->group(function () {
                 Route::get('/fetch', [\App\Http\Controllers\EmployeeCareerEventController::class, 'fetch'])->name('fetch');
                 Route::post('/store', [\App\Http\Controllers\EmployeeCareerEventController::class, 'store'])->name('store');
                 Route::delete('/{careerEvent}', [\App\Http\Controllers\EmployeeCareerEventController::class, 'destroy'])->name('destroy');
             });
 
-            // Career Growth - business-wide nav item over the same career
-            // events (previously only reachable per-employee, above).
             Route::prefix('career-growth')->name('career-growth.')->group(function () {
                 Route::get('/', [\App\Http\Controllers\EmployeeCareerEventController::class, 'index'])->name('index');
                 Route::get('/fetch', [\App\Http\Controllers\EmployeeCareerEventController::class, 'businessFetch'])->name('fetch');
             });
 
-            // Offboarding (GUIDE plan Phase 4) - one page, modal task management.
             Route::prefix('offboarding')->name('offboarding.')->group(function () {
                 Route::get('/', [OffboardingController::class, 'index'])->name('index');
                 Route::post('/{checklistId}/tasks', [OffboardingController::class, 'storeTask'])->name('tasks.store');
@@ -404,12 +336,6 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
             });
         });
 
-    // Attendance - split out from the group above so it can be gated by
-    // role_or_permission_or_impersonation instead of that group's fixed
-    // role: list. Same prefix/name, so every route name/URI here is
-    // byte-identical to before the split (business.attendances.*,
-    // business.overtime.*, business.work-schedules.*, business.holidays.*,
-    // business.clock-in-out.index, business.reports.index).
     Route::middleware(['ensure_role', 'role_or_permission_or_impersonation:business-admin|business-hr|business-finance|head-of-department|restricted-hr|chief-of-staff|module.attendance.view|module.attendance.create|module.attendance.edit|module.attendance.delete|module.attendance.approve'])
         ->name('business.')
         ->prefix('business/{business:slug}')
@@ -431,7 +357,7 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
             });
 
             Route::get('/work-schedules', [DashboardController::class, 'workSchedules'])->name('work-schedules.index');
-            // Work Schedules Routes
+
             Route::prefix('work-schedules')->group(function () {
                 Route::post('/fetch', [WorkScheduleController::class, 'fetch'])->name('work-schedules.fetch');
                 Route::post('/store', [WorkScheduleController::class, 'store'])->name('work-schedules.store');
@@ -447,7 +373,6 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
 
             Route::get('/holidays', [DashboardController::class, 'holidays'])->name('holidays.index');
 
-            // Holidays Routes
             Route::prefix('holidays')->group(function () {
                 Route::post('/fetch', [HolidayController::class, 'fetch'])->name('holidays.fetch');
                 Route::post('/store', [HolidayController::class, 'store'])->name('holidays.store');
@@ -459,7 +384,6 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
                 Route::post('/import', [HolidayController::class, 'importFromApi'])->name('holidays.import');
             });
 
-            // Enhanced Attendance Routes
             Route::prefix('attendances')->group(function () {
                 Route::get('/settings', [AttendanceController::class, 'settingsPage'])->name('attendances.settings.index');
                 Route::post('/fetch', [AttendanceController::class, 'fetch'])->name('attendances.fetch');
@@ -481,7 +405,6 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
                 Route::post('/payroll-details', [AttendanceController::class, 'payrollEmployeeDetails'])->name('attendances.payroll-details');
                 Route::get('/payroll-summary-export', [AttendanceController::class, 'payrollSummaryExport'])->name('attendances.payroll-summary-export');
 
-                // Reports (see GUIDE plan - shared preview/download pattern)
                 Route::get('/reports', [AttendanceReportController::class, 'index'])->name('attendances.reports.index');
                 Route::get('/reports/daily/preview', [AttendanceReportController::class, 'dailyPreview'])->name('attendances.reports.daily.preview');
                 Route::get('/reports/daily/download', [AttendanceReportController::class, 'dailyDownload'])->name('attendances.reports.daily.download');
@@ -500,13 +423,21 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
                 Route::get('/reports/per-member/preview', [AttendanceReportController::class, 'perMemberPreview'])->name('attendances.reports.per-member.preview');
                 Route::get('/reports/per-member/download', [AttendanceReportController::class, 'perMemberDownload'])->name('attendances.reports.per-member.download');
 
-                // Expected Working Hours policies (business/department/job-category/employee scoped)
                 Route::get('/policies', [AttendancePolicyController::class, 'fetch'])->name('attendances.policies.fetch');
                 Route::post('/policies', [AttendancePolicyController::class, 'store'])->name('attendances.policies.store');
                 Route::delete('/policies/{policy}', [AttendancePolicyController::class, 'destroy'])->name('attendances.policies.destroy');
+
+                Route::get('/devices', [BiometricDeviceController::class, 'fetch'])->name('attendances.devices.fetch');
+                Route::post('/devices', [BiometricDeviceController::class, 'store'])->name('attendances.devices.store');
+                Route::post('/devices/{device}', [BiometricDeviceController::class, 'update'])->name('attendances.devices.update');
+                Route::post('/devices/{device}/toggle', [BiometricDeviceController::class, 'toggleActive'])->name('attendances.devices.toggle');
+                Route::post('/devices/{device}/regenerate-token', [BiometricDeviceController::class, 'regenerateToken'])->name('attendances.devices.regenerate-token');
+                Route::delete('/devices/{device}', [BiometricDeviceController::class, 'destroy'])->name('attendances.devices.destroy');
+                Route::get('/devices/{device}/enrollments', [BiometricDeviceController::class, 'enrollments'])->name('attendances.devices.enrollments.fetch');
+                Route::post('/devices/{device}/enrollments', [BiometricDeviceController::class, 'storeEnrollment'])->name('attendances.devices.enrollments.store');
+                Route::delete('/devices/{device}/enrollments/{enrollment}', [BiometricDeviceController::class, 'destroyEnrollment'])->name('attendances.devices.enrollments.destroy');
             });
 
-            // Enhanced Overtime Routes (replace existing overtime routes)
             Route::prefix('overtime')->group(function () {
                 Route::post('/fetch', [OvertimeController::class, 'fetch'])->name('overtime.fetch');
                 Route::post('/store', [OvertimeController::class, 'store'])->name('overtime.store');
@@ -523,10 +454,6 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
             Route::get('reports', [DashboardController::class, 'attendanceReport'])->name('reports.index');
         });
 
-    // Performance Management - split out from the group above so it can be
-    // gated by role_or_permission_or_impersonation instead of that group's
-    // fixed role: list. Same prefix/name, so every route name/URI here is
-    // byte-identical to before the split (business.performance.*).
     Route::middleware(['ensure_role', 'role_or_permission_or_impersonation:business-admin|business-hr|head-of-department|restricted-hr|chief-of-staff|module.performance-management.view|module.performance-management.create|module.performance-management.edit|module.performance-management.delete|module.performance-management.approve'])
         ->name('business.')
         ->prefix('business/{business:slug}')
@@ -556,7 +483,6 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
                 Route::post('/reviews/{review}/self-assessment', [PerformanceController::class, 'submitSelfAssessment'])->name('review.self');
                 Route::post('/reviews/{review}/manager-assessment', [PerformanceController::class, 'submitManagerAssessment'])->name('review.manager');
 
-                // Performance reports (GUIDE plan Phase 5 - shared preview/download pattern)
                 Route::get('/reports', [PerformanceReportController::class, 'index'])->name('reports.index');
                 Route::get('/reports/cycle/preview', [PerformanceReportController::class, 'cyclePreview'])->name('reports.cycle.preview');
                 Route::get('/reports/cycle/download', [PerformanceReportController::class, 'cycleDownload'])->name('reports.cycle.download');
@@ -582,11 +508,6 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
             });
         });
 
-    // Asset Management - split out from the group above so it can be gated
-    // by role_or_permission_or_impersonation instead of that group's fixed
-    // role: list, on top of its own unchanged ensure_module:asset-management
-    // inner gate. Same prefix/name, so every route name/URI here is
-    // byte-identical to before the split (business.assets.*).
     Route::middleware(['ensure_role', 'role_or_permission_or_impersonation:business-admin|business-hr|head-of-department|restricted-hr|chief-of-staff|module.asset-management.view|module.asset-management.create|module.asset-management.edit|module.asset-management.delete|module.asset-management.approve'])
         ->name('business.')
         ->prefix('business/{business:slug}')
@@ -609,12 +530,6 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
             });
         });
 
-    // Learning Management - split out from the group above so it can be
-    // gated by role_or_permission_or_impersonation instead of that group's
-    // fixed role: list, on top of its own unchanged
-    // ensure_module:learning-management inner gate. Same prefix/name, so
-    // every route name/URI here is byte-identical to before the split
-    // (business.learning.*).
     Route::middleware(['ensure_role', 'role_or_permission_or_impersonation:business-admin|business-hr|head-of-department|restricted-hr|chief-of-staff|module.learning-management.view|module.learning-management.create|module.learning-management.edit|module.learning-management.delete|module.learning-management.approve'])
         ->name('business.')
         ->prefix('business/{business:slug}')
@@ -641,8 +556,6 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
                 Route::get('/reports/completions/preview', [LearningReportController::class, 'completionsPreview'])->name('reports.completions.preview');
                 Route::get('/reports/completions/download', [LearningReportController::class, 'completionsDownload'])->name('reports.completions.download');
 
-                // Settings: course categories, mandatory/compliance
-                // courses, certificate defaults + reminder days.
                 Route::get('/categories/fetch', [CourseCategoryController::class, 'fetch'])->name('categories.fetch');
                 Route::post('/categories/store', [CourseCategoryController::class, 'store'])->name('categories.store');
                 Route::post('/categories/{category}/update', [CourseCategoryController::class, 'update'])->name('categories.update');
@@ -657,12 +570,6 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
             });
         });
 
-    // Project Management - split out from the group above so it can be
-    // gated by role_or_permission_or_impersonation instead of that group's
-    // fixed role: list, on top of its own unchanged
-    // ensure_module:project-management inner gate. Same prefix/name, so
-    // every route name/URI here is byte-identical to before the split
-    // (business.projects.*).
     Route::middleware(['ensure_role', 'role_or_permission_or_impersonation:business-admin|business-hr|head-of-department|restricted-hr|chief-of-staff|module.project-management.view|module.project-management.create|module.project-management.edit|module.project-management.delete|module.project-management.approve'])
         ->name('business.')
         ->prefix('business/{business:slug}')
@@ -676,37 +583,31 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
                 Route::delete('/{project}', [ProjectController::class, 'destroy'])->name('destroy');
                 Route::post('/settings/update', [ProjectController::class, 'updateSettings'])->name('settings.update');
 
-                // Kanban board (page + data + drag-drop persistence)
                 Route::get('/{project}/board', [ProjectController::class, 'showBoard'])->name('board');
                 Route::get('/{project}/board/fetch', [ProjectTaskController::class, 'board'])->name('board.fetch');
                 Route::post('/{project}/board/reorder', [ProjectTaskController::class, 'reorder'])->name('board.reorder');
 
-                // Tasks
                 Route::post('/{project}/tasks/store', [ProjectTaskController::class, 'store'])->name('tasks.store');
                 Route::post('/tasks/{task}/update', [ProjectTaskController::class, 'update'])->name('tasks.update');
                 Route::delete('/tasks/{task}', [ProjectTaskController::class, 'destroy'])->name('tasks.destroy');
                 Route::get('/tasks/{task}/comments/fetch', [ProjectTaskController::class, 'fetchComments'])->name('tasks.comments.fetch');
                 Route::post('/tasks/{task}/comments/store', [ProjectTaskController::class, 'storeComment'])->name('tasks.comments.store');
 
-                // Resource Allocation
                 Route::get('/{project}/members/fetch', [ProjectMemberController::class, 'fetch'])->name('members.fetch');
                 Route::post('/{project}/members/store', [ProjectMemberController::class, 'store'])->name('members.store');
                 Route::post('/members/{member}/update', [ProjectMemberController::class, 'update'])->name('members.update');
                 Route::delete('/members/{member}', [ProjectMemberController::class, 'destroy'])->name('members.destroy');
 
-                // Time Tracking
                 Route::get('/{project}/time-logs/fetch', [ProjectTimeLogController::class, 'fetch'])->name('time-logs.fetch');
                 Route::post('/{project}/time-logs/store', [ProjectTimeLogController::class, 'store'])->name('time-logs.store');
                 Route::delete('/time-logs/{timeLog}', [ProjectTimeLogController::class, 'destroy'])->name('time-logs.destroy');
 
-                // Reports
                 Route::get('/reports', [ProjectReportController::class, 'index'])->name('reports.index');
                 Route::get('/reports/task-status/preview', [ProjectReportController::class, 'taskStatusPreview'])->name('reports.task-status.preview');
                 Route::get('/reports/task-status/download', [ProjectReportController::class, 'taskStatusDownload'])->name('reports.task-status.download');
                 Route::get('/reports/time-tracking/preview', [ProjectReportController::class, 'timeTrackingPreview'])->name('reports.time-tracking.preview');
                 Route::get('/reports/time-tracking/download', [ProjectReportController::class, 'timeTrackingDownload'])->name('reports.time-tracking.download');
 
-                // Settings: Kanban columns + task categories
                 Route::get('/statuses/fetch', [ProjectTaskStatusController::class, 'fetch'])->name('statuses.fetch');
                 Route::post('/statuses/store', [ProjectTaskStatusController::class, 'store'])->name('statuses.store');
                 Route::post('/statuses/{status}/update', [ProjectTaskStatusController::class, 'update'])->name('statuses.update');
@@ -721,11 +622,6 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
             });
         });
 
-    // Recruitment/Onboarding - split out from the group above so it can be
-    // gated by role_or_permission_or_impersonation instead of that group's
-    // fixed role: list. Same prefix/name, so every route name/URI here is
-    // byte-identical to before the split (business.recruitment.*,
-    // business.applications.*, business.applicants.*).
     Route::middleware(['ensure_role', 'role_or_permission_or_impersonation:business-admin|business-hr|head-of-department|restricted-hr|chief-of-staff|module.recruitment-onboarding.view|module.recruitment-onboarding.create|module.recruitment-onboarding.edit|module.recruitment-onboarding.delete|module.recruitment-onboarding.approve'])
         ->name('business.')
         ->prefix('business/{business:slug}')
@@ -753,14 +649,6 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
             });
         });
 
-    // Payroll Management - split out from the group above so it can be
-    // gated by role_or_permission_or_impersonation instead of that group's
-    // fixed role: list. Same prefix/name, so every route name/URI here is
-    // byte-identical to before the split (business.payroll.*,
-    // business.payroll-formulas.*, business.reliefs.index,
-    // business.employee-reliefs.index, business.allowances.index,
-    // business.advances.index, business.loans.index,
-    // business.pay-grades.index).
     Route::middleware(['ensure_role', 'role_or_permission_or_impersonation:business-admin|business-hr|business-finance|head-of-department|restricted-hr|chief-of-staff|module.payroll-management.view|module.payroll-management.create|module.payroll-management.edit|module.payroll-management.delete|module.payroll-management.approve'])
         ->name('business.')
         ->prefix('business/{business:slug}')
@@ -772,7 +660,7 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
 
             Route::get('/payroll', [DashboardController::class, 'payroll'])->name('payroll.index');
             Route::get('/payroll/all', [DashboardController::class, 'payrollAll'])->name('payroll.all');
-            // variance report
+
             Route::get('/payroll/variance', [PayrollController::class, 'variancePage'])
                 ->name('payroll.variance');
             Route::get('/payroll/variance/download', [PayrollController::class, 'downloadVarianceReport'])
@@ -799,7 +687,6 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
             )
                 ->name('payroll.master-roll');
 
-            // Monthly Summary Downloads
             Route::get('/download-nssf-summary', [PayrollController::class, 'downloadNssfMonthlySummary'])
                 ->name('download-nssf-summary');
 
@@ -809,12 +696,9 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
             Route::get('/download-nhif-summary', [PayrollController::class, 'downloadNhifMonthlySummary'])
                 ->name('download-nhif-summary');
 
-            // ─── NSSF per-payroll format downloads ───────────────────────────────
-            // Handles: new_remittance | pre_2018 | old_format | schedule | grouped
             Route::get('/payroll/nssf/download', [PayrollController::class, 'downloadNssf'])
                 ->name('payroll.nssf.download');
 
-            // ─── NSSF month-by-month summary (full year, xlsx + pdf) ─────────────
             Route::get('/payroll/nssf/monthly-summary', [PayrollController::class, 'downloadNssfMonthlySummaryWithFormat'])
                 ->name('payroll.nssf.monthly_summary');
 
@@ -829,58 +713,36 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
             Route::get('pay-grades', [DashboardController::class, 'payGrades'])->name('pay-grades.index');
         });
 
-    // CRM - split out from the group above so it can be gated by
-    // role_or_permission_or_impersonation instead of that group's fixed
-    // role: list. Same prefix/name, so every route name/URI here is
-    // byte-identical to before the split (business.crm.*).
     Route::middleware(['ensure_role', 'role_or_permission_or_impersonation:business-admin|business-hr|head-of-department|restricted-hr|chief-of-staff|module.crm-integration.view|module.crm-integration.create|module.crm-integration.edit|module.crm-integration.delete|module.crm-integration.approve'])
         ->name('business.')
         ->prefix('business/{business:slug}')
         ->group(function () {
-            // 🔹 CRM (PAGE ROUTES) — fixes Route [business.crm.contacts.index] not defined
+
             Route::prefix('crm')->name('crm.')->group(function () {
-                // Contacts pages
+
                 Route::get('/contacts', [CrmController::class, 'contacts'])->name('contacts.index');
                 Route::get('/contacts/create', [CrmController::class, 'createContact'])->name('contacts.create');
                 Route::get('/contacts/{submission}', [CrmController::class, 'viewContact'])->name('contacts.view');
 
-                // Campaigns pages
                 Route::get('/campaigns', [CrmController::class, 'campaigns'])->name('campaigns.index');
                 Route::get('/campaigns/create', [CrmController::class, 'createCampaign'])->name('campaigns.create');
                 Route::get('/campaigns/{campaign}', [CrmController::class, 'viewCampaign'])->name('campaigns.view');
                 Route::get('/campaigns/{campaign}/analytics', [CrmController::class, 'analytics'])->name('campaigns.analytics');
 
-                // Surveys under campaigns
                 Route::get('/campaigns/{campaign}/surveys/create', [CrmController::class, 'createSurvey'])->name('campaigns.surveys.create');
                 Route::post('/campaigns/{campaign}/surveys/store', [CrmController::class, 'storeSurvey'])->name('campaigns.surveys.store');
                 Route::get('/campaigns/{campaign}/surveys/export', [CrmController::class, 'exportSurveys'])->name('campaigns.surveys.export');
 
-                // Leads pages
                 Route::get('/leads', [CrmController::class, 'leads'])->name('leads.index');
                 Route::get('/leads/create', [CrmController::class, 'createLead'])->name('leads.create');
                 Route::get('/leads/{lead}', [CrmController::class, 'viewLead'])->name('leads.view');
 
-                // Reports export
                 Route::get('reports/export/{type}/{format}', [CrmController::class, 'exportReport'])
                     ->name('reports.export')
                     ->where(['type' => 'leads|campaigns|contacts', 'format' => 'xlsx|csv|pdf']);
             });
         });
 
-    // The dashboard landing page ("business.index") needs to be reachable
-    // by EVERY business role, not just super-admin - it's each
-    // role's actual home route after login (getRedirectUrlForRole(),
-    // RoleHomeRouteService). It used to be registered ONLY under
-    // role:super-admin (split out from the business-admin|
-    // business-hr|... group below to fix super-admin getting
-    // 403'd here - see git history) which silently swapped the bug for
-    // its mirror image: every OTHER role got 403'd here instead, and once
-    // 403s started redirecting to each role's own home (also
-    // business.index) that became an infinite redirect loop. One
-    // combined role list covers everyone who's actually meant to land
-    // here; EnsureCorrectRole's own access.dashboard permission check
-    // still correctly turns business-hr/restricted-hr/head-of-department/
-    // chief-of-staff away toward their real home instead.
     Route::middleware(['ensure_role', 'role:super-admin|business-admin|business-hr|business-finance|head-of-department|restricted-hr|chief-of-staff'])
         ->name('business.')
         ->prefix('business/{business:slug}')
@@ -891,22 +753,15 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
             Route::post('/setup-progress/reopen', [DashboardController::class, 'reopenSetupGuide'])->name('setup-progress.reopen');
         });
 
-    // Clients management stays platform-governance only - NOT part of the
-    // wider group above, unlike the dashboard landing page.
     Route::middleware(['ensure_role', 'role:super-admin'])
         ->name('business.')
         ->prefix('business/{business:slug}')
         ->group(function () {
             Route::get('/clients', [ClientController::class, 'index'])->name('clients.index');
             Route::get('/clients/{clientBusiness:slug}', [ClientController::class, 'view'])->name('clients.view');
-            // verify/deactivate/modules-assign/impersonate/fetch/switch-back
-            // already exist under routes/requests.php's `businesses/{business_slug}/clients`
-            // group (super-admin-only tier deliberately kept separate from
-            // super-admin governance for verify/deactivate/modules) - not duplicated here.
+
         });
 
-    // Granting platform-operator access is itself a governance action
-    // (same tier as verify/deactivate) - super-admin only.
     Route::middleware(['ensure_role', 'role:super-admin'])
         ->name('business.')
         ->prefix('business/{business:slug}')
@@ -915,10 +770,6 @@ Route::middleware(['auth', \App\Http\Middleware\VerifyBusiness::class, \App\Http
             Route::get('/system-health', [\App\Http\Controllers\SystemHealthController::class, 'index'])->name('system-health.index');
         });
 
-    // Inviting a colleague into THIS business account ("Account Sharing") -
-    // business-admin owns this day to day; super-admin can also
-    // reach it while impersonating a client business. Unrelated to the
-    // clients.* group above (that's the platform business managing tenant businesses).
     Route::middleware(['ensure_role', 'role:super-admin|business-admin'])
         ->name('business.clients.')
         ->prefix('business/{business:slug}')
@@ -938,9 +789,6 @@ Route::middleware(['ensure_role', 'role:business-employee'])
         Route::get('profile', [ProfileController::class, 'edit'])->name('profile');
         Route::get('my-team', [OrganogramController::class, 'myTeam'])->name('my-team');
 
-        // Read-only business-wide employee id/name list - same data an
-        // admin sees, needed so a portal user can assign a task/log time
-        // against a colleague on a shared project (see My Projects below).
         Route::prefix('organogram')->name('organogram.')->group(function () {
             Route::get('employee-options', [OrganogramController::class, 'employeeOptions'])->name('employee-options');
         });
@@ -974,14 +822,6 @@ Route::middleware(['ensure_role', 'role:business-employee'])
         Route::post('/disciplinary/{id}/acknowledge', [\App\Http\Controllers\WarningController::class, 'acknowledge'])->name('disciplinary.acknowledge');
         Route::post('/disciplinary/{id}/respond', [\App\Http\Controllers\WarningController::class, 'submitResponse'])->name('disciplinary.respond');
 
-        // My Projects - full parity with the admin Kanban board (drag-drop,
-        // task CRUD, comments, resource allocation, time logging), reusing
-        // the EXACT same controllers/views as business.projects.* - see
-        // ProjectController::myProjects()/showBoard() and
-        // EnsureProjectMember, which is what makes that reuse safe for a
-        // plain business-employee (scoped to projects they manage or are
-        // an active member of, checked per-request against whichever
-        // model - project/task/member/timeLog - the route binds).
         Route::prefix('projects')->name('projects.')->group(function () {
             Route::get('/', [ProjectController::class, 'myProjects'])->name('index');
             Route::get('/task-categories/fetch', [ProjectTaskCategoryController::class, 'fetch'])->name('task-categories.fetch');
@@ -1026,8 +866,6 @@ Route::middleware(['ensure_role', 'role:business-employee'])
             Route::get('/', [EmployeeDashboardController::class, 'attendances'])->name('index');
             Route::get('clock-in-out', [EmployeeDashboardController::class, 'clockInOut'])->name('clock-in-out.index');
 
-            // My Attendance reports - always self-scoped, see
-            // AttendanceReportController::my*() (Phase 1 employee-portal cleanup).
             Route::get('/reports/daily/preview', [AttendanceReportController::class, 'myDailyPreview'])->name('reports.daily.preview');
             Route::get('/reports/daily/download', [AttendanceReportController::class, 'myDailyDownload'])->name('reports.daily.download');
             Route::get('/reports/monthly/preview', [AttendanceReportController::class, 'myMonthlyPreview'])->name('reports.monthly.preview');
@@ -1043,9 +881,6 @@ Route::middleware(['ensure_role', 'role:business-employee'])
 
         Route::get('absenteeism', [DashboardController::class, 'absenteeism'])->name('absenteeism.index');
 
-        // Was pointed at a non-existent checkIn() method (dead route, unreferenced
-        // anywhere in the UI) - repointed to the same working clock-in/out flow
-        // rather than leaving a route that 500s if ever hit directly.
         Route::get('/attendance', [EmployeeDashboardController::class, 'clockInOut'])->name('attendance');
 
         Route::get('/p9', [EmployeeDashboardController::class, 'viewP9Forms'])->name('p9.index');
@@ -1079,11 +914,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     Route::name('setup.')->prefix('setup')->group(function () {
-        // business-admin only: this is also the "Add Business" entry
-        // point for accounts that already own a business (see
-        // navbar.blade.php). RegisteredUserController::store() grants
-        // business-admin at signup, before a first-time user ever
-        // reaches here, so this doesn't block onboarding.
+
         Route::middleware(['role:business-admin'])->get('business', [BusinessController::class, 'create'])->name('business');
         Route::get('modules', [ModuleController::class, 'create'])->name('modules');
     });
@@ -1094,7 +925,6 @@ Route::middleware('auth')->group(function () {
     Route::middleware('auth')->get('/dashboard', [BusinessController::class, 'redirectToDashboard'])->name('dashboard');
 });
 
-// Support (common)
 Route::middleware(['auth'])->group(function () {
     Route::middleware(['ensure_role', 'role:business-admin|business-hr|business-finance|business-employee'])
         ->name('business.')
@@ -1107,21 +937,14 @@ Route::middleware(['auth'])->group(function () {
         });
 });
 
-// auth only - deliberately NOT VerifyBusiness (that's what redirects HERE
-// when a business isn't verified; adding it back would loop). Without
-// auth, this crashed for anyone who reached it without a live session
-// (auth()->user()->id on a null user in the shared app layout) instead of
-// bouncing them to login first.
 Route::middleware('auth')
     ->get('business/{business:slug}/activate', [BusinessController::class, 'activate'])
     ->name('business.activate');
 
-// Short link routes
 Route::get('/campaign/{slug}', [CrmController::class, 'handleShortLink'])->name('short.link');
 Route::post('/campaign/{slug}/submit', [CrmController::class, 'submitSurvey'])->name('short.link.submit');
 Route::get('/campaign/{slug}/skip', [CrmController::class, 'skipShortLink'])->name('short.link.skip');
 
-// Public survey routes
 Route::prefix('surveys')->name('surveys.public.')->group(function () {
     Route::get('/{survey}', [PublicSurveyController::class, 'show'])->name('show');
     Route::post('/{survey}/submit', [PublicSurveyController::class, 'submit'])->name('submit');
@@ -1130,7 +953,6 @@ Route::prefix('surveys')->name('surveys.public.')->group(function () {
 require __DIR__ . '/auth.php';
 require __DIR__ . '/requests.php';
 
-// Temporary route for testing leave type edit page
 Route::get('/test-leave-types/{slug}/edit', function ($slug) {
     return "Edit page for $slug";
 });

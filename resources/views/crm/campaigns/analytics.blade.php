@@ -13,7 +13,7 @@
                         </div>
                     </div>
                     <div class="card-body p-4">
-                        <!-- Breadcrumb -->
+
                         <nav aria-label="breadcrumb" class="mb-4">
                             <ol class="breadcrumb mb-0">
                                 <li class="breadcrumb-item">
@@ -32,7 +32,6 @@
                             </ol>
                         </nav>
 
-                        <!-- Campaign Summary -->
                         <div class="mb-5">
                             <h6 class="fw-semibold text-dark mb-3">Campaign Summary</h6>
                             <div class="bg-white p-3 rounded-3 border">
@@ -57,7 +56,6 @@
                             </div>
                         </div>
 
-                        <!-- Short Link Visits -->
                         <div class="mb-5">
                             <h6 class="fw-semibold text-dark mb-3">Short Link Visits</h6>
                             <div class="table-responsive rounded-3">
@@ -68,7 +66,6 @@
                             </div>
                         </div>
 
-                        <!-- Survey Results (if applicable) -->
                         @if($campaign->has_survey)
                         <div>
                             <div class="d-flex justify-content-between align-items-center mb-3">

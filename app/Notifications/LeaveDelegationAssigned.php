@@ -8,10 +8,6 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-/**
- * Sent to the reliever (delegate) when someone assigns them to cover their
- * duties while on leave - mail + portal, so they hear about it either way.
- */
 class LeaveDelegationAssigned extends Notification implements ShouldQueue
 {
     use Queueable;

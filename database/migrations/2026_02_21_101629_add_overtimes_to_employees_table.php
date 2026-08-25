@@ -9,10 +9,10 @@ return new class extends Migration
     public function up()
     {
         Schema::table('employees', function (Blueprint $table) {
-            // Overtime eligibility
+
             $table->boolean('is_overtime_eligible')->default(true)->after('registered_device_mac');
-            $table->decimal('overtime_rate_regular', 5, 2)->nullable()->after('is_overtime_eligible'); // multiplier (e.g., 1.5)
-            $table->decimal('overtime_rate_holiday', 5, 2)->nullable()->after('overtime_rate_regular'); // multiplier (e.g., 2.0)
+            $table->decimal('overtime_rate_regular', 5, 2)->nullable()->after('is_overtime_eligible');
+            $table->decimal('overtime_rate_holiday', 5, 2)->nullable()->after('overtime_rate_regular');
         });
     }
 

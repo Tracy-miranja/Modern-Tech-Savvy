@@ -1,7 +1,7 @@
 <x-app-layout title="Create Campaign">
     <div class="container-fluid py-4">
         <div class="row">
-            <!-- Main Content -->
+
             <div class="col-md-9 col-lg-10">
                 <div class="card shadow-sm">
                     <div class="card-header d-flex align-items-center justify-content-between text-dark">
@@ -10,7 +10,7 @@
                             class="btn btn-secondary btn-sm">Back to Campaigns</a>
                     </div>
                     <div class="card-body">
-                        <!-- Breadcrumb -->
+
                         <nav aria-label="breadcrumb">
                             <ol class="breadcrumb">
                                 <li class="breadcrumb-item"><a
@@ -23,7 +23,6 @@
                             </ol>
                         </nav>
 
-                        <!-- Form -->
                         <form id="campaignForm" action="{{ route('crm.campaigns.store') }}" method="POST"
                             data-redirect="{{ route('business.crm.campaigns.index', ['business' => $currentBusiness->slug]) }}">
                             @csrf

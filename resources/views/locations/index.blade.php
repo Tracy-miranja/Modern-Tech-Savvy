@@ -3,7 +3,7 @@
     @include('locations._access_nav')
 
     <div class="row g-4">
-        <!-- Form Card -->
+
         <div class="col-md-4">
             <div class="card shadow-sm border-0 rounded-3">
                 <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
@@ -15,7 +15,6 @@
             </div>
         </div>
 
-        <!-- Locations Table Card -->
         <div class="col-md-8">
             <div class="card shadow-sm border-0 rounded-3">
                 <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
@@ -31,8 +30,6 @@
                 </div>
             </div>
         </div>
-
-
 
         @push('styles')
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intro.js/minified/introjs.min.css">

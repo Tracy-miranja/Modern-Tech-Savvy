@@ -109,7 +109,7 @@ class EmployeeReliefsController extends Controller
         if (!$business) {
             return RequestResponse::badRequest('Business not found.');
         }
-        // Load employees with their associated user
+
         $employees = Employee::with('user')
             ->where('business_id', $business->id)
             ->get();

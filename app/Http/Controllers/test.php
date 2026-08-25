@@ -17,7 +17,6 @@ class EnsureCorrectRole
         $user = Auth::user();
         $activeRole = session('active_role');
 
-        // Log for debugging
         Log::info('EnsureCorrectRole Middleware', [
             'user_id' => $user?->id,
             'active_role' => $activeRole,
@@ -30,7 +29,6 @@ class EnsureCorrectRole
             return response()->json(['message' => 'Unauthorized: No authenticated user'], 403);
         }
 
-        // Set default role if none exists and user has business-admin
         if (!$activeRole && $user->hasRole('business-admin')) {
             $activeRole = 'business-admin';
             session(['active_role' => $activeRole]);

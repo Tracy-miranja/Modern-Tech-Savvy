@@ -7,15 +7,6 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-/**
- * Audit/reversal trail for MandatoryLeavePeriod: one row per employee whose
- * LeaveEntitlement.adjustment_days was decremented when the period was
- * applied. Needed because LeaveEntitlement.adjustment_days is a single
- * cumulative number shared with manual HR adjustments - to correctly claw
- * back exactly this period's own contribution (on edit/delete) without
- * touching any other adjustment on the same entitlement, we have to
- * remember exactly how many days this period deducted per employee.
- */
 return new class extends Migration
 {
     public function up(): void

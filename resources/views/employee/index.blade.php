@@ -2,7 +2,6 @@
     <div class="container py-4">
         <h2 class="fw-bold mb-4">Welcome {{ explode(' ', Auth::user()->name)[0] }}</h2>
 
-        <!-- Stats Overview -->
         <div class="row g-4">
             <div class="col-md-3">
                 <div class="card border-0 shadow-sm rounded-3 p-3 text-center">
@@ -33,7 +32,7 @@
                 </div>
             </div>
         </div>
-        <!-- Leave Balance -->
+
 <div class="row g-4 mt-4">
     <h3 class="fw-bold mb-3">Leave Balance</h3>
     <div class="col-md-12">
@@ -58,8 +57,6 @@
     </div>
 </div>
 
-
-        <!-- Quick Actions -->
         <div class="row g-4 mt-4">
             <h3 class="fw-bold mb-4">Quick Actions</h3>
             <div class="col-md-4">

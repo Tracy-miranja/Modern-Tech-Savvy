@@ -27,33 +27,21 @@ class TrendController extends Controller
         return $this->getTrends(EmployeePayroll::class, $request, 'created_at', ['net_pay', 'gross_pay']);
     }
 
-    /**
-     * Get attendance trends.
-     */
     public function attendance(Request $request)
     {
         return $this->getTrends(Attendance::class, $request, 'date');
     }
 
-    /**
-     * Get leave trends.
-     */
     public function leave(Request $request)
     {
         return $this->getTrends(LeaveRequest::class, $request, 'created_at');
     }
 
-    /**
-     * Get loan trends.
-     */
     public function loans(Request $request)
     {
         return $this->getTrends(Loan::class, $request, 'start_date', 'amount');
     }
 
-    /**
-     * General method for fetching trends for different models.
-     */
     protected function getTrends($modelClass, Request $request, $dateColumn, $sumColumn = null)
     {
         $business = Business::findBySlug(session('active_business_slug'));

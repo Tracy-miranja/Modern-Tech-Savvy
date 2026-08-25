@@ -32,11 +32,6 @@ class LeaveEntitlementController extends Controller
         return view('leave.index', compact('leavePeriods'));
     }
 
-    /**
-     * Create or update leave entitlements for one or many employees over one or many leave types.
-     * - If "employees" is omitted, all employees in the active business are targeted.
-     * - "leave_type_ids" and "entitled_days" are parallel arrays (index-aligned).
-     */
     public function store(Request $request, LeavePolicyService $policyService)
     {
         Log::debug('LeaveEntitlement store payload', $request->all());
@@ -72,7 +67,6 @@ class LeaveEntitlementController extends Controller
                 return RequestResponse::badRequest('Leave period not found.', 404);
             }
 
-            // Get employees: use provided list or all "active" employees (guard schema)
             $employeeIds = $validated['employees'] ??
                 Employee::where('business_id', $business->id)
                     ->when(Schema::hasColumn('employees', 'is_active'), fn ($q) => $q->where('is_active', 1))
@@ -85,7 +79,6 @@ class LeaveEntitlementController extends Controller
             $daysArr       = $validated['entitled_days'] ?? [];
             $overridePolicy = $validated['override_policy'] ?? false;
 
-            // Validate parallel arrays
             if (!empty($daysArr) && count($daysArr) !== count($typeIds)) {
                 return RequestResponse::badRequest(
                     'leave_type_ids and entitled_days must be the same length when entitled_days is provided.',
@@ -94,14 +87,14 @@ class LeaveEntitlementController extends Controller
             }
 
             $onDate   = Carbon::parse($leavePeriod->start_date);
-            $asOfDate = now(); // snapshot date for accrual calculation
+            $asOfDate = now();
 
             $entitled = 0;
             $skipped  = 0;
             $errors   = [];
 
             foreach ($employeeIds as $employeeId) {
-                // load user for name (avoid N+1 for name access)
+
                 $employee = Employee::with(['department', 'jobCategory', 'employmentDetails', 'user'])->find($employeeId);
                 if (!$employee) {
                     $errors[] = "Employee {$employeeId} not found.";
@@ -114,7 +107,7 @@ class LeaveEntitlementController extends Controller
                 foreach ($typeIds as $idx => $leaveTypeId) {
                     try {
                         $leaveType = LeaveType::find($leaveTypeId);
-                        // Only enforce is_active if column exists
+
                         if (
                             !$leaveType ||
                             (Schema::hasColumn('leave_types', 'is_active') && !$leaveType->is_active)
@@ -124,12 +117,11 @@ class LeaveEntitlementController extends Controller
                             continue;
                         }
 
-                        // Resolve policy
                         $policy = $policyService->resolvePolicy($leaveTypeId, $employee, $onDate);
 
                         if (!$policy) {
                             if ($overridePolicy) {
-                                // Try to get any policy for this leave type as template
+
                                 $tpl = LeavePolicy::query()->where('leave_type_id', $leaveTypeId);
                                 if (Schema::hasColumn('leave_policies', 'is_active')) {
                                     $tpl->where('is_active', 1);
@@ -151,25 +143,22 @@ class LeaveEntitlementController extends Controller
                             }
                         }
 
-                        // Check eligibility (unless overriding)
                         if (!$overridePolicy && !$policyService->isEmployeeEligible($employee, $leaveType, $onDate)) {
                             $errors[] = "Employee {$employee->id} ({$employeeName}) does not meet eligibility criteria for {$leaveType->name}.";
                             $skipped++;
                             continue;
                         }
 
-                        // Determine entitled days
                         $manualDays   = isset($daysArr[$idx]) ? (float) $daysArr[$idx] : null;
                         $entitledDays = 0.0;
 
                         if ($overridePolicy && $manualDays !== null) {
-                            // Override: use manual days directly
+
                             $entitledDays = $manualDays;
                         } else {
-                            // Compute from policy (includes proration and service checks)
+
                             $entitledDays = $policyService->computeEntitledDays($policy, $employee, $leavePeriod);
 
-                            // If manual days provided without override, ensure not exceeding policy default+carryover cap
                             if ($manualDays !== null) {
                                 $maxAllowed = $entitledDays + (float)($policy->max_carryover_days ?? 0);
                                 if ($manualDays > $maxAllowed) {
@@ -188,25 +177,12 @@ class LeaveEntitlementController extends Controller
                             continue;
                         }
 
-                        // Calculate carryover
                         $carryover = $policyService->calculateCarryover($employee, $leaveType, $leavePeriod, $policy);
 
-                        // Check if this leave type should accrue.
-                        // allowance_accruable and the policy's own
-                        // accrual_frequency/accrual_amount are set
-                        // independently in the leave type form - a policy
-                        // with a real accrual_amount configured but the
-                        // separate allowance_accruable toggle left off was
-                        // silently front-loading the FULL entitlement
-                        // immediately instead of accruing it, which reads
-                        // as "accrual isn't working" even though the rate
-                        // was configured correctly. A positive accrual
-                        // amount is a clear enough signal on its own.
                         $isAccruable = !Schema::hasColumn('leave_types', 'allowance_accruable')
                             ? true
                             : ((bool) $leaveType->allowance_accruable || (float) ($policy->accrual_amount ?? 0) > 0);
 
-                        // Prepare entitlement used for accrual calculation (transient)
                         $calcEntitlement = new LeaveEntitlement([
                             'employee_id'     => $employee->id,
                             'leave_type_id'   => $leaveTypeId,
@@ -218,17 +194,12 @@ class LeaveEntitlementController extends Controller
                         $calcEntitlement->setRelation('leavePeriod', $leavePeriod);
                         $calcEntitlement->setRelation('employee', $employee);
 
-                        // Compute accrued days snapshot as of now:
-                        // - Non-accruable => front-load full entitlement.
-                        // - Accruable     => use policyService->calculateAccruedDays().
                         $accrued = $isAccruable
                             ? (float) $policyService->calculateAccruedDays($calcEntitlement, $policy, $asOfDate)
                             : (float) $entitledDays;
 
-                        // Total = carryover + accrued (new rule)
                         $total = (float) $carryover + (float) $accrued;
 
-                        // Create or update entitlement
                         $existing = LeaveEntitlement::where([
                             'business_id'     => $business->id,
                             'employee_id'     => $employee->id,
@@ -237,7 +208,7 @@ class LeaveEntitlementController extends Controller
                         ])->first();
 
                         if ($existing) {
-                            // Update existing using the same snapshot rule
+
                             $existing->entitled_days  = $entitledDays;
                             $existing->carryover_days = $carryover;
                             $existing->accrued_days   = $accrued;
@@ -248,7 +219,7 @@ class LeaveEntitlementController extends Controller
 
                             Log::info("Updated entitlement {$existing->id} for employee {$employee->id}");
                         } else {
-                            // Create new
+
                             LeaveEntitlement::create([
                                 'business_id'     => $business->id,
                                 'employee_id'     => $employee->id,
@@ -290,10 +261,6 @@ class LeaveEntitlementController extends Controller
         });
     }
 
-    /**
-     * Fetch entitlements table for a given leave period (scoped to active business).
-     * Optional filter: location_id. If omitted, no location filter is applied.
-     */
     public function fetch(Request $request)
     {
         $validated = $request->validate([
@@ -319,7 +286,6 @@ class LeaveEntitlementController extends Controller
         $query = LeaveEntitlement::where('business_id', $business->id)
             ->where('leave_period_id', $leavePeriod->id);
 
-        // Optional location filter (only apply if provided)
         if (!empty($validated['location_id'])) {
             $locationId = (int) $validated['location_id'];
             $query->whereHas('employee', function ($q) use ($locationId) {
@@ -334,10 +300,6 @@ class LeaveEntitlementController extends Controller
         return RequestResponse::ok('Leave entitlements fetched successfully.', $leaveEntitlementsTable);
     }
 
-    /**
-     * Raw JSON entitlements for a leave period - used by the "Set Entitlements"
-     * form to badge already-entitled employees as the period selection changes.
-     */
     public function getByPeriod(Request $request)
     {
         $validated = $request->validate([
@@ -394,9 +356,6 @@ class LeaveEntitlementController extends Controller
         return view('leave._leave_entitlement_details', compact('entitlement'));
     }
 
-    /**
-     * Fetch a leave entitlement for editing by slug.
-     */
     public function edit(Request $request)
     {
         $validated = $request->validate(['slug' => 'required|string']);
@@ -450,23 +409,10 @@ class LeaveEntitlementController extends Controller
             'leave_period_id'=> (int)$leave_period_id,
         ])->firstOrFail();
 
-        // assign the grant-facing fields; days_taken/days_pending are
-        // NEVER manually settable - they are always derived fresh from
-        // live LeaveRequest data by recalculateTotals() below, which is
-        // also what actually computes total_days/days_remaining (adjustment_days
-        // is a separate correction layer - see applyAdjustment() - and isn't
-        // touched by this raw-numbers overwrite).
         $entitlement->entitled_days   = (float)$data['entitled_days'];
         $entitlement->accrued_days    = isset($data['accrued_days']) ? (float)$data['accrued_days'] : (float)$entitlement->accrued_days;
         $entitlement->carryover_days  = isset($data['carryover_days']) ? (float)$data['carryover_days'] : (float)$entitlement->carryover_days;
 
-        // For a non-accruable entitlement that has already been through the
-        // accrual pipeline (last_accrued_at set), recalculateTotals() reads
-        // accrued_days (which the pipeline mirrors to entitled_days) as the
-        // usable pool, not entitled_days directly - so editing entitled_days
-        // alone here would silently have no visible effect on the balance.
-        // Keep the mirror in sync so a manual correction actually takes
-        // effect, exactly like the pipeline itself does.
         $leaveType = $entitlement->leaveType;
         $isAccruable = (bool) ($leaveType->allowance_accruable ?? false);
         if ($entitlement->last_accrued_at !== null && !$isAccruable && !isset($data['accrued_days'])) {
@@ -481,12 +427,6 @@ class LeaveEntitlementController extends Controller
         ]);
     }
 
-    /**
-     * Applies an incremental correction to an entitlement (+/- days with a
-     * required reason) instead of overwriting every field - a data-entry fix
-     * or a goodwill grant stays visible and distinct from the policy-driven
-     * entitled_days. Cumulative: calling this twice adds both deltas.
-     */
     public function adjust(Request $request)
     {
         $data = $request->validate([
@@ -523,16 +463,6 @@ class LeaveEntitlementController extends Controller
         return RequestResponse::ok('Entitlement adjusted successfully.', $entitlement->fresh(['employee.user', 'leaveType', 'leavePeriod']));
     }
 
-    /**
-     * Rolls unused balances from one leave period into another for every
-     * matching entitlement, capped by each policy's max_carryover_days
-     * (LeavePolicyService::computeCarryover(), already correctly implemented
-     * but never previously called anywhere). Only updates entitlements that
-     * already exist in the destination period - it doesn't create new ones,
-     * since that requires full policy resolution best left to the normal
-     * "Set Entitlements" flow. Employees skipped for that reason are
-     * reported back so HR can create them first if needed.
-     */
     public function processCarryover(Request $request, LeavePolicyService $policyService)
     {
         $validated = $request->validate([
@@ -583,12 +513,7 @@ class LeaveEntitlementController extends Controller
                     ->first();
 
                 if (!$destination) {
-                    // Carrying over shouldn't require HR to have already
-                    // run "Set Entitlements" for every employee in the
-                    // destination period first - create the baseline row
-                    // (entitled/accrued per the destination period's own
-                    // policy) the same way autoEntitleAll() would, then
-                    // apply this explicit carryover on top of it.
+
                     $destination = $policyService->createOrUpdateEntitlement(
                         $source->employee,
                         $source->leaveType,
@@ -628,12 +553,6 @@ class LeaveEntitlementController extends Controller
         });
     }
 
-    /**
-     * Landscape PDF report of leave entitlements for a period, pivoted so each
-     * row is one employee and each column is a leave type showing their
-     * remaining days - optionally narrowed by department, leave type(s), and/or
-     * specific employees.
-     */
     public function exportPdf(Request $request, Business $business)
     {
         $validated = $request->validate([
@@ -652,11 +571,7 @@ class LeaveEntitlementController extends Controller
 
         $query = LeaveEntitlement::where('business_id', $business->id)
             ->where('leave_period_id', $leavePeriod->id)
-            // Guards against orphaned entitlement rows whose employee_id no
-            // longer resolves to a real Employee (e.g. the employee was later
-            // deleted) - without this, an unfiltered export can 500 trying to
-            // read ->user off a null employee, while filtering by specific
-            // employee ids naturally excludes them anyway.
+
             ->whereHas('employee');
 
         if (!empty($validated['department_id'])) {
@@ -699,9 +614,6 @@ class LeaveEntitlementController extends Controller
         return $pdf->download("leave_entitlements_{$business->slug}_{$leavePeriod->slug}.pdf");
     }
 
-    /**
-     * Delete a leave entitlement by slug.
-     */
     public function delete(Request $request)
     {
         return $this->handleTransaction(function () use ($request) {
@@ -742,14 +654,6 @@ class LeaveEntitlementController extends Controller
         });
     }
 
-    /**
-     * Bulk-creates (or, with force=true, re-creates) entitlements for every
-     * active employee x every active leave type in a period, via
-     * LeavePolicyService::createOrUpdateEntitlement() - a policy-driven
-     * alternative to store()'s explicit employee/leave-type selection, for
-     * "just entitle everyone per policy" use. Not currently wired to a
-     * route.
-     */
     public function autoEntitleAll(Request $request, LeavePolicyService $policyService)
     {
         $validated = $request->validate([
@@ -841,9 +745,6 @@ class LeaveEntitlementController extends Controller
         });
     }
 
-    /**
-     * Process accruals for a specific period.
-     */
     public function processAccruals(Request $request, LeavePolicyService $policyService)
     {
         $validated = $request->validate([

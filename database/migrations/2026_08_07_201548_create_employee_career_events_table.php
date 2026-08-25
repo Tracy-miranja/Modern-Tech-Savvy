@@ -9,25 +9,6 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-/**
- * Employee career history: promotions and salary increments, one row per
- * event with structured old/new values (never free-text) so it's actually
- * reportable later (average increment %, promotions by department, etc).
- *
- * event_type is a plain string, NOT a DB enum - the existing
- * employee_contract_actions.action_type IS a DB enum, and adding
- * 'suspension' to it required a raw ALTER TABLE migration. A string field
- * validated at the app level means a future event type (e.g. 'transfer',
- * 'title_change') never needs a migration.
- *
- * Respects a future effective_date (user's explicit choice over "apply
- * immediately"): status starts 'pending' and only flips to 'applied' -
- * updating EmploymentDetail/EmployeePaymentDetail - once effective_date is
- * reached, via the daily `career-events:apply-pending` scheduled command
- * (see EmployeeCareerEventService::applyDuePendingEvents()). Recording an
- * event with today/a past effective_date applies it immediately instead of
- * waiting for tomorrow's run.
- */
 return new class extends Migration
 {
     public function up(): void
@@ -48,7 +29,7 @@ return new class extends Migration
 
             $table->string('reason');
             $table->text('notes')->nullable();
-            $table->string('status')->default('pending'); // pending, applied, reversed
+            $table->string('status')->default('pending');
             $table->foreignIdFor(User::class, 'issued_by_id')->constrained('users')->cascadeOnDelete();
             $table->timestamp('applied_at')->nullable();
             $table->timestamps();

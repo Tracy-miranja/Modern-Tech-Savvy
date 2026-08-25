@@ -137,7 +137,6 @@
     <link rel="stylesheet" href="{{ asset('assets/css/org-chart.css') }}">
     @endpush
 
-    <!-- New/Edit Role Modal -->
     <div class="modal fade" id="newRoleModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -181,7 +180,6 @@
         </div>
     </div>
 
-    <!-- New Team Modal -->
     <div class="modal fade" id="newTeamModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -214,7 +212,6 @@
         </div>
     </div>
 
-    <!-- Role Positions Modal -->
     <div class="modal fade" id="rolePositionsModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -232,7 +229,6 @@
         </div>
     </div>
 
-    <!-- Assign Position Modal -->
     <div class="modal fade" id="assignPositionModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -282,7 +278,6 @@
         </div>
     </div>
 
-    <!-- Bulk Assign Role Modal -->
     <div class="modal fade" id="bulkAssignRoleModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -953,7 +948,7 @@
                     Container: container,
                     Connector: ['Bezier', { curviness: 40 }],
                     PaintStyle: { stroke: '#adb5bd', strokeWidth: 2 },
-                    HoverPaintStyle: { stroke: '#0d6efd', strokeWidth: 3 },
+                    HoverPaintStyle: { stroke: '#f89616', strokeWidth: 3 },
                     EndpointStyle: { fill: '#adb5bd', radius: 4 },
                     ConnectionOverlays: [['Arrow', { location: 1, width: 10, length: 10 }]],
                 });

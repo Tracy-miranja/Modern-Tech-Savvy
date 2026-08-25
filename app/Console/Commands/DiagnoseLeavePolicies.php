@@ -54,20 +54,16 @@ class DiagnoseLeavePolicies extends Command
         }
         $this->newLine();
 
-        // Show all leave types and their policies
         $this->showLeaveTypes($business);
 
-        // Show policy-to-employee matching
         if ($period) {
             $this->showPolicyMatching($business, $period);
         }
 
-        // Show specific employee details if requested
         if ($empId = $this->option('employee')) {
             $this->showEmployeeDetails($empId, $business, $period);
         }
 
-        // Show specific leave type details if requested
         if ($ltSlug = $this->option('leave-type')) {
             $this->showLeaveTypeDetails($ltSlug, $business, $period);
         }
@@ -78,24 +74,24 @@ class DiagnoseLeavePolicies extends Command
     protected function showLeaveTypes(Business $business): void
     {
         $this->info('--- Leave Types ---');
-        
+
         $leaveTypes = LeaveType::where('business_id', $business->id)->get();
-        
+
         foreach ($leaveTypes as $lt) {
             $this->line("• {$lt->name} (ID: {$lt->id})");
-            
+
             $policies = LeavePolicy::where('leave_type_id', $lt->id)->get();
-            
+
             if ($policies->isEmpty()) {
                 $this->warn("  ⚠ NO POLICIES CONFIGURED");
                 continue;
             }
 
             foreach ($policies as $policy) {
-                $dept = $policy->department_id 
+                $dept = $policy->department_id
                     ? ($policy->department?->name ?? "Dept #{$policy->department_id}")
                     : "ALL";
-                $job = $policy->job_category_id 
+                $job = $policy->job_category_id
                     ? ($policy->jobCategory?->name ?? "Job #{$policy->job_category_id}")
                     : "ALL";
                 $gender = strtoupper($policy->gender_applicable ?? 'ALL');
@@ -118,7 +114,7 @@ class DiagnoseLeavePolicies extends Command
     protected function showPolicyMatching(Business $business, LeavePeriod $period): void
     {
         $this->info('--- Policy Matching Matrix ---');
-        
+
         $employees = Employee::where('business_id', $business->id)
             ->with(['department', 'jobCategory', 'user'])
             ->get();
@@ -126,7 +122,7 @@ class DiagnoseLeavePolicies extends Command
         $leaveTypes = LeaveType::where('business_id', $business->id)->get();
 
         $matrix = [];
-        
+
         foreach ($employees as $emp) {
             $empName = $emp->user?->name ?? "Emp #{$emp->id}";
             $empGender = strtolower($emp->gender ?? 'unknown');
@@ -154,31 +150,30 @@ class DiagnoseLeavePolicies extends Command
 
                 $hasMatch = $matchingPolicies->isNotEmpty();
                 $symbol = $hasMatch ? '✓' : '✗';
-                
+
                 if (!$hasMatch) {
                     $this->line("{$symbol} {$empName} ({$empGender}, {$empDept}, {$empJob}) → {$lt->name}");
-                    
-                    // Explain why no match
+
                     $allPolicies = LeavePolicy::where('leave_type_id', $lt->id)->get();
                     if ($allPolicies->isEmpty()) {
                         $this->warn("    Reason: No policies exist for this leave type");
                     } else {
                         foreach ($allPolicies as $p) {
                             $reasons = [];
-                            
+
                             $pg = strtolower($p->gender_applicable ?? 'all');
                             if ($pg !== 'all' && $pg !== $empGender) {
                                 $reasons[] = "gender ({$pg} ≠ {$empGender})";
                             }
-                            
+
                             if ($p->department_id && $p->department_id !== $emp->department_id) {
                                 $reasons[] = "department";
                             }
-                            
+
                             if ($p->job_category_id && $p->job_category_id !== $emp->job_category_id) {
                                 $reasons[] = "job category";
                             }
-                            
+
                             if (!empty($reasons)) {
                                 $this->warn("    Policy #{$p->id} excluded: " . implode(', ', $reasons));
                             }
@@ -194,9 +189,9 @@ class DiagnoseLeavePolicies extends Command
     protected function showEmployeeDetails(int $empId, Business $business, ?LeavePeriod $period): void
     {
         $this->info("--- Employee Details ---");
-        
+
         $employee = Employee::with(['department', 'jobCategory', 'user'])->find($empId);
-        
+
         if (!$employee) {
             $this->error("Employee not found: {$empId}");
             return;
@@ -232,7 +227,7 @@ class DiagnoseLeavePolicies extends Command
     protected function showLeaveTypeDetails(string $slug, Business $business, ?LeavePeriod $period): void
     {
         $this->info("--- Leave Type Details ---");
-        
+
         $leaveType = LeaveType::where('slug', $slug)
             ->where('business_id', $business->id)
             ->first();
@@ -248,7 +243,7 @@ class DiagnoseLeavePolicies extends Command
 
         $policies = LeavePolicy::where('leave_type_id', $leaveType->id)->get();
         $this->line("Policies: {$policies->count()}");
-        
+
         foreach ($policies as $policy) {
             $this->line("  Policy #{$policy->id}:");
             $this->line("    Gender: " . strtoupper($policy->gender_applicable ?? 'ALL'));

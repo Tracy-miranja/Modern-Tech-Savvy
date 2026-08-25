@@ -1,4 +1,4 @@
-<!-- Status Guide -->
+
 <div class="row mb-4">
     <div class="col-12">
         <div class="card border-0">
@@ -14,7 +14,7 @@
                     ['Clocked In', 'warning'],
                     ['Clocked Out', 'success'],
                     ];
-                    @endphp
+@endphp
                     @foreach ($statuses as [$label, $color])
                     <div class="col-6 col-md-3">
                         <div class="d-flex align-items-center">
@@ -30,7 +30,6 @@
     </div>
 </div>
 
-<!-- Clock-in Cards -->
 <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xl-4 row-cols-xxl-5 g-3">
     @foreach ($clockins as $clockin)
     @php
@@ -38,7 +37,6 @@
     $user = $employee?->user ?? null;
     $imageUrl = $employee?->getFirstMediaUrl('avatars');
 
-    // Determine status styles
     $status = match (true) {
     $clockin->is_absent => ['Absent', 'danger', 'bi-x-circle'],
     $clockin->clock_out => ['Clocked Out', 'success', 'bi-check-circle'],
@@ -47,12 +45,12 @@
     };
 
     [$statusText, $statusColor, $statusIcon] = $status;
-    @endphp
+@endphp
 
     <div class="col">
         <div class="card shadow-sm border-start border-4 border-{{ $statusColor }} h-100">
             <div class="card-body d-flex flex-column p-3">
-                <!-- Header -->
+
                 <div class="d-flex align-items-center mb-3">
                     <div class="flex-shrink-0 me-3">
                         @if ($imageUrl)
@@ -75,7 +73,6 @@
                     </div>
                 </div>
 
-                <!-- Time Info -->
                 <div class="mb-3 flex-grow-1">
                     <div class="small">
                         <div class="d-flex justify-content-between">
@@ -101,7 +98,7 @@
                                 \Carbon\Carbon::parse($clockin->clock_in)->diffInMinutes(\Carbon\Carbon::parse($clockin->clock_out));
                                 $hours = floor($duration / 60);
                                 $minutes = $duration % 60;
-                                @endphp
+@endphp
                                 {{ $hours }}h {{ $minutes }}m
                             </span>
                         </div>
@@ -109,7 +106,6 @@
                     </div>
                 </div>
 
-                <!-- Actions -->
                 <div class="mt-auto">
                     @if ($clockin->clock_out)
                     <div class="d-flex justify-content-center text-success small">

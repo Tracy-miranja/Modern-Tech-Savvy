@@ -25,7 +25,7 @@ class SurveyConfirmation extends Mailable
     {
         if (!$this->lead->email) {
             \Log::warning("No email provided for SurveyConfirmation for lead ID {$this->lead->id}");
-            return $this; // Skip sending
+            return $this;
         }
 
         return $this->subject('Thank You for Your Feedback!')

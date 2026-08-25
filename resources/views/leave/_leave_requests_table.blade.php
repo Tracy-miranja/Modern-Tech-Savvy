@@ -1,4 +1,4 @@
-{{-- resources/views/leave/_leave_requests_table.blade.php --}}
+
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
         <div class="d-flex align-items-center gap-2">
@@ -8,12 +8,11 @@
                 $activeRole = session('active_role');
                 $isEmployee = $activeRole === 'business-employee';
 
-                // Derive departments & job categories from the loaded requests (for admin side filters)
                 $departments   = $leaveRequests->pluck('employee')->filter()
                     ->pluck('department')->filter()->unique('id');
                 $jobCategories = $leaveRequests->pluck('employee')->filter()
                     ->pluck('jobCategory')->filter()->unique('id');
-            @endphp
+@endphp
         </div>
 
         @if ($activeRole === 'business-admin')
@@ -28,7 +27,7 @@
     </div>
 
     <div class="card-body">
-        {{-- Filter Section --}}
+
         <div class="mb-4">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h6 class="mb-0">
@@ -43,9 +42,9 @@
                     </button>
                 </div>
             </div>
-            
+
             <div class="row g-3" id="filterSection_{{ $status }}">
-                {{-- Leave Type – visible to everyone --}}
+
                 <div class="col-md-3">
                     <label class="form-label small">Leave Type</label>
                     <select class="form-select form-select-sm" id="filterLeaveType_{{ $status }}">
@@ -56,7 +55,6 @@
                     </select>
                 </div>
 
-                {{-- Employee filter – ONLY for admins / approvers, NOT employees --}}
                 @unless($isEmployee)
                     <div class="col-md-3">
                         <label class="form-label small">Employee</label>
@@ -69,7 +67,6 @@
                     </div>
                 @endunless
 
-                {{-- Department filter – ONLY admin/HR/HOD etc. --}}
                 @unless($isEmployee)
                     <div class="col-md-3">
                         <label class="form-label small">Department</label>
@@ -153,7 +150,6 @@
             </div>
         </div>
 
-        {{-- Active Filters Display --}}
         <div id="activeFilters_{{ $status }}" class="mb-3" style="display: none;">
             <div class="d-flex align-items-center gap-2 flex-wrap">
                 <span class="badge bg-secondary">Active Filters:</span>
@@ -202,7 +198,7 @@
                     $employee    = $request->employee;
                     $department  = $employee->department ?? null;
                     $jobCategory = $employee->jobCategory ?? null;
-                @endphp
+@endphp
 
                 <tr data-leave-type="{{ optional($request->leaveType)->id }}"
                     data-employee="{{ $request->employee_id }}"
@@ -215,7 +211,7 @@
                     data-tentative="{{ $request->is_tentative ? 'yes' : 'no' }}"
                     data-can-approve="{{ $canApprove ? 'yes' : 'no' }}"
                     data-approval-status="{{ $request->status === 'approved' ? 'complete' : ($canApprove ? 'awaiting' : 'under-review') }}">
-                    
+
                     <td class="fw-bold">
                         {{ $request->reference_number }}
                         @if($request->is_tentative)
@@ -236,7 +232,6 @@
                     <td>{{ number_format((float) $request->total_days, 1) }}</td>
                     <td class="fw-bold text-danger">{{ optional($request->end_date)->format('M d, Y') }}</td>
 
-                    {{-- Progress --}}
                     <td>
                         @if($request->status === 'cancelled')
                             <span class="badge bg-secondary">Cancelled</span>
@@ -264,11 +259,10 @@
                         @endif
                     </td>
 
-                    {{-- Status --}}
                     <td>
                         @php
                             $hasRevocations = is_array($request->revocation_history ?? null) && count($request->revocation_history);
-                        @endphp
+@endphp
 
                         @if ($request->status === 'cancelled')
                             <span class="badge bg-secondary">
@@ -304,7 +298,6 @@
                         @endif
                     </td>
 
-                    {{-- Attachment (owner can "Upload to complete") --}}
                     <td>
                         @if($request->attachment)
                             <a href="{{ asset('storage/' . $request->attachment) }}"
@@ -327,14 +320,12 @@
                         @endif
                     </td>
 
-                    {{-- Actions --}}
                     <td>
                         <div class="btn-group" role="group">
                             <a href="{{ $viewUrl }}" class="btn btn-outline-primary btn-sm" title="View Details">
                                 <i class="fa-solid fa-eye"></i>
                             </a>
 
-                            {{-- Approvers (HOD/HR at correct level) --}}
                             @if ($canApprove)
                                 <button type="button" onclick="manageLeave(this)"
                                         data-action="approve" data-leave="{{ $request->reference_number }}"
@@ -349,7 +340,6 @@
                                 </button>
                             @endif
 
-                            {{-- Owner can delete own pending request --}}
                             @if ($isOwner && $request->status === 'pending')
                                 <button type="button" onclick="deleteLeave(this)"
                                         data-leave="{{ $request->reference_number }}"
@@ -358,7 +348,6 @@
                                 </button>
                             @endif
 
-                            {{-- Owner (self-service) or HR-tier can cancel a not-yet-started request --}}
                             @if ($canCancel)
                                 <button type="button" onclick="cancelLeave(this)"
                                         data-leave="{{ $request->reference_number }}"
@@ -383,7 +372,6 @@
             </div>
         @endif
 
-        {{-- Upload Attachment Modal (unique per status tab) --}}
         <div class="modal fade" id="uploadAttachmentModal-{{ $status }}" tabindex="-1" aria-labelledby="uploadAttachmentLabel-{{ $status }}" aria-hidden="true">
             <div class="modal-dialog">
                 <form id="uploadAttachmentForm-{{ $status }}" class="modal-content" enctype="multipart/form-data">
@@ -575,7 +563,7 @@
             if (documentation) {
                 const hasAttachment = $row.data('has-attachment') === 'yes';
                 const requiresDocs  = $row.data('requires-docs') === 'yes';
-                
+
                 if (documentation === 'required' && !requiresDocs) return false;
                 if (documentation === 'attached' && !hasAttachment) return false;
                 if (documentation === 'missing' && (!requiresDocs || hasAttachment)) return false;

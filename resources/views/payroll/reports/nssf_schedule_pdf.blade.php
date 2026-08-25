@@ -59,14 +59,14 @@
                 $totalEmployer = 0;
                 $totalGross    = 0;
                 $grandTotal    = 0;
-            @endphp
+@endphp
             @foreach($data as $index => $row)
             @php
                 $totalEmployee += $row['employee'];
                 $totalEmployer += $row['employer'];
                 $totalGross    += $row['gross_pay'];
                 $grandTotal    += $row['total'];
-            @endphp
+@endphp
             <tr>
                 <td class="ctr">{{ $index + 1 }}</td>
                 <td>{{ $row['payroll_no'] }}</td>

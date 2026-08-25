@@ -173,7 +173,7 @@
 </div>
 
 @php
-    // Statutory columns — personal relief and insurance relief now included here
+
     $statutory = ['SHIF', 'NSSF', 'Housing Levy', 'Taxable Income', 'PAYE', 'Personal Relief', 'Ins. Relief'];
 
     $totals = [];
@@ -252,7 +252,6 @@
 
     $fmt = fn($v) => $v == 0 ? '-' : number_format((float)$v, 2);
 
-    // Statutory column count = 5 original + 2 reliefs = 7
     $statutoryCount = 7;
 @endphp
 
@@ -268,14 +267,12 @@
         <th colspan="1" class="group-overtime">OVERTIME</th>
         <th colspan="1" class="group-gross">GROSS PAY</th>
 
-        {{-- Statutory now includes personal relief + insurance relief (+2) --}}
         <th colspan="{{ $statutoryCount }}" class="group-statutory">STATUTORY DEDUCTIONS</th>
 
         @if(count($deductionSlugs))
         <th colspan="{{ count($deductionSlugs) }}" class="group-custom">CUSTOM DEDUCTIONS</th>
         @endif
 
-        {{-- Other deductions: now only 3 (absenteeism, loan, advance) --}}
         <th colspan="3" class="group-other">OTHER DEDUCTIONS</th>
 
         <th colspan="1" class="group-netpay">NET PAY</th>
@@ -296,7 +293,6 @@
         <th class="w-ot   ch-overtime">Overtime ({{ $currency }})</th>
         <th class="w-gross ch-gross">Gross Pay ({{ $currency }})</th>
 
-        {{-- Original 5 statutory columns --}}
         <th class="w-stat ch-statutory">SHIF ({{ $currency }})</th>
         <th class="w-stat ch-statutory">NSSF ({{ $currency }})</th>
         <th class="w-stat ch-statutory">Housing Levy ({{ $currency }})</th>
@@ -304,14 +300,11 @@
          <th class="w-stat ch-statutory">Personal Relief ({{ $currency }})</th>
         <th class="w-stat ch-statutory">Ins. Relief ({{ $currency }})</th>
         <th class="w-stat ch-statutory">PAYE ({{ $currency }})</th>
-        {{-- Personal relief and insurance relief now under statutory --}}
-
 
         @foreach($deductionSlugs as $slug => $name)
         <th class="w-ded ch-custom">{{ $name }} ({{ $currency }})</th>
         @endforeach
 
-        {{-- Other deductions: absenteeism, loan, advance only --}}
         <th class="w-other ch-other">Absenteeism ({{ $currency }})</th>
         <th class="w-other ch-other">Loan Repay ({{ $currency }})</th>
         <th class="w-other ch-other">Adv. Recovery ({{ $currency }})</th>
@@ -382,7 +375,7 @@
         }
 
         $rowClass = ($i % 2 === 0) ? 'even' : 'odd';
-    @endphp
+@endphp
     <tr class="data-row {{ $rowClass }}">
         <td class="ctr">{{ $i + 1 }}</td>
         <td>{{ $ep->employee?->user?->name ?? 'N/A' }}</td>
@@ -397,7 +390,6 @@
         <td class="num">{{ $fmt($otAmt) }}</td>
         <td class="num">{{ $fmt($grossPay) }}</td>
 
-        {{-- Statutory: 5 original + personal relief + insurance relief --}}
         <td class="num">{{ $fmt($shif) }}</td>
         <td class="num">{{ $fmt($nssf) }}</td>
         <td class="num">{{ $fmt($housingLevy) }}</td>
@@ -406,12 +398,10 @@
         <td class="num">{{ $fmt($insRelief) }}</td>
         <td class="num">{{ $fmt($paye) }}</td>
 
-
         @foreach($deductionSlugs as $slug => $name)
         <td class="num">{{ $fmt($dMap[strtolower($name)] ?? 0) }}</td>
         @endforeach
 
-        {{-- Other deductions: absenteeism, loan, advance only --}}
         <td class="num">{{ $fmt($abAmt) }}</td>
         <td class="num">{{ $fmt($loanRepayment) }}</td>
         <td class="num">{{ $fmt($advanceRecovery) }}</td>
@@ -439,7 +429,6 @@
         <td>{{ $fmt($totals['ot'] ?? 0) }}</td>
         <td>{{ $fmt($totals['gross'] ?? 0) }}</td>
 
-        {{-- Statutory totals: 5 original + personal relief + insurance relief --}}
         <td>{{ $fmt($totals['shif'] ?? 0) }}</td>
         <td>{{ $fmt($totals['nssf'] ?? 0) }}</td>
         <td>{{ $fmt($totals['housing'] ?? 0) }}</td>
@@ -448,12 +437,10 @@
         <td>{{ $fmt($totals['ins'] ?? 0) }}</td>
         <td>{{ $fmt($totals['paye'] ?? 0) }}</td>
 
-
         @foreach($deductionSlugs as $slug => $name)
         <td>{{ $fmt($totals['d_'.strtolower($name)] ?? 0) }}</td>
         @endforeach
 
-        {{-- Other deductions totals --}}
         <td>{{ $fmt($totals['ab'] ?? 0) }}</td>
         <td>{{ $fmt($totals['loan'] ?? 0) }}</td>
         <td>{{ $fmt($totals['advance'] ?? 0) }}</td>

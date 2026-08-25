@@ -4,13 +4,6 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-/**
- * Learning Management settings - plain scalar columns directly on
- * businesses, matching the enforce_geofence/non_working_days precedent
- * (this app has no generic per-business settings table). Prefixed
- * `learning_` since these are the first module-specific settings added
- * this way rather than a core business concern.
- */
 return new class extends Migration
 {
     public function up(): void

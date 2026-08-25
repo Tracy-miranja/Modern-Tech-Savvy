@@ -66,7 +66,6 @@
     </button>
 </form>
 
-<!-- Add Applicant Modal -->
 <div class="modal fade" id="addApplicantModal" tabindex="-1" aria-labelledby="addApplicantModalLabel"
     aria-hidden="true">
     <div class="modal-dialog">

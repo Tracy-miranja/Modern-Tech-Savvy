@@ -6,12 +6,7 @@ use Illuminate\Database\Migrations\Migration;
 
 return new class extends Migration
 {
-    /**
-     * Phase 04 of the OKR strategy: peer/360 feedback. A request is a
-     * nomination asking a specific peer to give behavioral feedback about a
-     * subject employee for a cycle - it never carries a numeric score, that
-     * stays entirely on the OKR/KPI side.
-     */
+
     public function up(): void
     {
         if (Schema::hasTable('performance_feedback_requests')) {

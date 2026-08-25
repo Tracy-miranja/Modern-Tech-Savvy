@@ -15,7 +15,8 @@ use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 Route::get('invitation/{token}', [RegisteredUserController::class, 'create'])->name('register.token');
 
 Route::middleware('guest', \App\Http\Middleware\CheckBannedIp::class)->group(function () {
-    Route::get('/', [RegisteredUserController::class, 'create'])->name('register');
+
+    Route::get('register', [RegisteredUserController::class, 'create'])->name('register');
     Route::post('register', [RegisteredUserController::class, 'store']);
 
     Route::get('login', [AuthenticatedSessionController::class, 'create'])->name('login');
@@ -40,7 +41,6 @@ Route::middleware('auth')->group(function () {
     Route::put('password', [PasswordController::class, 'update'])->name('password.update');
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 });
-
 
 Route::middleware(\App\Http\Middleware\EnsureTwoFactorPending::class, 'throttle:6,1')->group(function () {
     Route::get('2fa/verify', [AuthenticatedSessionController::class, 'showTwoFactorForm'])->name('2fa.verify');

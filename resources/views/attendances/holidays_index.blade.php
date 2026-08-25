@@ -1,4 +1,4 @@
-{{-- resources/views/attendances/holidays_index.blade.php --}}
+
 <x-app-layout>
     <div class="row g-20">
         <div class="col-md-12">
@@ -36,7 +36,7 @@
         </div>
     </div>
 
-    <!-- Import Holidays Modal -->
+    
     <div class="modal fade" id="importHolidaysModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">

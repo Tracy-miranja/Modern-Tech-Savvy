@@ -41,7 +41,6 @@
         </div>
     </div>
 
-    <!-- Add Asset Modal -->
     <div class="modal fade" id="addAssetModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -100,7 +99,6 @@
         </div>
     </div>
 
-    <!-- Assign Modal -->
     <div class="modal fade" id="assignAssetModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -129,7 +127,6 @@
         </div>
     </div>
 
-    <!-- Return Modal -->
     <div class="modal fade" id="returnAssetModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">

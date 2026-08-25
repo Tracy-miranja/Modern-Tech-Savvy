@@ -9,19 +9,9 @@ use App\Services\Reports\ReportFilters;
 use App\Services\Reports\ReportPdfService;
 use Illuminate\Http\Request;
 
-/**
- * Project reports - Project Reports + Time Tracking from the module's
- * feature list, built on the same shared report engine as every other
- * module. Two reports: Task Status (every task in the filtered scope) and
- * Time Tracking (every logged hour in the filtered scope).
- */
 class ProjectReportController extends Controller
 {
-    /**
-     * Trigger page for the Project Reports nav item - previously this
-     * button lived inline on projects/index.blade.php; promoted to its own
-     * page/route so Reports is directly reachable from the sidebar.
-     */
+
     public function index(Business $business)
     {
         $departments = \App\Models\Department::where('business_id', $business->id)->orderBy('name')->get(['id', 'name']);

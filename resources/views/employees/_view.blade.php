@@ -1,13 +1,13 @@
 <div class="container mt-5">
     <div class="card shadow-sm rounded-3 border-0">
         <div class="card-body p-4">
-            <!-- Loading Spinner -->
+
             <div id="viewLoading" style="display: none;" class="text-center py-4">
                 <div class="spinner-border text-primary" role="status">
                     <span class="visually-hidden">Loading...</span>
                 </div>
             </div>
-            <!-- Tabs Navigation -->
+
             <ul class="nav nav-tabs mb-4" id="employeeTabs" role="tablist">
                 <li class="nav-item" role="presentation">
                     <a class="nav-link active" id="personal-tab" data-bs-toggle="tab" href="#personal" role="tab"
@@ -39,9 +39,8 @@
                 </li>
             </ul>
 
-            <!-- Tab Content -->
             <div class="tab-content" id="employeeTabContent">
-                <!-- Personal Details Tab -->
+
                 <div class="tab-pane fade show active" id="personal" role="tabpanel" aria-labelledby="personal-tab">
                     <div class="row align-items-center mb-4">
                         <div class="col-auto">
@@ -59,7 +58,7 @@
                     </div>
 
                     <div class="row g-4">
-                        <!-- Basic Info -->
+
                         <div class="col-md-6">
                             <h6 class="fw-semibold text-muted mb-3">Basic Information</h6>
                             <dl class="row mb-0">
@@ -80,7 +79,6 @@
                             </dl>
                         </div>
 
-                        <!-- Identification -->
                         <div class="col-md-6">
                             <h6 class="fw-semibold text-muted mb-3">Identification</h6>
                             <dl class="row mb-0">
@@ -99,7 +97,6 @@
                             </dl>
                         </div>
 
-                        <!-- Passport & Birth -->
                         <div class="col-md-6">
                             <h6 class="fw-semibold text-muted mb-3">Passport & Birth</h6>
                             <dl class="row mb-0">
@@ -122,7 +119,6 @@
                             </dl>
                         </div>
 
-                        <!-- Address -->
                         <div class="col-md-6">
                             <h6 class="fw-semibold text-muted mb-3">Address</h6>
                             <dl class="row mb-0">
@@ -135,10 +131,9 @@
                     </div>
                 </div>
 
-                <!-- Payment Details Tab -->
                 <div class="tab-pane fade" id="payment" role="tabpanel" aria-labelledby="payment-tab">
                     <div class="row g-4">
-                        <!-- Salary Details -->
+
                         <div class="col-md-6">
                             <h6 class="fw-semibold text-muted mb-3">Salary Details</h6>
                             <dl class="row mb-0">
@@ -155,7 +150,6 @@
                             </dl>
                         </div>
 
-                        <!-- Bank Details -->
                         <div class="col-md-6">
                             <h6 class="fw-semibold text-muted mb-3">Bank Details</h6>
                             <dl class="row mb-0">
@@ -174,11 +168,10 @@
                             </dl>
                         </div>
 
-                        <!-- Recent Payroll Snapshot -->
                         <div class="col-md-6">
                             <h6 class="fw-semibold text-muted mb-3">Recent Payroll</h6>
                             @if($employee->payrolls->isNotEmpty())
-                            @php $latestPayroll = $employee->payrolls->sortByDesc('created_at')->first(); @endphp
+                            @php $latestPayroll = $employee->payrolls->sortByDesc('created_at')->first();@endphp
                             <dl class="row mb-0">
                                 <dt class="col-5 fw-medium text-muted">Gross Pay</dt>
                                 <dd class="col-7">{{ number_format((float) ($latestPayroll->gross_pay ?? 0), 2) }}</dd>
@@ -198,11 +191,10 @@
                             @endif
                         </div>
 
-                        <!-- Advances -->
                         <div class="col-md-6">
                             <h6 class="fw-semibold text-muted mb-3">Advances</h6>
                             @if($employee->advances->isNotEmpty())
-                            @php $latestAdvance = $employee->advances->sortByDesc('created_at')->first(); @endphp
+                            @php $latestAdvance = $employee->advances->sortByDesc('created_at')->first();@endphp
                             <dl class="row mb-0">
                                 <dt class="col-5 fw-medium text-muted">Amount</dt>
                                 <dd class="col-7">{{ number_format((float) ($latestAdvance->amount ?? 0), 2) }}</dd>
@@ -220,7 +212,6 @@
                     </div>
                 </div>
 
-                <!-- Employment Details Tab -->
                 <div class="tab-pane fade" id="employment" role="tabpanel" aria-labelledby="employment-tab">
                     <div class="row g-4">
                         <div class="col-md-6">
@@ -267,7 +258,6 @@
                             </dl>
                         </div>
 
-                        <!-- Job Description -->
                         <div class="col-md-6">
                             <h6 class="fw-semibold text-muted mb-3">Job Description</h6>
                             <p class="text-muted">
@@ -275,11 +265,10 @@
                             </p>
                         </div>
 
-                        <!-- Attendance Snapshot -->
                         <div class="col-md-6">
                             <h6 class="fw-semibold text-muted mb-3">Recent Attendance</h6>
                             @if($employee->attendances->isNotEmpty())
-                            @php $latestAttendance = $employee->attendances->sortByDesc('date')->first(); @endphp
+                            @php $latestAttendance = $employee->attendances->sortByDesc('date')->first();@endphp
                             <dl class="row mb-0">
                                 <dt class="col-5 fw-medium text-muted">Date</dt>
                                 <dd class="col-7">
@@ -297,11 +286,10 @@
                             @endif
                         </div>
 
-                        <!-- Leave Snapshot -->
                         <div class="col-md-6">
                             <h6 class="fw-semibold text-muted mb-3">Recent Leave</h6>
                             @if($employee->leaveRequests->isNotEmpty())
-                            @php $latestLeave = $employee->leaveRequests->sortByDesc('created_at')->first(); @endphp
+                            @php $latestLeave = $employee->leaveRequests->sortByDesc('created_at')->first();@endphp
                             <dl class="row mb-0">
                                 <dt class="col-5 fw-medium text-muted">Reference</dt>
                                 <dd class="col-7">{{ $latestLeave->reference_number ?? 'N/A' }}</dd>
@@ -321,11 +309,10 @@
                             @endif
                         </div>
 
-                        <!-- Overtime Snapshot -->
                         <div class="col-md-6">
                             <h6 class="fw-semibold text-muted mb-3">Recent Overtime</h6>
                             @if($employee->overtimes->isNotEmpty())
-                            @php $latestOvertime = $employee->overtimes->sortByDesc('created_at')->first(); @endphp
+                            @php $latestOvertime = $employee->overtimes->sortByDesc('created_at')->first();@endphp
                             <dl class="row mb-0">
                                 <dt class="col-5 fw-medium text-muted">Date</dt>
                                 <dd class="col-7">
@@ -343,14 +330,13 @@
                     </div>
                 </div>
 
-                <!-- Additional Details Tab -->
                 <div class="tab-pane fade" id="additional" role="tabpanel" aria-labelledby="additional-tab">
                     <div class="row g-4">
                         <div class="col-md-6">
                             <h6 class="fw-semibold text-muted mb-3">Academic Qualifications</h6>
                             @if($employee->academicDetails->isNotEmpty())
                             @php $latestQualification = $employee->academicDetails->sortByDesc('end_date')->first();
-                            @endphp
+@endphp
                             <dl class="row mb-0">
                                 <dt class="col-5 fw-medium text-muted">Institution</dt>
                                 <dd class="col-7">{{ $latestQualification->institution_name ?? 'N/A' }}</dd>
@@ -374,7 +360,7 @@
                             <h6 class="fw-semibold text-muted mb-3">Allowances</h6>
                             @if($employee->employeeAllowances->isNotEmpty())
                             @php $latestAllowance = $employee->employeeAllowances->sortByDesc('created_at')->first();
-                            @endphp
+@endphp
                             <dl class="row mb-0">
                                 <dt class="col-5 fw-medium text-muted">Name</dt>
                                 <dd class="col-7">{{ $latestAllowance->allowance?->name ?? 'N/A' }}</dd>
@@ -392,7 +378,7 @@
                             <h6 class="fw-semibold text-muted mb-3">Deductions</h6>
                             @if($employee->employeeDeductions->isNotEmpty())
                             @php $latestDeduction = $employee->employeeDeductions->sortByDesc('created_at')->first();
-                            @endphp
+@endphp
                             <dl class="row mb-0">
                                 <dt class="col-5 fw-medium text-muted">Name</dt>
                                 <dd class="col-7">{{ $latestDeduction->deduction?->name ?? 'N/A' }}</dd>
@@ -411,7 +397,7 @@
                         <div class="col-md-6">
                             <h6 class="fw-semibold text-muted mb-3">Family Members</h6>
                             @if($employee->familyMembers->isNotEmpty())
-                            @php $latestFamily = $employee->familyMembers->sortByDesc('created_at')->first(); @endphp
+                            @php $latestFamily = $employee->familyMembers->sortByDesc('created_at')->first();@endphp
                             <dl class="row mb-0">
                                 <dt class="col-5 fw-medium text-muted">Name</dt>
                                 <dd class="col-7">{{ $latestFamily->name ?? 'N/A' }}</dd>
@@ -431,7 +417,7 @@
                             <h6 class="fw-semibold text-muted mb-3">Emergency Contact</h6>
                             @if($employee->emergencyContacts->isNotEmpty())
                             @php $latestContact = $employee->emergencyContacts->sortByDesc('created_at')->first();
-                            @endphp
+@endphp
                             <dl class="row mb-0">
                                 <dt class="col-5 fw-medium text-muted">Name</dt>
                                 <dd class="col-7">{{ $latestContact->name ?? 'N/A' }}</dd>
@@ -447,7 +433,6 @@
                     </div>
                 </div>
 
-                <!-- Documents Tab -->
                 <div class="tab-pane fade" id="documents" role="tabpanel" aria-labelledby="documents-tab">
                     <div class="row g-4">
                         <div class="col-md-12">
@@ -487,7 +472,6 @@
                     </div>
                 </div>
 
-                <!-- Actions Tab -->
                 <div class="tab-pane fade" id="career-history" role="tabpanel" aria-labelledby="career-history-tab">
                     <div class="d-flex justify-content-end gap-2 mb-3">
                         <button type="button" class="btn btn-outline-primary btn-sm" id="openRecordPromotionBtn">
@@ -517,14 +501,14 @@
                 </div>
 
                 <div class="tab-pane fade" id="actions" role="tabpanel" aria-labelledby="actions-tab">
-                    @php $employmentStatus = optional($employee->employmentDetails)->status; @endphp
+                    @php $employmentStatus = optional($employee->employmentDetails)->status;@endphp
                     <div class="d-flex flex-wrap gap-2">
                         <button type="button" class="btn btn-warning btn-sm flex-grow-1 flex-md-grow-0"
                                 onclick="openWarnEmployeeModal({{ $employee->id }})">Warn Employee</button>
                         <a href="{{ route('business.leave.create', $currentBusiness->slug) }}"
                            class="btn btn-info btn-sm flex-grow-1 flex-md-grow-0">Request Leave</a>
 
-                        @php $activeContractAction = $employee->contractActions->first(); @endphp
+                        @php $activeContractAction = $employee->contractActions->first();@endphp
                         @if ($employmentStatus === 'suspended' && $activeContractAction)
                             <button type="button" class="btn btn-success btn-sm flex-grow-1 flex-md-grow-0"
                                     onclick="openReinstateModal({{ $activeContractAction->id }}, {{ $employee->id }})">Reinstate (Lift Suspension)</button>
@@ -555,7 +539,6 @@
     </div>
 </div>
 
-<!-- Suspend / Terminate Modal -->
 <div class="modal fade" id="contractActionModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -589,7 +572,6 @@
     </div>
 </div>
 
-<!-- Reinstate Modal -->
 <div class="modal fade" id="reinstateModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -624,7 +606,6 @@
     </div>
 </div>
 
-<!-- Warn Employee Modal -->
 <div class="modal fade" id="warnEmployeeModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -673,7 +654,6 @@
     </div>
 </div>
 
-<!-- Record Promotion Modal -->
 <div class="modal fade" id="recordPromotionModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -728,7 +708,6 @@
     </div>
 </div>
 
-<!-- Record Salary Increment Modal -->
 <div class="modal fade" id="recordIncrementModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -783,14 +762,14 @@
     }
 
     .nav-tabs .nav-link.active {
-        color: #0d6efd;
+        color: var(--clr-bg-primary, #f89616);
         background-color: #fff;
         border-color: #e9ecef #e9ecef #fff;
         font-weight: 600;
     }
 
     .nav-tabs .nav-link:hover {
-        color: #0d6efd;
+        color: var(--clr-bg-primary, #f89616);
     }
 
     .btn-sm {

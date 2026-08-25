@@ -6,11 +6,7 @@ use Illuminate\Database\Migrations\Migration;
 
 return new class extends Migration
 {
-    /**
-     * The reviewer's actual submission - a fixed set of behavioral
-     * questions (see PerformanceFeedbackResponse::QUESTIONS), stored as
-     * JSON since the question set is defined in code, not per-tenant.
-     */
+
     public function up(): void
     {
         if (Schema::hasTable('performance_feedback_responses')) {

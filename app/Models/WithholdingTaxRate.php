@@ -21,6 +21,6 @@ class WithholdingTaxRate extends Model
         return static::where('payment_type', $paymentType)
             ->where('residency', $residency)
             ->where('is_active', true)
-            ->value('rate') ?? 5.00; // fallback to 5% if not found
+            ->value('rate') ?? 5.00;
     }
 }

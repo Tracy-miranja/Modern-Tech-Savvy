@@ -53,14 +53,14 @@
             </tr>
         </thead>
         <tbody>
-            @php $totalNssf = 0; @endphp
+            @php $totalNssf = 0;@endphp
             @forelse($payroll->employeePayrolls as $ep)
             <tr>
                 <td>{{ $ep->employee->full_name ?? 'N/A' }}</td>
                 <td>{{ $ep->employee->tax_no ?? 'N/A' }}</td>
                 <td>{{ number_format($ep->gross_pay, 2) }}</td>
                 <td>{{ number_format($ep->nssf, 2) }}</td>
-                @php $totalNssf += $ep->nssf; @endphp
+                @php $totalNssf += $ep->nssf;@endphp
             </tr>
             @empty
             <tr>

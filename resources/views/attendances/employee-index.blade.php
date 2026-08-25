@@ -30,9 +30,6 @@
         </div>
     </div>
 
-    {{-- No $departments/$jobCategories/employee select passed - report types
-         below only request 'date'/'date_range' filters, and every report is
-         forced server-side to this employee's own record regardless. --}}
     @include('components.reports.modal')
 
     @push('scripts')

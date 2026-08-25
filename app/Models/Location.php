@@ -39,11 +39,6 @@ class Location extends Model
         return $this->hasMany(Holiday::class);
     }
 
-    /**
-     * This location's own country if set, else the business's - so a
-     * location doesn't have to explicitly repeat the country when the
-     * business only operates in one place.
-     */
     public function resolvedCountry(): ?string
     {
         return $this->country ?: optional($this->business)->country;

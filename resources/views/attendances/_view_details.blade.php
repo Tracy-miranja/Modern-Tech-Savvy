@@ -27,7 +27,7 @@
   $remarks = trim((string)($attendance->remarks ?? ''));
 @endphp
 
-{{-- Header --}}
+
 <div class="d-flex align-items-start justify-content-between gap-3 mb-3">
   <div>
     <div class="d-flex flex-wrap align-items-center gap-2">
@@ -64,7 +64,7 @@
 
 <hr class="my-3">
 
-{{-- KPI cards --}}
+
 <div class="row g-3 mb-3">
   <div class="col-md-6">
     <div class="card border-0 shadow-sm h-100">
@@ -135,7 +135,7 @@
   </div>
 </div>
 
-{{-- Details section --}}
+
 <div class="card border-0 shadow-sm">
   <div class="card-body">
     <div class="d-flex align-items-center justify-content-between mb-2">
@@ -158,12 +158,12 @@
       <div class="fw-semibold">{{ $remarks !== '' ? $remarks : '-' }}</div>
     </div>
 
-    {{-- Optional: location/mac info if you store them --}}
+    
     @php
       $mac = $attendance->device_mac ?? null;
       $lat = $attendance->punch_latitude ?? null;
       $lng = $attendance->punch_longitude ?? null;
-    @endphp
+@endphp
 
     @if($mac || ($lat && $lng))
       <hr class="my-3">

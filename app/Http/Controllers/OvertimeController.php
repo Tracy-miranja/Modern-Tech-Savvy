@@ -22,8 +22,8 @@ class OvertimeController extends Controller
         }
 
         $dateInput    = $request->input('date');
-        $status       = $request->input('status'); // pending, approved, rejected
-        $overtimeType = $request->input('overtime_type'); // regular, holiday, manual
+        $status       = $request->input('status');
+        $overtimeType = $request->input('overtime_type');
 
         $query = Overtime::where('business_id', $business->id)
             ->with(['employee.user', 'approvedBy']);
@@ -37,7 +37,6 @@ class OvertimeController extends Controller
             }
         }
 
-        // Use Spatie status filter (since you use HasStatuses)
         if ($status) {
             $query->where('status', $status);
         }
@@ -48,7 +47,6 @@ class OvertimeController extends Controller
 
         $overtimes = $query->orderBy('date', 'desc')->get();
 
-        // pass $business so the partial can embed business slug
         $overtimeTable = view('attendances._overtime_table', [
             'overtimes' => $overtimes,
             'business'  => $business,
@@ -65,7 +63,6 @@ class OvertimeController extends Controller
             return (float) ($employee->overtime_rate_holiday ?? $business->overtime_rate_holiday ?? 2.0);
         }
 
-        // regular OR manual → default to regular config
         return (float) ($employee->overtime_rate_regular ?? $business->overtime_rate ?? 1.5);
     }
 
@@ -93,13 +90,11 @@ class OvertimeController extends Controller
 
             $hours = round((float) $validated['overtime_hours'], 2);
 
-            // Rate multiplier only (NO salary/hourly-rate)
             $rate = $this->resolveOvertimeRate($employee, $business, $validated['overtime_type']);
             if ($rate <= 0) {
                 return RequestResponse::badRequest('Overtime rate is not configured correctly.');
             }
 
-            // Business rule: total_pay = hours * rate
             $totalPay = round($hours * $rate, 2);
 
             $overtime = Overtime::create([
@@ -118,7 +113,6 @@ class OvertimeController extends Controller
                 'rejection_reason' => null,
             ]);
 
-            
             if (method_exists($overtime, 'setStatus')) {
                 $overtime->setStatus('pending');
             }
@@ -175,13 +169,11 @@ class OvertimeController extends Controller
 
             $hours = round((float) $validated['overtime_hours'], 2);
 
-            // Rate multiplier only
             $rate = $this->resolveOvertimeRate($employee, $business, $validated['overtime_type']);
             if ($rate <= 0) {
                 return RequestResponse::badRequest('Overtime rate is not configured correctly.');
             }
 
-            // Business rule
             $totalPay = round($hours * $rate, 2);
 
             $overtime->update([
@@ -205,7 +197,6 @@ class OvertimeController extends Controller
             return RequestResponse::ok('Overtime record updated successfully.');
         });
     }
-
 
     public function destroy(Request $request)
     {

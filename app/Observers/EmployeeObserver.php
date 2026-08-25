@@ -19,10 +19,6 @@ class EmployeeObserver
         $this->policyService = $policyService;
     }
 
-    /**
-     * Handle the Employee "created" event.
-     * Automatically entitle new employees for active leave periods.
-     */
     public function created(Employee $employee)
     {
         if (!$employee->is_active) {
@@ -39,10 +35,6 @@ class EmployeeObserver
         }
     }
 
-    /**
-     * Handle the Employee "updated" event.
-     * Re-entitle if employee becomes active or if department/job category changes.
-     */
     public function updated(Employee $employee)
     {
         $relevantChanges = $employee->wasChanged(['is_active', 'department_id', 'job_category_id', 'gender', 'employment_date']);
@@ -51,21 +43,19 @@ class EmployeeObserver
             return;
         }
 
-        // If becoming active, entitle for all periods
         if ($employee->wasChanged('is_active') && $employee->is_active) {
             Log::info("Employee {$employee->id} activated. Running entitlement.");
-            
+
             try {
-                $this->entitleEmployeeForActivePeriods($employee, true); // Force re-entitlement
+                $this->entitleEmployeeForActivePeriods($employee, true);
             } catch (\Exception $e) {
                 Log::error("Failed to entitle activated employee {$employee->id}: {$e->getMessage()}");
             }
         }
 
-        // If department, job category, or gender changed, re-evaluate entitlements
         if ($employee->wasChanged(['department_id', 'job_category_id', 'gender'])) {
             Log::info("Employee {$employee->id} profile changed. Re-evaluating entitlements.");
-            
+
             try {
                 $this->reevaluateEntitlements($employee);
             } catch (\Exception $e) {
@@ -73,21 +63,17 @@ class EmployeeObserver
             }
         }
 
-        // If hire date changed, recalculate prorated entitlements
         if ($employee->wasChanged('employment_date')) {
             Log::info("Employee {$employee->id} employment date changed. Recalculating entitlements.");
-            
+
             try {
-                $this->entitleEmployeeForActivePeriods($employee, true); // Force recalculation
+                $this->entitleEmployeeForActivePeriods($employee, true);
             } catch (\Exception $e) {
                 Log::error("Failed to recalculate entitlements for employee {$employee->id}: {$e->getMessage()}");
             }
         }
     }
 
-    /**
-     * Entitle employee for all active leave periods.
-     */
     protected function entitleEmployeeForActivePeriods(Employee $employee, bool $force = false): void
     {
         $business = $employee->business;
@@ -96,13 +82,11 @@ class EmployeeObserver
             return;
         }
 
-        // Get active leave periods
         $activePeriods = LeavePeriod::where('business_id', $business->id)
             ->where('is_active', true)
             ->whereDate('end_date', '>=', now())
             ->get();
 
-        // Get all active leave types
         $leaveTypes = LeaveType::where('business_id', $business->id)
             ->where('is_active', true)
             ->get();
@@ -113,7 +97,7 @@ class EmployeeObserver
         foreach ($activePeriods as $period) {
             foreach ($leaveTypes as $leaveType) {
                 try {
-                    // Check if already exists
+
                     $exists = \App\Models\LeaveEntitlement::where([
                         'business_id' => $business->id,
                         'employee_id' => $employee->id,
@@ -126,7 +110,6 @@ class EmployeeObserver
                         continue;
                     }
 
-                    // Resolve policy
                     $policy = $this->policyService->resolvePolicy(
                         $leaveType->id,
                         $employee,
@@ -138,7 +121,6 @@ class EmployeeObserver
                         continue;
                     }
 
-                    // Create or update entitlement
                     $entitlement = $this->policyService->createOrUpdateEntitlement(
                         $employee,
                         $leaveType,
@@ -161,10 +143,6 @@ class EmployeeObserver
         Log::info("Employee {$employee->id} entitlement complete: {$entitled} entitled, {$skipped} skipped");
     }
 
-    /**
-     * Re-evaluate existing entitlements when employee profile changes.
-     * This may remove entitlements they're no longer eligible for.
-     */
     protected function reevaluateEntitlements(Employee $employee): void
     {
         $business = $employee->business;
@@ -172,7 +150,6 @@ class EmployeeObserver
             return;
         }
 
-        // Get all existing entitlements
         $existingEntitlements = \App\Models\LeaveEntitlement::where('employee_id', $employee->id)
             ->with(['leaveType', 'leavePeriod'])
             ->get();
@@ -186,7 +163,6 @@ class EmployeeObserver
                 $period = $entitlement->leavePeriod;
                 $leaveType = $entitlement->leaveType;
 
-                // Check if still eligible
                 $isEligible = $this->policyService->isEmployeeEligible(
                     $employee,
                     $leaveType,
@@ -194,18 +170,18 @@ class EmployeeObserver
                 );
 
                 if (!$isEligible) {
-                    // No longer eligible - check if they've used any days
+
                     if ($entitlement->days_taken > 0) {
                         Log::warning("Employee {$employee->id} no longer eligible for leave type {$leaveType->id} but has used days. Keeping entitlement.");
                         $kept++;
                     } else {
-                        // Safe to remove
+
                         $entitlement->delete();
                         $removed++;
                         Log::info("Removed entitlement for employee {$employee->id}, leave type {$leaveType->id} - no longer eligible");
                     }
                 } else {
-                    // Still eligible - recalculate in case amounts changed
+
                     $policy = $this->policyService->resolvePolicy(
                         $leaveType->id,
                         $employee,

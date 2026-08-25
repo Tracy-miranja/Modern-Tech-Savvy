@@ -33,7 +33,7 @@
                         </div>
                     </div>
                     <div class="d-flex gap-3 small text-muted mb-2 flex-wrap">
-                        <span><span class="badge" style="background:#0d6efd;">&nbsp;</span> Approved leave</span>
+                        <span><span class="badge" style="background:#f5c115;">&nbsp;</span> Approved leave</span>
                         <span><span class="badge" style="background:#dc3545;">&nbsp;</span> Holiday (non-working)</span>
                         <span><span class="badge" style="background:#fd7e14;">&nbsp;</span> Holiday (working)</span>
                         <span><span class="badge" style="background:#adb5bd;">&nbsp;</span> Non-working day</span>
@@ -235,7 +235,7 @@
 
             tbody.innerHTML = [...employees.entries()].map(([employeeId, employeeName]) => {
                 const cells = employeesByDay.map(set => set.has(employeeId)
-                    ? '<td style="background:#0d6efd;"></td>'
+                    ? '<td style="background:#f5c115;"></td>'
                     : '<td></td>').join('');
                 return `<tr><td class="text-nowrap">${employeeName}</td>${cells}</tr>`;
             }).join('');

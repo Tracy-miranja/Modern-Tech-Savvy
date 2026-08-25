@@ -6,7 +6,7 @@
     </a>
     <ul class="sidebar-menu child1">
         @foreach(auth()->user()->roles as $role)
-            @php $isActive = session('active_role') === $role->name ? 'active' : ''; @endphp
+            @php $isActive = session('active_role') === $role->name ? 'active' : '';@endphp
             <li class="slide">
                 <a href="javascript:void(0);" class="sidebar__menu-item switch-role {{ $isActive }}" data-role="{{ $role->name }}">
                     {{ ucfirst(str_replace('-', ' ', $role->name)) }}

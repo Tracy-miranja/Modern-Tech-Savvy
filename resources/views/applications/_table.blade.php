@@ -23,7 +23,7 @@
           'shortlisted' => 'shortlisted',
           'rejected' => 'rejected',
           'in_progress' => 'in_progress',
-          'finished' => 'in_progress', // you can create a finished class if you want
+          'finished' => 'in_progress',
           default => 'applied'
         };
 
@@ -31,11 +31,11 @@
         $user = $applicant?->user;
 
         $displayName  = $user?->name ?: ($applicant?->fullname ?: ('Applicant #'.$applicant?->id));
-        $displayEmail = $user?->email ?: null; // externals may not have email column in applicants
+        $displayEmail = $user?->email ?: null;
         $displayPhone = $user?->phone ?: ($applicant?->phone ?: '—');
 
         $avatarUrl = $user ? $user->getImageUrl() : asset('media/avatar.png');
-      @endphp
+@endphp
 
       <tr>
         <td>

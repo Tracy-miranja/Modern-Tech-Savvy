@@ -4,7 +4,7 @@
     <div class="card-body">
         <div class="d-flex align-items-center">
             <div class="icon me-3">
-                <i class="bi bi-briefcase text-primary" style="font-size: 24px;"></i> <!-- Replace with an appropriate icon -->
+                <i class="bi bi-briefcase text-primary" style="font-size: 24px;"></i>
             </div>
             <div>
                 <h5 class="card-title mb-0">{{ $shift->name }}</h5>
@@ -16,7 +16,6 @@
             <h6 class="mb-3"><strong>Start Time: </strong> - {{ $shift->start_time }} HRS</h6>
             <h6><strong>End Time: </strong> - {{ $shift->end_time }} HRS</h6>
         </div>
-
 
         <div class="d-flex justify-content-end mt-3">
             <button type="button" class="btn btn-sm btn-warning me-2" data-shift="{{ $shift->slug }}" onclick="editShift(this)">
