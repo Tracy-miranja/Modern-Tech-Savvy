@@ -1456,13 +1456,13 @@ class PayrollController extends Controller
     {
         switch ($slug) {
             case 'nssf':
-                if ($grossPay <= 9000) {
-                    return 540; // Tier 1
-                } else {
-                    $tier1 = 540;
-                    $tier2 = min($grossPay - 9000, 29000) * 0.06;
-                    return min($tier1 + $tier2, 6480);
-                }
+    if ($grossPay <= 9000) {
+        return $grossPay * 0.06; // Tier 1 only, up to 540
+    } else {
+        $tier1 = 540; // 6% of 9,000 (Tier 1 cap)
+        $tier2 = min($grossPay - 9000, 99000) * 0.06; // 6% of earnings between 9,000 and 108,000
+        return min($tier1 + $tier2, 6480); // capped at 6,480 employee contribution
+    }
             case 'shif':
                 return max(300, $grossPay * 0.0275);
             case 'housing-levy':
@@ -1478,9 +1478,9 @@ class PayrollController extends Controller
                 } elseif ($taxablePay <= 500000) {
                     $tax = 4483.25 + (($taxablePay - 32333) * 0.30);
                  } elseif ($taxablePay <= 800000) {
-        $tax = 144783.35 + (($taxablePay - 500000) * 0.325); // ← fix here too
+        $tax = 144783.35 + (($taxablePay - 500000) * 0.325);
     } else {
-        $tax = 242283.35 + (($taxablePay - 800000) * 0.35);  // ← and here
+        $tax = 242283.35 + (($taxablePay - 800000) * 0.35);
     }
                 return round($tax, 2);
             case 'helb':
