@@ -349,20 +349,6 @@
 
         let treeRoots = [];
 
-        /**
-         * Keeps the tree inside its defined section (.org-chart-scroll)
-         * instead of letting the page grow underneath it: measures the
-         * tree's true, unscaled footprint, then shrinks it down (never up
-         * past 1) to fit the section via CSS transform: scale(). The
-         * fit-box is resized to the resulting scaled footprint (not the
-         * original size) so the scroll container doesn't reserve empty
-         * space for the part that got scaled away - see org-chart.css's
-         * docblock on .org-chart-scroll for the two-element technique.
-         * Bails out harmlessly if the tree section is hidden (d-none,
-         * e.g. while Table View is active) - clientWidth/Height read 0
-         * for a display:none ancestor, so there's nothing to measure yet;
-         * the tree-view-switch handler calls this again once it's shown.
-         */
         function fitChartToContainer() {
             const viewport = document.getElementById('orgChartContainer');
             const fitBox = document.getElementById('orgChartFitBox');
@@ -379,10 +365,6 @@
             const availableHeight = viewport.clientHeight - 32;
             if (!contentWidth || !contentHeight || availableWidth <= 0 || availableHeight <= 0) return;
 
-            // Never scale up past 1 - a small tree just sits at natural
-            // size. A floor keeps a very large chart from shrinking into
-            // illegible text; overflow:auto on the section is the
-            // fallback for that edge case only.
             const scale = Math.max(Math.min(1, availableWidth / contentWidth, availableHeight / contentHeight), 0.45);
 
             scaleEl.style.transform = `scale(${scale})`;

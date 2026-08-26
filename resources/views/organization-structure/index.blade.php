@@ -7,9 +7,7 @@
                         <div>
                             <h5 class="mb-0">Organization Structure</h5>
                             <small class="text-muted">
-                                Define roles and who they report to, group departments into teams if useful, then assign employees to
-                                roles below - each assignment can cover one or more departments/teams (e.g. one manager covering several
-                                departments). Employees are then arranged automatically in the
+                                    Define roles and reporting lines, group departments, and assign employees. The system then automatically builds the hierarchy in the
                                 <a href="{{ route('business.organogram.index', $business->slug) }}">Employee Organogram</a>.
                             </small>
                         </div>
@@ -287,9 +285,7 @@
                 </div>
                 <div class="modal-body">
                     <p class="text-muted small">
-                        Gives every employee in the chosen department (or team) their own rung on the ladder,
-                        e.g. "Staff", so their default manager can be worked out and "Sync Employees to Structure" has
-                        something to do for them. This does not touch anyone who already holds a position themselves.
+                        Assigns default positions to unassigned department employees, enabling manager routing and structural syncing.
                     </p>
                     <form id="bulkAssignRoleForm">
                         <div class="mb-3">

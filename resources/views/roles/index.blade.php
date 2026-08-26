@@ -11,8 +11,7 @@
                 <div class="card-body">
                     <p class="text-muted small">
                         The roles below are the platform's built-in set. Create your own custom role to grant
-                        exactly the module access your business needs - each custom role can View, Create, Edit,
-                        Delete, and/or Approve within whichever modules you choose.
+                        exactly the module access your business needs - each custom role can operate within whichever modules you choose.
                     </p>
                     <div class="mb-3">
                         <input type="text" id="roleFilter" class="form-control" placeholder="Filter by name...">

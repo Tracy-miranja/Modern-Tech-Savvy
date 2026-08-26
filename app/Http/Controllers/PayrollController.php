@@ -43,6 +43,7 @@ use App\Models\PayrollFormulaBracket;
 use App\Models\EmployeePayrollDetail;
 use App\Models\PayrollSettings;
 use App\Models\EmployeePaymentDetail;
+use App\Services\CurrencyService;
 use Illuminate\Support\Facades\Http;
 use App\Exports\P9Export;
 use App\Exports\BankAdviceExport;
@@ -588,6 +589,12 @@ class PayrollController extends Controller
                     'advance_recovery' => $data['advance_recovery'],
                     'deductions_after_tax' => $data['gross_pay'] - $data['paye'] - $data['net_pay'],
                     'net_pay' => $data['net_pay'],
+                    'employee_currency' => $data['employee_currency'] ?? ($business->currency ?? 'KES'),
+                    'tax_currency' => $data['tax_currency'] ?? ($business->currency ?? 'KES'),
+                    'exchange_rate' => $data['exchange_rate'] ?? 1.0,
+                    'basic_salary_orig' => $data['basic_salary_orig'] ?? $data['basic_salary'],
+                    'gross_pay_orig' => $data['gross_pay_orig'] ?? $data['gross_pay'],
+                    'net_pay_orig' => $data['net_pay_orig'] ?? $data['net_pay'],
                     'deductions' => json_encode($data['deductions']),
                     'bank_name' => $data['bank_name'],
                     'account_number' => $data['account_number'],
@@ -957,6 +964,23 @@ class PayrollController extends Controller
             $bankCode = $paymentDetail->bank_code ?? 'Not Set';
             $bankBranch = $paymentDetail->bank_branch ?? 'Not Set';
 
+            $taxCurrency = strtoupper(trim($business->currency ?: 'KES'));
+            $employeeCurrency = strtoupper(trim($paymentDetail->currency ?: $taxCurrency));
+            $needsConversion = $employeeCurrency !== $taxCurrency;
+            $exchangeRate = $needsConversion
+                ? app(CurrencyService::class)->getBusinessRate($business, $employeeCurrency, $taxCurrency)
+                : 1.0;
+            $toTax = fn (float $amount): float => $needsConversion ? round($amount * $exchangeRate, 2) : $amount;
+
+            if ($needsConversion) {
+                Log::info('Converting employee pay to business tax currency', [
+                    'employee_id' => $employeeId,
+                    'employee_currency' => $employeeCurrency,
+                    'tax_currency' => $taxCurrency,
+                    'exchange_rate' => $exchangeRate,
+                ]);
+            }
+
             if ($paymentDetail->payment_type === 'hourly') {
 
                 Log::debug("HOURLY payroll branch hit", [
@@ -991,6 +1015,10 @@ class PayrollController extends Controller
                         'calculated_basic_salary' => $proratedBasicSalary,
                         'hours_worked' => $hourlyPayData['hours_worked'],
                     ]);
+
+                    $basicSalaryOrig = $proratedBasicSalary;
+                    $proratedBasicSalary = $toTax($proratedBasicSalary);
+                    $overtimePay = $toTax($overtimePay);
 
                     $allowances = [];
 
@@ -1055,6 +1083,7 @@ class PayrollController extends Controller
 
                     $proratedBasicSalary = 0;
                     $overtimePay = 0;
+                    $basicSalaryOrig = 0;
                     $presentDays = 0;
                     $absentDays = $daysInMonth;
                     $absenteeismCharge = 0;
@@ -1070,11 +1099,13 @@ class PayrollController extends Controller
                 }
             } else {
 
-                $basicSalary = floatval($paymentDetail->basic_salary ?? 0);
+                $basicSalaryOrig = floatval($paymentDetail->basic_salary ?? 0);
+                $basicSalary = $toTax($basicSalaryOrig);
 
                 $presentDays = $daysInMonth;
                 $absentDays = $daysInMonth - $presentDays;
                 $proratedBasicSalary = $basicSalary * ($presentDays / $daysInMonth);
+                $basicSalaryOrig = $basicSalaryOrig * ($presentDays / $daysInMonth);
 
                 $dailyRate = $basicSalary / $daysInMonth;
                 $absenteeismCharge = $settings && isset($settings['absenteeism_charge'])
@@ -1364,6 +1395,12 @@ class PayrollController extends Controller
                 'account_number' => $accountNumber,
                 'currency' => $paymentDetail->currency ?? ($country === 'UGANDA' ? 'UGX' : ($country === 'TANZANIA' ? 'TZS' : 'KES')),
                 'payment_mode' => $paymentDetail->payment_mode ?? 'N/A',
+                'employee_currency' => $employeeCurrency,
+                'tax_currency' => $taxCurrency,
+                'exchange_rate' => $exchangeRate,
+                'basic_salary_orig' => $basicSalaryOrig,
+                'gross_pay_orig' => round($grossPay / $exchangeRate, 2),
+                'net_pay_orig' => round($netPay / $exchangeRate, 2),
                 'attendance_present' => $presentDays,
                 'attendance_absent' => $absentDays,
                 'days_in_month' => $daysInMonth,
