@@ -1461,7 +1461,7 @@ class PayrollController extends Controller
     } else {
         $tier1 = 540; // 6% of 9,000 (Tier 1 cap)
         $tier2 = min($grossPay - 9000, 99000) * 0.06; // 6% of earnings between 9,000 and 108,000
-        return min($tier1 + $tier2, 5940); // capped at 5,940 employee contribution
+        return min($tier1 + $tier2, 6480); // capped at 6480 employee contribution
     }
             case 'shif':
                 return max(300, $grossPay * 0.0275);
