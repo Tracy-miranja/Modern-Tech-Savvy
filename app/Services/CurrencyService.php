@@ -14,47 +14,172 @@ class CurrencyService
 
     //   usage:   usdAmount = kesAmount * 0.01  (= kesAmount / 100)
 
+    // public function getBusinessRate($business, string $from, string $to): float
+    // {
+    //     $from = strtoupper(trim($from));
+    //     $to   = strtoupper(trim($to));
+
+    //     if ($from === $to) return 1.0;
+
+    //     if (is_int($business) || is_numeric($business)) {
+    //         $business = Business::find($business);
+    //     }
+    //     if (!$business) {
+    //         Log::warning("CurrencyService::getBusinessRate — business not found, using global rate");
+    //         return $this->getRate($from, $to);
+    //     }
+
+    //     $currencies = BusinessCurrency::where('business_id', $business->id)
+    //         ->get()
+    //         ->keyBy('currency_code');
+
+    //     $primary     = $currencies->firstWhere('is_primary', true);
+    //     $primaryCode = $primary?->currency_code ?? $business->currency ?? 'KES';
+
+    //     $fromRow = $currencies->get($from);
+    //     $toRow   = $currencies->get($to);
+
+    //     $fromRate = $this->resolveRate($fromRow, $from, $primaryCode, $business);
+    //     $toRate   = $this->resolveRate($toRow,   $to,   $primaryCode, $business);
+
+    //     if ($toRate > 0) {
+    //         $rate = $fromRate / $toRate;
+    //         Log::debug("BusinessRate [{$business->id}] {$from}→{$to}", [
+    //             'from_rate' => $fromRate,
+    //             'to_rate'   => $toRate,
+    //             'result'    => round($rate, 6),
+    //         ]);
+    //         return round($rate, 6);
+    //     }
+
+    //     Log::warning("CurrencyService: toRate=0 for {$to}, falling back to live API");
+    //     return $this->getRate($from, $to);
+    // }
     public function getBusinessRate($business, string $from, string $to): float
-    {
-        $from = strtoupper(trim($from));
-        $to   = strtoupper(trim($to));
+{
+    $from = strtoupper(trim($from));
+    $to   = strtoupper(trim($to));
 
-        if ($from === $to) return 1.0;
+    // Same currency = no conversion
+    if ($from === $to) {
+        return 1.0;
+    }
 
-        if (is_int($business) || is_numeric($business)) {
-            $business = Business::find($business);
-        }
-        if (!$business) {
-            Log::warning("CurrencyService::getBusinessRate — business not found, using global rate");
-            return $this->getRate($from, $to);
-        }
+    if (is_int($business) || is_numeric($business)) {
+        $business = Business::find($business);
+    }
 
-        $currencies = BusinessCurrency::where('business_id', $business->id)
-            ->get()
-            ->keyBy('currency_code');
+    if (!$business) {
+        Log::warning(
+            "CurrencyService::getBusinessRate — business not found, using global rate"
+        );
 
-        $primary     = $currencies->firstWhere('is_primary', true);
-        $primaryCode = $primary?->currency_code ?? $business->currency ?? 'KES';
-
-        $fromRow = $currencies->get($from);
-        $toRow   = $currencies->get($to);
-
-        $fromRate = $this->resolveRate($fromRow, $from, $primaryCode, $business);
-        $toRate   = $this->resolveRate($toRow,   $to,   $primaryCode, $business);
-
-        if ($toRate > 0) {
-            $rate = $fromRate / $toRate;
-            Log::debug("BusinessRate [{$business->id}] {$from}→{$to}", [
-                'from_rate' => $fromRate,
-                'to_rate'   => $toRate,
-                'result'    => round($rate, 6),
-            ]);
-            return round($rate, 6);
-        }
-
-        Log::warning("CurrencyService: toRate=0 for {$to}, falling back to live API");
         return $this->getRate($from, $to);
     }
+
+    /*
+     * IMPORTANT:
+     * business_currencies.is_primary is the source of truth.
+     */
+    $currencies = BusinessCurrency::where('business_id', $business->id)
+        ->get()
+        ->keyBy(fn ($currency) => strtoupper($currency->currency_code));
+
+    $primary = $currencies->firstWhere('is_primary', true);
+
+    /*
+     * If a primary currency exists, ALWAYS use it.
+     * Only fall back to businesses.currency if there is
+     * no primary currency configured.
+     */
+    $primaryCode = strtoupper(
+        $primary?->currency_code
+        ?? $business->currency
+        ?? 'KES'
+    );
+
+    // If conversion target is the business primary currency
+    if ($to === $primaryCode) {
+        $fromRow = $currencies->get($from);
+
+        $rate = $this->resolveRate(
+            $fromRow,
+            $from,
+            $primaryCode,
+            $business
+        );
+
+        return round($rate, 6);
+    }
+
+    // If source is the business primary currency
+    if ($from === $primaryCode) {
+        $toRow = $currencies->get($to);
+
+        $toRate = $this->resolveRate(
+            $toRow,
+            $to,
+            $primaryCode,
+            $business
+        );
+
+        if ($toRate > 0) {
+            return round(1 / $toRate, 6);
+        }
+    }
+
+    /*
+     * Cross conversion:
+     *
+     * Example:
+     *
+     * Primary = TZS
+     * KES = 20.42 TZS
+     * USD = 2644 TZS
+     *
+     * KES → USD
+     *
+     * 20.42 / 2644
+     */
+    $fromRow = $currencies->get($from);
+    $toRow   = $currencies->get($to);
+
+    $fromRate = $this->resolveRate(
+        $fromRow,
+        $from,
+        $primaryCode,
+        $business
+    );
+
+    $toRate = $this->resolveRate(
+        $toRow,
+        $to,
+        $primaryCode,
+        $business
+    );
+
+    if ($toRate > 0) {
+        $rate = $fromRate / $toRate;
+
+        Log::debug(
+            "BusinessRate [{$business->id}] {$from}→{$to}",
+            [
+                'primary_currency' => $primaryCode,
+                'from_rate'        => $fromRate,
+                'to_rate'          => $toRate,
+                'result'           => round($rate, 6),
+            ]
+        );
+
+        return round($rate, 6);
+    }
+
+    Log::warning(
+        "CurrencyService: unable to calculate {$from}→{$to}, falling back to live API"
+    );
+
+    return $this->getRate($from, $to);
+}
 
     private function resolveRate(
         ?BusinessCurrency $currency,

@@ -43,6 +43,7 @@ use App\Models\PayrollFormulaBracket;
 use App\Models\EmployeePayrollDetail;
 use App\Models\PayrollSettings;
 use App\Models\EmployeePaymentDetail;
+use App\Models\BusinessCurrency;
 use App\Services\CurrencyService;
 use Illuminate\Support\Facades\Http;
 use App\Exports\P9Export;
@@ -964,8 +965,19 @@ class PayrollController extends Controller
             $bankCode = $paymentDetail->bank_code ?? 'Not Set';
             $bankBranch = $paymentDetail->bank_branch ?? 'Not Set';
 
-            $taxCurrency = strtoupper(trim($business->currency ?: 'KES'));
-            $employeeCurrency = strtoupper(trim($paymentDetail->currency ?: $taxCurrency));
+            // $taxCurrency = strtoupper(trim($business->currency ?: 'KES'));
+            // $employeeCurrency = strtoupper(trim($paymentDetail->currency ?: $taxCurrency));
+            $primaryCurrency = BusinessCurrency::where('business_id', $business->id)
+    ->where('is_primary', true)
+    ->first();
+
+$taxCurrency = strtoupper(
+    trim($primaryCurrency?->currency_code ?? $business->currency ?? 'KES')
+);
+
+$employeeCurrency = strtoupper(
+    trim($paymentDetail->currency ?: $taxCurrency)
+);
             $needsConversion = $employeeCurrency !== $taxCurrency;
             $exchangeRate = $needsConversion
                 ? app(CurrencyService::class)->getBusinessRate($business, $employeeCurrency, $taxCurrency)
@@ -1199,8 +1211,8 @@ class PayrollController extends Controller
                 $totalReliefs = 0;
                 $personalRelief = 0;
                 $insuranceRelief = 0;
-                $isDisabilityExempt = false;
-                $pwdExemptionApplied = false;
+                $isDisabilityExempt =  false;
+                $pwdExemptionApplied =false;
                 $pwdExemptionAmount = 0;
 
                 Log::debug("Tanzania payroll calculation", [
@@ -1374,9 +1386,9 @@ class PayrollController extends Controller
                 'overtime' => $overtimePay,
                 'allowances' => $allowances,
                 'shif' => $shif,
-                'nssf' => $nssfTotal,
-                'nssf_employee' => $nssfEmployee,
-                'nssf_employer' => $nssfEmployer,
+                'nssf' => ($country === 'TANZANIA' || $country === 'TZ') ? $nssfEmployee : $nssfTotal,
+'nssf_employee' => $nssfEmployee,
+'nssf_employer' => $nssfEmployer,
                 'sdl' => $sdl,
                 'wcf' => $wcf,
                 'paye' => $paye,
@@ -1492,13 +1504,13 @@ class PayrollController extends Controller
     {
         switch ($slug) {
             case 'nssf':
-                if ($grossPay <= 9000) {
-                    return 540;
-                } else {
-                    $tier1 = 540;
-                    $tier2 = min($grossPay - 9000, 29000) * 0.06;
-                    return min($tier1 + $tier2, 6480);
-                }
+    if ($grossPay <= 9000) {
+        return $grossPay * 0.06; // Tier 1 only, up to 540
+    } else {
+        $tier1 = 540; // 6% of 9,000 (Tier 1 cap)
+        $tier2 = min($grossPay - 9000, 99000) * 0.06; // 6% of earnings between 9,000 and 108,000
+        return min($tier1 + $tier2, 6480); // capped at 6,480 employee contribution
+    }
             case 'shif':
                 return max(300, $grossPay * 0.0275);
             case 'housing-levy':

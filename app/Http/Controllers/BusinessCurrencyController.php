@@ -86,10 +86,16 @@ class BusinessCurrencyController extends Controller
         try {
             DB::beginTransaction();
 
-            if ($request->boolean('is_primary')) {
-                BusinessCurrency::where('business_id', $business->id)
-                    ->where('is_primary', true)->update(['is_primary' => false]);
-            }
+           if ($request->boolean('is_primary')) {
+    BusinessCurrency::where('business_id', $business->id)
+        ->where('is_primary', true)
+        ->update(['is_primary' => false]);
+
+    // Keep the legacy business currency field synchronized
+    $business->update([
+        'currency' => $code,
+    ]);
+}
 
             $currency = BusinessCurrency::create([
                 'business_id'    => $business->id,
@@ -101,6 +107,12 @@ class BusinessCurrencyController extends Controller
                 'rate_mode'      => $request->rate_mode,
                 'manual_rate'    => $request->rate_mode === 'manual' ? $request->manual_rate : null,
             ]);
+
+            if ($currency->is_primary) {
+    $business->update([
+        'currency' => $currency->currency_code,
+    ]);
+}
 
             if ($request->rate_mode === 'auto') {
                 $this->refreshAutoRate($currency, $business);
@@ -151,10 +163,17 @@ class BusinessCurrencyController extends Controller
         try {
             DB::beginTransaction();
 
-            if ($request->boolean('is_primary') && !$currency->is_primary) {
-                BusinessCurrency::where('business_id', $business->id)
-                    ->where('is_primary', true)->update(['is_primary' => false]);
-            }
+           if ($request->boolean('is_primary') && !$currency->is_primary) {
+
+    BusinessCurrency::where('business_id', $business->id)
+        ->where('is_primary', true)
+        ->update(['is_primary' => false]);
+
+    // Keep business currency synchronized
+    $business->update([
+        'currency' => $currency->currency_code,
+    ]);
+}
 
             $updateData = array_filter([
                 'currency_name'  => $request->currency_name,
