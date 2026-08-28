@@ -124,7 +124,7 @@
                 <span>Scroll the table left / right — <strong>#</strong> and <strong>Employee</strong> columns and <strong>Actions</strong> stay pinned.</span>
                 <button type="button" class="btn-close btn-close-sm ms-auto" style="font-size:.65rem;" onclick="document.getElementById('scrollHint').style.opacity=0;"></button>
             </div>
-
+<div class="payroll-table-wrap" id="payrollTableWrap" style="position:relative;">
             <div class="payroll-scroll" id="payrollTableScroll">
                     <table class="table modern-table table-hover mb-0" id="payrollTable">
                         <thead>
@@ -247,6 +247,7 @@
                             </tr>
                         </tfoot>
                     </table>
+                </div>
                 </div>
 
             <div class="d-flex justify-content-end gap-2 mt-2" id="scrollArrows">
@@ -435,32 +436,52 @@
     }
 
     /* ── Sticky left: # column ── */
-    .col-pin-1 {
-        position: sticky;
-        left: 0;
-        z-index: 2;
-        background: #fff;
-        min-width: 42px;
-    }
-    /* ── Sticky left: Employee column ── */
-    .col-pin-2 {
-        position: sticky;
-        left: 42px;
-        z-index: 2;
-        background: #fff;
-        min-width: 140px;
-        /* shadow to show separation from scrolling columns */
-        box-shadow: 3px 0 6px -3px rgba(0,0,0,.18);
-    }
-    /* ── Sticky right: Actions column ── */
-    .col-pin-right {
-        position: sticky;
-        right: 0;
-        z-index: 2;
-        background: #fff;
-        min-width: 110px;
-        box-shadow: -3px 0 6px -3px rgba(0,0,0,.18);
-    }
+/* The pinned cells stay in the DOM (so column widths/layout are untouched)
+   but are no longer sticky — they just sit under the overlay and are invisible. */
+/* Only hide pinned cells inside the REAL scrolling table, not inside the overlay */
+#payrollTable .col-pin-1,
+#payrollTable .col-pin-2,
+#payrollTable .col-pin-right {
+    position: static !important;
+    visibility: hidden;
+}
+
+/* Force the overlay clones to be visible regardless of the rule above */
+.pinned-overlay .col-pin-1,
+.pinned-overlay .col-pin-2,
+.pinned-overlay .col-pin-right {
+    visibility: visible !important;
+}
+
+/* ── Overlay tables: real, absolutely-positioned, fully opaque ── */
+.pinned-overlay {
+    position: absolute;
+    top: 0;
+    z-index: 5;
+    background: #fff;
+    pointer-events: none;
+    border-collapse: separate;
+    border-spacing: 0;
+    overflow: hidden;
+}
+.pinned-overlay table { border-collapse: separate; border-spacing: 0; width: 100%;
+    table-layout: fixed; }
+.pinned-overlay td, .pinned-overlay th {
+    background: #fff;
+    white-space: nowrap;
+    font-size: .85rem;
+    padding: .5rem .75rem;
+    vertical-align: middle;
+    border-bottom: 1px solid #dee2e6;
+    box-sizing: border-box;
+    pointer-events: auto;
+}
+.pinned-overlay thead th { background: #f8f9fa; border-bottom: 2px solid #dee2e6; font-weight: 600; }
+.pinned-overlay tfoot td { background: #f8f9fa; border-top: 2px solid #dee2e6; font-weight: 700; }
+.pinned-overlay.left { left: 0; box-shadow: 3px 0 6px -3px #fffefe; }
+.pinned-overlay.right { right: 0; box-shadow: -3px 0 6px -3px #ffff; }
+
+.pinned-overlay tr:hover td { background: #f0f4ff; }
     /* Header/footer rows need higher z-index so they sit above body cells */
     thead .col-pin-1,
     thead .col-pin-2,
@@ -676,6 +697,112 @@
                 theme: 'grid' });
             doc.save(`Payroll_Totals_{{ $payroll->id }}.pdf`);
         });
+
+        /* ── Pinned column overlay (replaces CSS sticky) ── */
+function buildPinnedOverlay() {
+    const wrap = document.getElementById('payrollTableWrap');
+    const mainTable = document.getElementById('payrollTable');
+
+    wrap.querySelectorAll('.pinned-overlay').forEach(el => el.remove());
+
+    const leftOverlay  = document.createElement('div');
+    leftOverlay.className  = 'pinned-overlay left';
+    const rightOverlay = document.createElement('div');
+    rightOverlay.className = 'pinned-overlay right';
+
+    const leftTable  = document.createElement('table');
+    const rightTable = document.createElement('table');
+    leftOverlay.appendChild(leftTable);
+    rightOverlay.appendChild(rightTable);
+
+    // Measure real column widths from the header row (col-pin-1, col-pin-2, col-pin-right)
+    const headerRow = mainTable.tHead.rows[0];
+    let leftWidth = 0, rightWidth = 0;
+    Array.from(headerRow.cells).forEach(cell => {
+        const w = cell.getBoundingClientRect().width;
+        if (cell.classList.contains('col-pin-1') || cell.classList.contains('col-pin-2')) leftWidth += w;
+        if (cell.classList.contains('col-pin-right')) rightWidth += w;
+    });
+    leftOverlay.style.width  = leftWidth + 'px';
+    rightOverlay.style.width = rightWidth + 'px';
+    // Match the visible height of the scroll box so the shadow/edge looks right
+    leftOverlay.style.height  = mainTable.getBoundingClientRect().height + 'px';
+    rightOverlay.style.height = mainTable.getBoundingClientRect().height + 'px';
+
+    ['thead', 'tbody', 'tfoot'].forEach(sectionTag => {
+        const srcSection = mainTable.querySelector(sectionTag);
+        if (!srcSection) return;
+        const leftSection  = document.createElement(sectionTag);
+        const rightSection = document.createElement(sectionTag);
+
+        Array.from(srcSection.rows).forEach(srcRow => {
+            const leftRow  = document.createElement('tr');
+            const rightRow = document.createElement('tr');
+
+            Array.from(srcRow.cells).forEach(cell => {
+                if (cell.classList.contains('col-pin-1') || cell.classList.contains('col-pin-2')) {
+                    const clone = cell.cloneNode(true);
+                    // lock the clone's width to the real cell's rendered width
+                    clone.style.width = cell.getBoundingClientRect().width + 'px';
+                    leftRow.appendChild(clone);
+                }
+                if (cell.classList.contains('col-pin-right')) {
+                    const clone = cell.cloneNode(true);
+                    clone.style.width = cell.getBoundingClientRect().width + 'px';
+                    rightRow.appendChild(clone);
+                }
+            });
+
+            if (leftRow.children.length)  leftSection.appendChild(leftRow);
+            if (rightRow.children.length) rightSection.appendChild(rightRow);
+        });
+
+        if (leftSection.children.length)  leftTable.appendChild(leftSection);
+        if (rightSection.children.length) rightTable.appendChild(rightSection);
+    });
+
+    wrap.appendChild(leftOverlay);
+    wrap.appendChild(rightOverlay);
+
+    syncPinnedRowHeights();
+    rewirePinnedButtons();
+}
+
+// Match each overlay row's height exactly to its real row (handles wrapped text, different font loads, etc.)
+function syncPinnedRowHeights() {
+    const mainTable = document.getElementById('payrollTable');
+    const leftRows  = document.querySelectorAll('.pinned-overlay.left tr');
+    const rightRows = document.querySelectorAll('.pinned-overlay.right tr');
+    const allMainRows = [
+        ...mainTable.tHead.rows,
+        ...mainTable.tBodies[0].rows,
+        ...(mainTable.tFoot ? mainTable.tFoot.rows : [])
+    ];
+    allMainRows.forEach((row, i) => {
+        const h = row.getBoundingClientRect().height + 'px';
+        if (leftRows[i])  leftRows[i].style.height  = h;
+        if (rightRows[i]) rightRows[i].style.height = h;
+    });
+}
+
+// Overlay buttons are clones — forward their clicks to the real hidden buttons underneath
+function rewirePinnedButtons() {
+    document.querySelectorAll('.pinned-overlay.right .col-pin-right button').forEach((clonedBtn, idx) => {
+        const realBtns = document.querySelectorAll('#payrollTable tbody .col-pin-right button');
+        const realBtn = realBtns[idx];
+        if (!realBtn) return;
+        clonedBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            realBtn.click();
+        });
+    });
+}
+
+buildPinnedOverlay();
+
+// Rebuild whenever columns are toggled (row heights can change) or the window resizes
+document.getElementById('colVisMenu').addEventListener('change', () => setTimeout(buildPinnedOverlay, 0));
+window.addEventListener('resize', () => setTimeout(syncPinnedRowHeights, 50));
 
         /* ── Charts ── */
         new Chart(document.getElementById('payrollPieChart').getContext('2d'), {
